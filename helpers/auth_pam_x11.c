@@ -97,14 +97,19 @@ int prompt(const char *message, char **response, int echo) {
       size_t pos = 0;
       while (pos < pwlen) {
         ++displaylen;
+        // Note: this won't read past pwlen.
         int len = mblen(pwbuf + pos, pwlen - pos);
         if (len <= 0) {
+          // This guarantees to "eat" one byte each step. Therefore,
+          // displaylen <= pwlen is ensured.
           break;
         }
         pos += len;
       }
       memset(displaybuf, '*', displaylen);
     }
+    // Note that pwlen <= sizeof(pwbuf) and thus
+    // pwlen + 2 <= sizeof(displaybuf).
     displaybuf[displaylen] = blink ? '_' : ' ';
     displaybuf[displaylen + 1] = 0;
     display_string(message, displaybuf);
@@ -144,8 +149,11 @@ int prompt(const char *message, char **response, int echo) {
           size_t pos = 0;
           while (pos < pwlen) {
             prevpos = pos;
+            // Note: this won't read past pwlen.
             int len = mblen(pwbuf + pos, pwlen - pos);
             if (len <= 0) {
+              // This guarantees to "eat" one byte each step. Therefore,
+              // this cannot loop endlessly.
               break;
             }
             pos += len;
@@ -153,6 +161,7 @@ int prompt(const char *message, char **response, int echo) {
           pwlen = prevpos;
           break;
         }
+        case 0:
         case '\037':
           return PAM_CONV_ERR;
         case '\r':
