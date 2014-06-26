@@ -49,16 +49,16 @@ endif
 docsdir = $(docdir)
 docs_DATA = \
 	CONTRIBUTING \
-	COPYING \
-	LICENSE-APACHE-2.0 \
-	LICENSE-XLIB \
+	LICENSE \
 	README.md
 
 EXTRA_DIST = \
 	autogen.sh \
 	helpers/auth_pamtester \
 	helpers/saver_blank \
+	helpers/saver_mplayer \
+	helpers/saver_mpv \
 	helpers/saver_xscreensaver \
-	COPYING \
-	LICENSE-APACHE-2.0 \
-	LICENSE-XLIB
+	CONTRIBUTING \
+	LICENSE \
+	README.md
