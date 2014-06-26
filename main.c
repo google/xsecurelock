@@ -201,9 +201,20 @@ int main(int argc, char** argv) {
     // As we're OverrideRedirect and grabbing input, we can't use any fancy IMs.
     // Therefore, if we can't get a requirement-less IM, we won't use XIM at
     // all.
-    xic = XCreateIC(xim, XNInputStyle, XIMPreeditNone | XIMStatusNone,
-                    XNClientWindow, saver_window, XNFocusWindow, saver_window,
-                    NULL);
+    int input_styles[4] = {
+        XIMPreeditNothing | XIMStatusNothing,  // Status might be invisible.
+        XIMPreeditNothing | XIMStatusNone,     // Maybe a compose key.
+        XIMPreeditNone | XIMStatusNothing,     // Status might be invisible.
+        XIMPreeditNone | XIMStatusNone         // Standard handling.
+    };
+    size_t i;
+    for (i = 0; i < sizeof(input_styles) / sizeof(input_styles[0]); ++i) {
+      xic = XCreateIC(xim, XNInputStyle, input_styles[i], XNClientWindow,
+                      saver_window, XNFocusWindow, saver_window, NULL);
+      if (xic != NULL) {
+        break;
+      }
+    }
     if (xic == NULL) {
       fprintf(stderr, "XCreateIC failed. Assuming Latin-1 encoding.\n");
     }
@@ -305,6 +316,10 @@ int main(int argc, char** argv) {
                   CurrentTime);
 
     while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
+      if (XFilterEvent(&priv.ev, None)) {
+        // If an input method ate the event, ignore it.
+        continue;
+      }
       switch (priv.ev.type) {
         case ConfigureNotify:
           if (priv.ev.xconfigure.window == root_window) {
@@ -322,31 +337,46 @@ int main(int argc, char** argv) {
           break;
         case KeyPress: {
           Status status = XLookupNone;
+          int have_key = 1;
           if (xic) {
             // This uses the current locale.
             priv.len = XmbLookupString(xic, &priv.ev.xkey, priv.buf,
                                        sizeof(priv.buf) - 1, NULL, &status);
+            if (priv.len <= 0) {
+              // Error or no output. Fine.
+              have_key = 0;
+            } else if (status != XLookupChars && status != XLookupBoth) {
+              // Got nothing new.
+              have_key = 0;
+            } else {
+              fprintf(stderr, "XIC OK\n");
+            }
           } else {
             // This is always Latin-1. Sorry.
             priv.len = XLookupString(&priv.ev.xkey, priv.buf,
                                      sizeof(priv.buf) - 1, NULL, NULL);
-          }
-          if (status == XLookupChars || status == XLookupBoth) {
-            if (priv.len > 0 && (size_t)priv.len < sizeof(priv.buf)) {
-              if (priv.len == 1 && priv.buf[0] == '\r') {
-                priv.buf[0] = '\n';
-              }
-              priv.buf[priv.len] = 0;
-            } else {
-              fprintf(stderr,
-                      "Received invalid length from XLookupString: %d\n",
-                      priv.len);
-              priv.buf[0] = 0;
+            if (priv.len <= 0) {
+              // Error or no output. Fine.
+              have_key = 0;
             }
+          }
+          if (have_key && (size_t)priv.len >= sizeof(priv.buf)) {
+            // Detect possible overruns.
+            fprintf(stderr, "Received invalid length from XLookupString: %d\n",
+                    priv.len);
+            have_key = 0;
+          }
+          if (have_key) {
+            // Map all newline-like things to newlines.
+            if (priv.len == 1 && priv.buf[0] == '\r') {
+              priv.buf[0] = '\n';
+            }
+            priv.buf[priv.len] = 0;
           } else {
             // No new bytes. Fine.
             priv.buf[0] = 0;
           }
+          // In any case, the saver will be activated.
           if (WatchChildren(WATCH_CHILDREN_FORCE_AUTH, priv.buf)) {
             goto done;
           }
