@@ -20,11 +20,12 @@ limitations under the License.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/select.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <X11/Xlib.h>
+
+#include "../mlock_page.h"
 
 Display *display;
 Window window;
@@ -79,40 +80,68 @@ void alert(const char *msg, int is_error) {
   sleep(1);
 }
 
+#define PWBUF_SIZE 256
+#define DISPLAYBUF_SIZE (PWBUF_SIZE + 2)  // Extra bytes for cursor and NUL.
+
 int prompt(const char *message, char **response, int echo) {
   // Ask something. Return strdup'd string.
-  char pwbuf[256];
-  size_t pwlen = 0;
-  char displaybuf[sizeof(pwbuf) + 2];
+  struct {
+    // Input buffer. Not NUL-terminated.
+    char pwbuf[PWBUF_SIZE];
+    // Current input length.
+    size_t pwlen;
+
+    // Display buffer. If echo is 0, this will only contain asterisks, a
+    // possible cursor, and be NUL-terminated.
+    char displaybuf[DISPLAYBUF_SIZE];
+    // Display buffer length.
+    size_t displaylen;
+
+    // Character read buffer.
+    char inputbuf;
+
+    // Temporary position variables that might leak properties about the
+    // password and thus are in the private struct too.
+    size_t prevpos;
+    size_t pos;
+    int len;
+  } priv;
   int blink = 0;
 
+  if (!echo && MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
+    perror("mlock");
+    // We continue anyway, as the user being unable to unlock the screen is
+    // worse. But let's alert the user.
+    alert("Password will not be stored securely.", 1);
+  }
+
+  priv.pwlen = 0;
+
   for (;;) {
-    size_t displaylen;
     if (echo) {
-      memcpy(displaybuf, pwbuf, pwlen);
-      displaylen = pwlen;
+      memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);
+      priv.displaylen = priv.pwlen;
     } else {
-      displaylen = 0;
       mblen(NULL, 0);
-      size_t pos = 0;
-      while (pos < pwlen) {
-        ++displaylen;
-        // Note: this won't read past pwlen.
-        int len = mblen(pwbuf + pos, pwlen - pos);
-        if (len <= 0) {
+      priv.pos = priv.displaylen = 0;
+      while (priv.pos < priv.pwlen) {
+        ++priv.displaylen;
+        // Note: this won't read past priv.pwlen.
+        priv.len = mblen(priv.pwbuf + priv.pos, priv.pwlen - priv.pos);
+        if (priv.len <= 0) {
           // This guarantees to "eat" one byte each step. Therefore,
-          // displaylen <= pwlen is ensured.
+          // priv.displaylen <= priv.pwlen is ensured.
           break;
         }
-        pos += len;
+        priv.pos += priv.len;
       }
-      memset(displaybuf, '*', displaylen);
+      memset(priv.displaybuf, '*', priv.displaylen);
     }
-    // Note that pwlen <= sizeof(pwbuf) and thus
-    // pwlen + 2 <= sizeof(displaybuf).
-    displaybuf[displaylen] = blink ? '_' : ' ';
-    displaybuf[displaylen + 1] = 0;
-    display_string(message, displaybuf);
+    // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
+    // priv.pwlen + 2 <= sizeof(priv.displaybuf).
+    priv.displaybuf[priv.displaylen] = blink ? '_' : ' ';
+    priv.displaybuf[priv.displaylen + 1] = 0;
+    display_string(message, priv.displaybuf);
 
     struct timeval timeout;
     timeout.tv_sec = 0;
@@ -135,30 +164,28 @@ int prompt(const char *message, char **response, int echo) {
       // From now on, only do nonblocking selects so we update the screen ASAP.
       timeout.tv_usec = 0;
 
-      char inputbuf;
-      ssize_t nread = read(0, &inputbuf, 1);
+      ssize_t nread = read(0, &priv.inputbuf, 1);
       if (nread <= 0) {
         return PAM_CONV_ERR;
       }
-      switch (inputbuf) {
+      switch (priv.inputbuf) {
         case '\b':
         case '\177': {
           // Backwards skip with multibyte support.
           mblen(NULL, 0);
-          size_t prevpos = 0;
-          size_t pos = 0;
-          while (pos < pwlen) {
-            prevpos = pos;
-            // Note: this won't read past pwlen.
-            int len = mblen(pwbuf + pos, pwlen - pos);
-            if (len <= 0) {
+          priv.pos = priv.prevpos = 0;
+          while (priv.pos < priv.pwlen) {
+            priv.prevpos = priv.pos;
+            // Note: this won't read past priv.pwlen.
+            priv.len = mblen(priv.pwbuf + priv.pos, priv.pwlen - priv.pos);
+            if (priv.len <= 0) {
               // This guarantees to "eat" one byte each step. Therefore,
               // this cannot loop endlessly.
               break;
             }
-            pos += len;
+            priv.pos += priv.len;
           }
-          pwlen = prevpos;
+          priv.pwlen = priv.prevpos;
           break;
         }
         case 0:
@@ -166,14 +193,20 @@ int prompt(const char *message, char **response, int echo) {
           return PAM_CONV_ERR;
         case '\r':
         case '\n':
-          *response = malloc(pwlen + 1);
-          memcpy(*response, pwbuf, pwlen);
-          response[pwlen] = 0;
+          *response = malloc(priv.pwlen + 1);
+          if (!echo && MLOCK_PAGE(*response, priv.pwlen + 1) < 0) {
+            perror("mlock");
+            // We continue anyway, as the user being unable to unlock the screen
+            // is worse. But let's alert the user of this.
+            alert("Password has not been stored securely.", 1);
+          }
+          memcpy(*response, priv.pwbuf, priv.pwlen);
+          response[priv.pwlen] = 0;
           return PAM_SUCCESS;
         default:
-          if (pwlen < sizeof(pwbuf)) {
-            pwbuf[pwlen] = inputbuf;
-            ++pwlen;
+          if (priv.pwlen < sizeof(priv.pwbuf)) {
+            priv.pwbuf[priv.pwlen] = priv.inputbuf;
+            ++priv.pwlen;
           } else {
             return PAM_CONV_ERR;
           }
@@ -273,12 +306,6 @@ int main() {
   struct pam_conv conv;
   conv.conv = converse;
   conv.appdata_ptr = NULL;
-
-  // This program is simple and short-lived enough to just rely on mlockall().
-  if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
-    perror("mlockall");
-    return 1;
-  }
 
   pam_handle_t *pam;
   int status = pam_start("common-auth", pwd->pw_name, &conv, &pam);

@@ -19,6 +19,7 @@ bin_PROGRAMS = xsecurelock
 xsecurelock_SOURCES = \
 	auth_child.c auth_child.h \
 	saver_child.c saver_child.h \
+	mlock_page.h \
 	main.c
 xsecurelock_CPPFLAGS = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
@@ -43,7 +44,8 @@ if HAVE_PAM
 helpers_PROGRAMS = \
 	auth_pam_x11
 auth_pam_x11_SOURCES = \
-	helpers/auth_pam_x11.c
+	helpers/auth_pam_x11.c \
+	mlock_page.h
 endif
 
 docsdir = $(docdir)

@@ -35,6 +35,7 @@ limitations under the License.
 #include <unistd.h>
 
 #include "auth_child.h"
+#include "mlock_page.h"
 #include "saver_child.h"
 
 #define WATCH_CHILDREN_HZ 10
@@ -253,6 +254,21 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // Private (possibly containing information about the user's password) data.
+  // This data is locked to RAM using mlock() to avoid leakage to disk via swap.
+  struct {
+    // The received X event.
+    XEvent ev;
+    // The decoded key press.
+    char buf[16];
+    // The length of the data in buf.
+    int len;
+  } priv;
+  if (MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
+    perror("mlock");
+    return 1;
+  }
+
   XSetErrorHandler(IgnoreErrorsHandler);
 
   // Ignore SIGPIPE, as the auth child is explicitly allowed to close its
@@ -288,14 +304,13 @@ int main(int argc, char** argv) {
     XGrabKeyboard(display, saver_window, True, GrabModeAsync, GrabModeAsync,
                   CurrentTime);
 
-    XEvent ev;
-    while (XPending(display) && (XNextEvent(display, &ev), 1)) {
-      switch (ev.type) {
+    while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
+      switch (priv.ev.type) {
         case ConfigureNotify:
-          if (ev.xconfigure.window == root_window) {
+          if (priv.ev.xconfigure.window == root_window) {
             // Root window size changed. Adjust the saver_window window too!
-            w = ev.xconfigure.width;
-            h = ev.xconfigure.height;
+            w = priv.ev.xconfigure.width;
+            h = priv.ev.xconfigure.height;
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
           }
           break;
@@ -306,33 +321,33 @@ int main(int argc, char** argv) {
           }
           break;
         case KeyPress: {
-          char buf[10];
           Status status = XLookupNone;
-          int len;
           if (xic) {
             // This uses the current locale.
-            len = XmbLookupString(xic, &ev.xkey, buf, sizeof(buf) - 1, NULL,
-                                  &status);
+            priv.len = XmbLookupString(xic, &priv.ev.xkey, priv.buf,
+                                       sizeof(priv.buf) - 1, NULL, &status);
           } else {
             // This is always Latin-1. Sorry.
-            len = XLookupString(&ev.xkey, buf, sizeof(buf) - 1, NULL, NULL);
+            priv.len = XLookupString(&priv.ev.xkey, priv.buf,
+                                     sizeof(priv.buf) - 1, NULL, NULL);
           }
           if (status == XLookupChars || status == XLookupBoth) {
-            if (len > 0 && (size_t)len < sizeof(buf)) {
-              if (len == 1 && buf[0] == '\r') {
-                buf[0] = '\n';
+            if (priv.len > 0 && (size_t)priv.len < sizeof(priv.buf)) {
+              if (priv.len == 1 && priv.buf[0] == '\r') {
+                priv.buf[0] = '\n';
               }
-              buf[len] = 0;
+              priv.buf[priv.len] = 0;
             } else {
               fprintf(stderr,
-                      "Received invalid length from XLookupString: %d\n", len);
-              buf[0] = 0;
+                      "Received invalid length from XLookupString: %d\n",
+                      priv.len);
+              priv.buf[0] = 0;
             }
           } else {
             // No new bytes. Fine.
-            buf[0] = 0;
+            priv.buf[0] = 0;
           }
-          if (WatchChildren(WATCH_CHILDREN_FORCE_AUTH, buf)) {
+          if (WatchChildren(WATCH_CHILDREN_FORCE_AUTH, priv.buf)) {
             goto done;
           }
         } break;
@@ -345,8 +360,8 @@ int main(int argc, char** argv) {
           break;
         default:
 #ifdef HAVE_SCRNSAVER
-          if (ev.type == scrnsaver_event_base + ScreenSaverNotify) {
-            if (((XScreenSaverNotifyEvent*)&ev)->state == ScreenSaverOn) {
+          if (priv.ev.type == scrnsaver_event_base + ScreenSaverNotify) {
+            if (((XScreenSaverNotifyEvent*)&priv.ev)->state == ScreenSaverOn) {
               saver_state = WATCH_CHILDREN_SAVER_DISABLED;
             } else {
               saver_state = WATCH_CHILDREN_NORMAL;
