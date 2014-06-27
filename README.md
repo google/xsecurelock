@@ -103,7 +103,8 @@ exploits, the following measures are taken:
   Therefore a crash of these processes will not unlock the screen, which means
   that these processes are allowed to do "possibly dangerous" things.
 * The main process is kept minimal and only uses C, POSIX and X11 APIs. This
-  limits the possible influence from bugs in external libraries.
+  limits the possible influence from bugs in external libraries, and allows for
+  easy auditing.
 * The main process regularly refreshes the screen grabs in case they get lost
   for whatever reason.
 * The main process regularly brings its window to the front, to avoid leaking
@@ -115,7 +116,9 @@ exploits, the following measures are taken:
   Therefore it is impossible to exploit a buffer overrun in the main process by
   e.g. an overlong password entry.
 * The only exit condition of the program is the Authentication Module returning
-  with exit status zero.
+  with exit status zero, on which xsecurelock itself will return with status
+  zero; therefore especially paranoid users might want to run it as
+  `sh -c "xsecurelock ... || kill -9 -1"` :)
 
 # License
 
