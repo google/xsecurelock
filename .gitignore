@@ -14,6 +14,7 @@
 /depcomp
 /install-sh
 /missing
+helpers/auth_pamtester
 
 # Object files.
 *.o

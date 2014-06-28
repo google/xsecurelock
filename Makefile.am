@@ -46,6 +46,8 @@ helpers_PROGRAMS = \
 auth_pam_x11_SOURCES = \
 	helpers/auth_pam_x11.c \
 	mlock_page.h
+auth_pam_x11_CPPFLAGS = \
+	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
 endif
 
 docsdir = $(docdir)
@@ -56,7 +58,7 @@ docs_DATA = \
 
 EXTRA_DIST = \
 	autogen.sh \
-	helpers/auth_pamtester \
+	helpers/auth_pamtester.in \
 	helpers/saver_blank \
 	helpers/saver_mplayer \
 	helpers/saver_mpv \

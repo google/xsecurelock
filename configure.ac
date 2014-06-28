@@ -33,5 +33,15 @@ AC_SEARCH_LIBS(pam_authenticate, pam,
                [have_pam=true], [have_pam=false])
 AM_CONDITIONAL([HAVE_PAM], [test x$have_pam = xtrue])
 
+AC_ARG_WITH([pam_service_name],
+            AC_HELP_STRING([--with-pam-service-name],
+                           [NAME arg is the name of the PAM service that
+                            xsecurelock's auth helpers will authenticate as.
+                            If unspecified, 'common-auth' is used.]),
+                            [pam_service_name=$withval],
+                            [pam_service_name=common-auth])
+AC_SUBST(pam_service_name)
+
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([helpers/auth_pamtester], [chmod +x helpers/auth_pamtester])
 AC_OUTPUT

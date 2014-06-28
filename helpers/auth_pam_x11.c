@@ -308,7 +308,7 @@ int main() {
   conv.appdata_ptr = NULL;
 
   pam_handle_t *pam;
-  int status = pam_start("common-auth", pwd->pw_name, &conv, &pam);
+  int status = pam_start(PAM_SERVICE_NAME, pwd->pw_name, &conv, &pam);
   if (status != PAM_SUCCESS) {
     fprintf(stderr, "pam_start: %d\n",
             status);  // Or can one call pam_strerror on a NULL handle?
