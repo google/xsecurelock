@@ -348,8 +348,6 @@ int main(int argc, char** argv) {
             } else if (status != XLookupChars && status != XLookupBoth) {
               // Got nothing new.
               have_key = 0;
-            } else {
-              fprintf(stderr, "XIC OK\n");
             }
           } else {
             // This is always Latin-1. Sorry.
