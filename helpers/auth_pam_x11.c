@@ -201,7 +201,7 @@ int prompt(const char *message, char **response, int echo) {
             alert("Password has not been stored securely.", 1);
           }
           memcpy(*response, priv.pwbuf, priv.pwlen);
-          response[priv.pwlen] = 0;
+          (*response)[priv.pwlen] = 0;
           return PAM_SUCCESS;
         default:
           if (priv.pwlen < sizeof(priv.pwbuf)) {
