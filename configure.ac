@@ -37,10 +37,15 @@ AC_ARG_WITH([pam_service_name],
             AC_HELP_STRING([--with-pam-service-name],
                            [NAME arg is the name of the PAM service that
                             xsecurelock's auth helpers will authenticate as.
-                            If unspecified, 'common-auth' is used.]),
-                            [pam_service_name=$withval],
-                            [pam_service_name=common-auth])
+                            This flag is mandatory. Be sure to verify that
+                            /etc/pam.d/SERVICENAME actually exists, as failure
+                            of doing so may prevent unlocking the screen.]),
+            [pam_service_name=$withval],
+            [AC_MSG_ERROR([--with-pam-service-name is mandatory. See --help.])])
 AC_SUBST(pam_service_name)
+
+AS_IF([test -f "/etc/pam.d/$pam_service_name"], [],
+      [AC_MSG_WARN([/etc/pam.d/$pam_service_name doesn't exist. Is that OK?])])
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([helpers/auth_pamtester], [chmod +x helpers/auth_pamtester])
