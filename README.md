@@ -29,11 +29,20 @@ distribution of choice, but will be similar:
 
 # Installation
 
+NOTE: In these instructions, please replace SERVICE-NAME by the name of an
+appropriate and existing file in `/etc/pam.d`.
+If xscreensaver is installed, `xscreensaver` should always be a good choice;
+otherwise, on Debian and Ubuntu, `common-auth` would work.
+
+Failure to do this will render unlocking the screen impossible! If this should
+happen to you, switch to another terminal (`Ctrl-Alt-F1`), log in there, and
+run: `killall xsecurelock` to force unlocking of the screen.
+
 ```
 git clone URL_GOES_HERE
 cd xsecurelock
 sh autogen.sh
-./configure
+./configure --with-pam-service-name=SERVICE-NAME
 make
 make install
 ```

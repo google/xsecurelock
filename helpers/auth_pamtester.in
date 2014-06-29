@@ -17,4 +17,4 @@
 echo "Enter password:" |\
   display -window "$XSCREENSAVER_WINDOW" TEXT:-
 
-exec pamtester common-auth "$USER" authenticate
+exec pamtester @pam_service_name@ "$USER" authenticate
