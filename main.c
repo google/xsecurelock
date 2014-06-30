@@ -178,11 +178,15 @@ int main(int argc, char** argv) {
   coverattrs.override_redirect = 1;
   coverattrs.cursor =
       XCreatePixmapCursor(display, bg, bg, &Black, &Black, 0, 0);
-  coverattrs.event_mask = KeyPressMask | ButtonPressMask | PointerMotionMask;
-  Window saver_window = XCreateWindow(
+  Window grab_window = XCreateWindow(
       display, root_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent,
-      CWBackPixel | CWOverrideRedirect | CWSaveUnder | CWEventMask | CWCursor,
+      CWOverrideRedirect | CWSaveUnder,
+      &coverattrs);
+  Window saver_window = XCreateWindow(
+      display, grab_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
+      CopyFromParent,
+      CWBackPixel | CWCursor,
       &coverattrs);
 
   // Now provide the window ID as an environment variable (like XScreenSaver).
@@ -209,8 +213,10 @@ int main(int argc, char** argv) {
     };
     size_t i;
     for (i = 0; i < sizeof(input_styles) / sizeof(input_styles[0]); ++i) {
+      // Note: we draw XIM stuff in saver_window so it's above the saver/auth
+      // child. However, we receive events for the grab window.
       xic = XCreateIC(xim, XNInputStyle, input_styles[i], XNClientWindow,
-                      saver_window, XNFocusWindow, saver_window, NULL);
+                      saver_window, XNFocusWindow, grab_window, NULL);
       if (xic != NULL) {
         break;
       }
@@ -220,6 +226,7 @@ int main(int argc, char** argv) {
     }
   }
 
+  XMapWindow(display, grab_window);
   XMapWindow(display, saver_window);
 
 #ifdef HAVE_XF86MISC
@@ -238,12 +245,12 @@ int main(int argc, char** argv) {
     scrnsaver_event_base = 0;
     scrnsaver_error_base = 0;
   }
-  XScreenSaverSelectInput(display, saver_window, ScreenSaverNotifyMask);
+  XScreenSaverSelectInput(display, grab_window, ScreenSaverNotifyMask);
 #endif
 
   int retries;
   for (retries = 10; retries >= 0; --retries) {
-    if (!XGrabPointer(display, saver_window, True, ALL_POINTER_EVENTS,
+    if (!XGrabPointer(display, grab_window, True, ALL_POINTER_EVENTS,
                       GrabModeAsync, GrabModeAsync, None, None, CurrentTime)) {
       break;
     }
@@ -254,7 +261,7 @@ int main(int argc, char** argv) {
     return 1;
   }
   for (retries = 10; retries >= 0; --retries) {
-    if (!XGrabKeyboard(display, saver_window, True, GrabModeAsync,
+    if (!XGrabKeyboard(display, grab_window, True, GrabModeAsync,
                        GrabModeAsync, CurrentTime)) {
       break;
     }
@@ -306,14 +313,9 @@ int main(int argc, char** argv) {
 
     // If something else shows an OverrideRedirect window, we want to stay on
     // top.
-    XRaiseWindow(display, saver_window);
+    XRaiseWindow(display, grab_window);
     // If something changed our cursor, change it back.
     XDefineCursor(display, saver_window, coverattrs.cursor);
-    // Make sure we don't lose grabs.
-    XGrabPointer(display, saver_window, True, ALL_POINTER_EVENTS, GrabModeAsync,
-                 GrabModeAsync, None, None, CurrentTime);
-    XGrabKeyboard(display, saver_window, True, GrabModeAsync, GrabModeAsync,
-                  CurrentTime);
 
     while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
       if (XFilterEvent(&priv.ev, None)) {
@@ -326,6 +328,7 @@ int main(int argc, char** argv) {
             // Root window size changed. Adjust the saver_window window too!
             w = priv.ev.xconfigure.width;
             h = priv.ev.xconfigure.height;
+            XMoveResizeWindow(display, grab_window, 0, 0, w, h);
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
           }
           break;
@@ -404,6 +407,7 @@ int main(int argc, char** argv) {
 
 done:
   XDestroyWindow(display, saver_window);
+  XDestroyWindow(display, grab_window);
   XFreeCursor(display, coverattrs.cursor);
   XFreePixmap(display, bg);
 
