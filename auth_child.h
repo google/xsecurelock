@@ -17,11 +17,9 @@ limitations under the License.
 #ifndef AUTH_CHILD_H
 #define AUTH_CHILD_H
 
-#include <stdbool.h>
-
 // Returns true if an auth child is either currently running, or should be
 // started (because force_auth is true).
-bool WantAuthChild(bool force_auth);
+int WantAuthChild(int force_auth);
 
 // Starts the authentication child process if force_auth is set and no auth
 // child is running yet. Communicates stdinbuf to said auth child.
@@ -32,7 +30,7 @@ bool WantAuthChild(bool force_auth);
 // force_auth: if set, the auth child will be started if not running yet.
 // stdinbuf: if set, this data is written to stdin of the auth child.
 // auth_running: will be set to the status of the current auth child on return.
-bool WatchAuthChild(const char* executable, bool force_auth,
-                    const char* stdinbuf, bool* auth_running);
+int WatchAuthChild(const char* executable, int force_auth, const char* stdinbuf,
+                   int* auth_running);
 
 #endif

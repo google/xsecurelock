@@ -14,16 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <locale.h>
-#include <pwd.h>
-#include <security/pam_appl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/select.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <X11/Xlib.h>
+#include <X11/X.h>                // for Window, GCBackground, etc
+#include <X11/Xlib.h>             // for XDrawString, XGCValues, etc
+#include <locale.h>               // for NULL, setlocale, LC_CTYPE
+#include <pwd.h>                  // for getpwuid, passwd
+#include <security/_pam_types.h>  // for PAM_SUCCESS, pam_strerror, etc
+#include <security/pam_appl.h>    // for pam_acct_mgmt, etc
+#include <stdio.h>                // for fprintf, stderr, NULL, etc
+#include <stdlib.h>               // for free, getenv, calloc, exit, etc
+#include <string.h>               // for strlen
+#include <sys/select.h>           // for select, FD_SET, FD_ZERO, etc
+#include <sys/time.h>             // for timeval
+#include <unistd.h>               // for getuid, sleep, ssize_t
 
 #include "../mlock_page.h"
 

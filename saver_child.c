@@ -14,21 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#define _POSIX_C_SOURCE 200112L
-
 #include "saver_child.h"
 
-#include <errno.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <errno.h>     // for ECHILD, EINTR, errno
+#include <signal.h>    // for kill, SIGTERM
+#include <stdio.h>     // for perror, fprintf, NULL, etc
+#include <stdlib.h>    // for exit, EXIT_FAILURE, etc
+#include <sys/wait.h>  // for WEXITSTATUS, waitpid, etc
+#include <unistd.h>    // for pid_t, execl, fork, setsid
 
 pid_t saver_child_pid = 0;
 
-void WatchSaverChild(const char* executable, bool should_be_running) {
+void WatchSaverChild(const char* executable, int should_be_running) {
   if (!should_be_running && saver_child_pid != 0) {
     // Kill the whole process group.
     kill(-saver_child_pid, SIGTERM);

@@ -14,31 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#define _POSIX_C_SOURCE 200112L
-
 #include "auth_child.h"
 
-#include <errno.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <signal.h>    // for kill, SIGTERM
+#include <stdio.h>     // for perror, fprintf, stderr
+#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, etc
+#include <string.h>    // for strlen
+#include <sys/wait.h>  // for waitpid, WEXITSTATUS, etc
+#include <unistd.h>    // for close, pid_t, ssize_t, dup2, etc
 
 pid_t auth_child_pid = 0;
 int auth_child_fd = 0;
 
-bool WantAuthChild(bool force_auth) {
+int WantAuthChild(int force_auth) {
   if (force_auth) {
-    return true;
+    return 1;
   }
   return (auth_child_pid != 0);
 }
 
-bool WatchAuthChild(const char* executable, bool force_auth,
-                    const char* stdinbuf, bool* auth_running) {
+int WatchAuthChild(const char* executable, int force_auth, const char* stdinbuf,
+                   int* auth_running) {
   if (auth_child_pid != 0) {
     // Check if auth child returned.
     int status;
@@ -52,8 +48,8 @@ bool WatchAuthChild(const char* executable, bool force_auth,
         close(auth_child_fd);
         // If auth child exited with success status, stop the screen saver.
         if (WEXITSTATUS(status) == EXIT_SUCCESS) {
-          *auth_running = false;
-          return true;
+          *auth_running = 0;
+          return 1;
         }
         // Otherwise, the auth child failed. That's ok. Just carry on.
         // This will eventually bring back the saver child.
@@ -107,5 +103,5 @@ bool WatchAuthChild(const char* executable, bool force_auth,
     }
   }
 
-  return false;
+  return 0;
 }

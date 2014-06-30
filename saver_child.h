@@ -17,13 +17,11 @@ limitations under the License.
 #ifndef SAVER_CHILD_H
 #define SAVER_CHILD_H
 
-#include <stdbool.h>
-
 // Starts or stops the screen saver child process.
 // Returns true if authentication was successful.
 // executable: executable to spawn for authentication.
 // should_be_running: if true, the saver child is started if not running yet; if
 //   false, the saver child will be terminated.
-void WatchSaverChild(const char* executable, bool should_be_running);
+void WatchSaverChild(const char* executable, int should_be_running);
 
 #endif

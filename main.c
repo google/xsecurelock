@@ -14,25 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#define _POSIX_C_SOURCE 200112L
+#include <X11/X.h>       // for CopyFromParent, etc
+#include <X11/Xlib.h>    // for XEvent, etc
+#include <X11/Xutil.h>   // for XLookupString
+#include <locale.h>      // for NULL, setlocale, LC_CTYPE
+#include <signal.h>      // for sigaction, sigemptyset, etc
+#include <stdio.h>       // for fprintf, stderr
+#include <stdlib.h>      // for EXIT_SUCCESS
+#include <string.h>      // for strchr, strncmp
+#include <sys/select.h>  // for select, FD_SET, FD_ZERO, etc
+#include <sys/time.h>    // for timeval
+#include <time.h>        // for nanosleep, timespec
+#include <unistd.h>      // for access, X_OK
 
-#include <locale.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/select.h>
-#include <signal.h>
-#include <time.h>
 #ifdef HAVE_SCRNSAVER
 #include <X11/extensions/scrnsaver.h>
 #endif
 #ifdef HAVE_XF86MISC
 #include <X11/extensions/xf86misc.h>
 #endif
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <unistd.h>
 
 #include "auth_child.h"
 #include "mlock_page.h"
@@ -55,23 +55,23 @@ enum WatchChildrenState {
   WATCH_CHILDREN_FORCE_AUTH
 };
 
-bool WatchChildren(enum WatchChildrenState state, const char* stdinbuf) {
-  bool auth_running = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
+int WatchChildren(enum WatchChildrenState state, const char* stdinbuf) {
+  int auth_running = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
 
   // Note: auth_running is true whenever we WANT to run authentication, or it is
   // already running. It may have recently terminated, which we will notice
   // later.
   if (auth_running) {
     // Make sure the saver is shut down to not interfere with the screen.
-    WatchSaverChild(saver_executable, false);
+    WatchSaverChild(saver_executable, 0);
 
     // Actually start the auth child, or notice termination.
     if (WatchAuthChild(auth_executable, state == WATCH_CHILDREN_FORCE_AUTH,
                        stdinbuf, &auth_running)) {
       // Auth performed successfully. Terminate the other children.
-      WatchSaverChild(saver_executable, false);
+      WatchSaverChild(saver_executable, 0);
       // Now terminate the screen lock.
-      return true;
+      return 1;
     }
   }
 
@@ -83,7 +83,7 @@ bool WatchChildren(enum WatchChildrenState state, const char* stdinbuf) {
   }
 
   // Do not terminate the screen lock.
-  return false;
+  return 0;
 }
 
 int IgnoreErrorsHandler(Display* display, XErrorEvent* error) {
@@ -180,14 +180,10 @@ int main(int argc, char** argv) {
       XCreatePixmapCursor(display, bg, bg, &Black, &Black, 0, 0);
   Window grab_window = XCreateWindow(
       display, root_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
-      CopyFromParent,
-      CWOverrideRedirect | CWSaveUnder,
-      &coverattrs);
+      CopyFromParent, CWOverrideRedirect | CWSaveUnder, &coverattrs);
   Window saver_window = XCreateWindow(
       display, grab_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
-      CopyFromParent,
-      CWBackPixel | CWCursor,
-      &coverattrs);
+      CopyFromParent, CWBackPixel | CWCursor, &coverattrs);
 
   // Now provide the window ID as an environment variable (like XScreenSaver).
   char window_id_str[16];
@@ -197,7 +193,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Window ID doesn't fit into buffer.\n");
     return 1;
   }
-  setenv("XSCREENSAVER_WINDOW", window_id_str, true);
+  setenv("XSCREENSAVER_WINDOW", window_id_str, 1);
 
   // Initialize XInput so we can get multibyte key events.
   XIC xic = NULL;
@@ -261,8 +257,8 @@ int main(int argc, char** argv) {
     return 1;
   }
   for (retries = 10; retries >= 0; --retries) {
-    if (!XGrabKeyboard(display, grab_window, True, GrabModeAsync,
-                       GrabModeAsync, CurrentTime)) {
+    if (!XGrabKeyboard(display, grab_window, True, GrabModeAsync, GrabModeAsync,
+                       CurrentTime)) {
       break;
     }
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
