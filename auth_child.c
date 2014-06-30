@@ -83,6 +83,10 @@ bool WatchAuthChild(const char* executable, bool force_auth,
         // Parent process after successful fork.
         auth_child_pid = pid;
         auth_child_fd = pc[1];
+        // The auth child has just been started. Do not send any keystrokes to
+        // it immediately, as users prefer pressing any key in the screen saver
+        // to simply start the auth child, not begin password input!
+        stdinbuf = NULL;
       }
     }
   }
