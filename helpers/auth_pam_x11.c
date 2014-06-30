@@ -256,6 +256,61 @@ int converse(int num_msg, const struct pam_message **msg,
   return PAM_SUCCESS;
 }
 
+int authenticate(const char *username, const char *hostname,
+                 struct pam_conv *conv, pam_handle_t **pam) {
+  int status = pam_start(PAM_SERVICE_NAME, username, conv, pam);
+  if (status != PAM_SUCCESS) {
+    fprintf(stderr, "pam_start: %d\n",
+            status);  // Or can one call pam_strerror on a NULL handle?
+    return status;
+  }
+
+  status = pam_set_item(*pam, PAM_RHOST, hostname);
+  if (status != PAM_SUCCESS) {
+    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(*pam, status));
+    return status;
+  }
+  status = pam_set_item(*pam, PAM_RUSER, username);
+  if (status != PAM_SUCCESS) {
+    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(*pam, status));
+    return status;
+  }
+  status = pam_set_item(*pam, PAM_TTY, getenv("DISPLAY"));
+  if (status != PAM_SUCCESS) {
+    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(*pam, status));
+    return status;
+  }
+
+  status = pam_authenticate(*pam, 0);
+  if (status != PAM_SUCCESS) {
+    fprintf(stderr, "pam_authenticate: %s\n", pam_strerror(*pam, status));
+    return status;
+  }
+
+  int status2 = pam_acct_mgmt(*pam, 0);
+
+  if (status2 == PAM_NEW_AUTHTOK_REQD) {
+    status2 = pam_chauthtok(*pam, PAM_CHANGE_EXPIRED_AUTHTOK);
+#ifdef PAM_CHECK_ACCOUNT_TYPE
+    if (status2 != PAM_SUCCESS) {
+      fprintf(stderr, "pam_chauthtok: %s\n", pam_strerror(*pam, status2));
+      return status2;
+    }
+#endif
+  }
+
+#ifdef PAM_CHECK_ACCOUNT_TYPE
+  if (status2 != PAM_SUCCESS) {
+    // If this one is true, it must be coming from pam_acct_mgmt, as
+    // pam_chauthtok's result already has been checked against PAM_SUCCESS.
+    fprintf(stderr, "pam_acct_mgmt: %s\n", pam_strerror(*pam, status2));
+    return status2;
+  }
+#endif
+
+  return status;
+}
+
 int main() {
   setlocale(LC_CTYPE, "");
 
@@ -308,35 +363,7 @@ int main() {
   conv.appdata_ptr = NULL;
 
   pam_handle_t *pam;
-  int status = pam_start(PAM_SERVICE_NAME, pwd->pw_name, &conv, &pam);
-  if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_start: %d\n",
-            status);  // Or can one call pam_strerror on a NULL handle?
-    return 1;
-  }
-
-  status = pam_set_item(pam, PAM_RHOST, hostname);
-  if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(pam, status));
-    return 1;
-  }
-  status = pam_set_item(pam, PAM_RUSER, pwd->pw_name);
-  if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(pam, status));
-    return 1;
-  }
-  status = pam_set_item(pam, PAM_TTY, getenv("DISPLAY"));
-  if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(pam, status));
-    return 1;
-  }
-
-  status = pam_authenticate(pam, PAM_DISALLOW_NULL_AUTHTOK);
-  if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_authenticate: %s\n", pam_strerror(pam, status));
-    return 1;
-  }
-
+  int status = authenticate(pwd->pw_name, hostname, &conv, &pam);
   status = pam_end(pam, status);
   if (status != PAM_SUCCESS) {
     fprintf(stderr, "pam_end: %s\n", pam_strerror(pam, status));

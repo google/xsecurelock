@@ -35,14 +35,27 @@ AM_CONDITIONAL([HAVE_PAM], [test x$have_pam = xtrue])
 
 AC_ARG_WITH([pam_service_name],
             AC_HELP_STRING([--with-pam-service-name],
-                           [NAME arg is the name of the PAM service that
-                            xsecurelock's auth helpers will authenticate as.
-                            This flag is mandatory. Be sure to verify that
+                           [The name of the PAM service that xsecurelock's auth
+                            helpers will authenticate as. This flag is
+                            mandatory. Be sure to verify that
                             /etc/pam.d/SERVICENAME actually exists, as failure
                             of doing so may prevent unlocking the screen.]),
             [pam_service_name=$withval],
             [AC_MSG_ERROR([--with-pam-service-name is mandatory. See --help.])])
 AC_SUBST(pam_service_name)
+
+AC_ARG_ENABLE([pam_check_account_type],
+              AC_HELP_STRING([--enable-pam-check-account-type], [Enable checking
+                              of PAM accounting result. Only enable this if
+                              accounting is properly configured on your system;
+                              especially keep this disabled if
+                              --with-pam-service-name is set to an
+                              authentication-only service name like
+                              common-auth.]),
+              [enable_pam_check_account_type=$enableval],
+              [enable_pam_check_account_type=no])
+AM_CONDITIONAL([PAM_CHECK_ACCOUNT_TYPE],
+               [test x$enable_pam_check_account_type = xyes])
 
 AS_IF([test -f "/etc/pam.d/$pam_service_name"], [],
       [AC_MSG_WARN([/etc/pam.d/$pam_service_name doesn't exist. Is that OK?])])

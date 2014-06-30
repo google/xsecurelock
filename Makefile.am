@@ -48,6 +48,10 @@ auth_pam_x11_SOURCES = \
 	mlock_page.h
 auth_pam_x11_CPPFLAGS = \
 	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
+if PAM_CHECK_ACCOUNT_TYPE
+auth_pam_x11_CPPFLAGS += \
+	-DPAM_CHECK_ACCOUNT_TYPE
+endif
 endif
 
 docsdir = $(docdir)
