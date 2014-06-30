@@ -34,6 +34,7 @@ endif
 
 helpersdir = $(pkglibexecdir)
 helpers_SCRIPTS = \
+	helpers/auth_htpasswd \
 	helpers/auth_pamtester \
 	helpers/saver_blank \
 	helpers/saver_mplayer \
@@ -62,6 +63,7 @@ docs_DATA = \
 
 EXTRA_DIST = \
 	autogen.sh \
+	helpers/htpasswd \
 	helpers/auth_pamtester.in \
 	helpers/saver_blank \
 	helpers/saver_mplayer \

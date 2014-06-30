@@ -12,6 +12,7 @@ screen locking utility design. Details are available in the
 The following packages need to be installed; their names depend on your Linux
 distribution of choice, but will be similar:
 
+* apache2-utils (for the `auth_htpasswd` module)
 * automake
 * binutils
 * gcc
@@ -22,7 +23,7 @@ distribution of choice, but will be similar:
 * make
 * mplayer (for the `saver_mplayer` module)
 * mpv (for the `saver_mpv` module)
-* imagemagick (for the `auth_pamtester` module)
+* imagemagick (for the `auth_htpasswd` and `auth_pamtester` modules)
 * pamtester (for the `auth_pamtester` module)
 * x11-xserver-utils (for the `saver_blank` module)
 * xscreensaver (for the `saver_xscreensaver` module)
@@ -66,6 +67,12 @@ The following authentication modules are included:
 * `auth_pam_x11`: Authenticates via PAM using keyboard input (X11 based;
   recommended).
 * `auth_pamtester`: Authenticates via PAM using keyboard input (pamtester).
+* `auth_htpasswd`: Authenticates via a htpasswd style file stored in
+  `~/.xsecurelock.pw`. To generate this file, run:
+  ```
+  ( umask 077; htpasswd -cB ~/.xsecurelock.pw "$USER" )
+  ```
+  Use this only if you for some reason can't use PAM!
 
 ## Writing Your Own Module
 
