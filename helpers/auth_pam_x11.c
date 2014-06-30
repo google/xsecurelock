@@ -364,9 +364,13 @@ int main() {
 
   pam_handle_t *pam;
   int status = authenticate(pwd->pw_name, hostname, &conv, &pam);
-  status = pam_end(pam, status);
+  int status2 = pam_end(pam, status);
   if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_end: %s\n", pam_strerror(pam, status));
+    // The caller already displayed an error.
+    return 1;
+  }
+  if (status2 != PAM_SUCCESS) {
+    fprintf(stderr, "pam_end: %s\n", pam_strerror(pam, status2));
     return 1;
   }
 
