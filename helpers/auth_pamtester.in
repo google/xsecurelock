@@ -17,4 +17,5 @@
 echo "Enter password:" |\
   display -window "$XSCREENSAVER_WINDOW" TEXT:-
 
+exec >/dev/null 2>&1
 exec pamtester @pam_service_name@ "$USER" authenticate
