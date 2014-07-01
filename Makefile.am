@@ -62,16 +62,17 @@ docs_DATA = \
 	README.md
 
 EXTRA_DIST = \
-	autogen.sh \
-	helpers/htpasswd \
-	helpers/auth_pamtester.in \
+	CONTRIBUTING \
+	LICENSE \
+	README.md \
+	helpers/auth_htpasswd \
+	helpers/auth_pamtester \
 	helpers/saver_blank \
 	helpers/saver_mplayer \
 	helpers/saver_mpv \
 	helpers/saver_xscreensaver \
-	CONTRIBUTING \
-	LICENSE \
-	README.md
+	Doxyfile \
+	autogen.sh
 
 if HAVE_DOXYGEN
 doxyfile.stamp:
