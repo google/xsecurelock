@@ -29,6 +29,10 @@ limitations under the License.
 #ifndef PAGESIZE
 #define PAGESIZE sysconf(_SC_PAGESIZE)
 #endif
+/*! \brief Lock the memory area given by a pointer and a size.
+ *
+ * The area is expanded to fill whole memory pages.
+ */
 #define MLOCK_PAGE(ptr, size)                                                  \
   mlock(                                                                       \
       (void*)((((uintptr_t)ptr) / (uintptr_t)PAGESIZE) * (uintptr_t)PAGESIZE), \
@@ -37,9 +41,17 @@ limitations under the License.
           (uintptr_t)PAGESIZE)
 #elif _POSIX_MEMLOCK > 0
 #warning mlock() is unavailable. More memory will be locked than necessary.
+/*! \brief Lock the memory area given by a pointer and a size.
+ *
+ * The area is expanded to fill whole memory pages.
+ */
 #define MLOCK_PAGE(ptr, size) mlockall(MCL_CURRENT)
 #else
 #warning mlock() and mlockall() are unavailable. Passwords might leak to swap.
+/*! \brief Lock the memory area given by a pointer and a size.
+ *
+ * The area is expanded to fill whole memory pages.
+ */
 #define MLOCK_PAGE(ptr, size) 0
 #endif
 

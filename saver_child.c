@@ -23,6 +23,7 @@ limitations under the License.
 #include <sys/wait.h>  // for WEXITSTATUS, waitpid, etc
 #include <unistd.h>    // for pid_t, execl, fork, setsid
 
+//! The PID of a currently running saver child, or 0 if none is running.
 pid_t saver_child_pid = 0;
 
 void WatchSaverChild(const char* executable, int should_be_running) {
@@ -46,7 +47,7 @@ void WatchSaverChild(const char* executable, int should_be_running) {
             perror("waitpid");
             break;
         }
-      } else {
+      } else if (pid == saver_child_pid) {
         if (WIFEXITED(status)) {
           // The process did exit.
           if (WEXITSTATUS(status) != EXIT_SUCCESS) {
@@ -56,6 +57,8 @@ void WatchSaverChild(const char* executable, int should_be_running) {
           saver_child_pid = 0;
         }
         // Otherwise it was suspended or whatever. We need to keep waiting.
+      } else {
+        fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
       }
     }
   }

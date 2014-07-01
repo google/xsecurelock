@@ -72,3 +72,16 @@ EXTRA_DIST = \
 	CONTRIBUTING \
 	LICENSE \
 	README.md
+
+if HAVE_DOXYGEN
+doxyfile.stamp:
+	$(DOXYGEN) Doxyfile
+	echo Timestamp > doxyfile.stamp
+
+CLEANFILES = doxyfile.stamp
+
+all-local: doxyfile.stamp
+
+clean-local:
+	$(RM) -r $(top_srcdir)/doxy
+endif

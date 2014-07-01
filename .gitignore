@@ -3,6 +3,7 @@
 .dirstamp
 
 # Autotools generated files.
+/Doxyfile
 /Makefile
 /Makefile.in
 /aclocal.m4
@@ -12,9 +13,9 @@
 /config.status
 /configure
 /depcomp
+/helpers/auth_pamtester
 /install-sh
 /missing
-helpers/auth_pamtester
 
 # Object files.
 *.o
@@ -22,3 +23,7 @@ helpers/auth_pamtester
 # Binaries.
 /auth_pam_x11
 /xsecurelock
+
+# Doxygen stuff.
+/doxy
+/doxyfile.stamp

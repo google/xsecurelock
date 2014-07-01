@@ -62,4 +62,14 @@ AS_IF([test -f "/etc/pam.d/$pam_service_name"], [],
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([helpers/auth_pamtester], [chmod +x helpers/auth_pamtester])
+
+# Generate documentation.
+AC_CHECK_PROGS([DOXYGEN], [doxygen], [])
+AS_IF([test -z "$DOXYGEN"],
+      [AC_MSG_WARN([Doxygen not found. Who needs documentation anyway.])])
+AM_CONDITIONAL([HAVE_DOXYGEN], [test -n "$DOXYGEN"])
+AC_CONFIG_FILES([Doxyfile])
+
+# End of documentation.
+
 AC_OUTPUT

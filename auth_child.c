@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "auth_child.h"
 
+#include <errno.h>     // for ECHILD, EINTR, errno
 #include <signal.h>    // for kill, SIGTERM
 #include <stdio.h>     // for perror, fprintf, stderr
 #include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, etc
@@ -23,7 +24,10 @@ limitations under the License.
 #include <sys/wait.h>  // for waitpid, WEXITSTATUS, etc
 #include <unistd.h>    // for close, pid_t, ssize_t, dup2, etc
 
+//! The PID of a currently running saver child, or 0 if none is running.
 pid_t auth_child_pid = 0;
+
+//! If auth_child_pid != 0, the FD which connects to stdin of the auth child.
 int auth_child_fd = 0;
 
 int WantAuthChild(int force_auth) {
@@ -33,13 +37,31 @@ int WantAuthChild(int force_auth) {
   return (auth_child_pid != 0);
 }
 
-int WatchAuthChild(const char* executable, int force_auth, const char* stdinbuf,
-                   int* auth_running) {
+int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
+                   int *auth_running) {
   if (auth_child_pid != 0) {
     // Check if auth child returned.
     int status;
     pid_t pid = waitpid(auth_child_pid, &status, WNOHANG);
-    if (pid == auth_child_pid) {
+    if (pid < 0) {
+      switch (errno) {
+        case ECHILD:
+          // The process is dead. Fine.
+          kill(-auth_child_pid, SIGTERM);
+          auth_child_pid = 0;
+          close(auth_child_fd);
+          // The auth child failed. That's ok. Just carry on.
+          // This will eventually bring back the saver child.
+          break;
+        case EINTR:
+          // Waitpid was interrupted. Fine, assume it's still running.
+          break;
+        default:
+          // Assume the child still lives. Shouldn't ever happen.
+          perror("waitpid");
+          break;
+      }
+    } else if (pid == auth_child_pid) {
       if (WIFEXITED(status)) {
         // Auth child exited.
         // To be sure, let's also kill its process group.
@@ -54,6 +76,11 @@ int WatchAuthChild(const char* executable, int force_auth, const char* stdinbuf,
         // Otherwise, the auth child failed. That's ok. Just carry on.
         // This will eventually bring back the saver child.
       }
+      // Otherwise, it was suspended or whatever. We need to keep waiting.
+    } else if (pid == 0) {
+      // We're still alive.
+    } else {
+      fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
     }
   }
 
@@ -77,8 +104,9 @@ int WatchAuthChild(const char* executable, int force_auth, const char* stdinbuf,
         exit(EXIT_FAILURE);
       } else {
         // Parent process after successful fork.
-        auth_child_pid = pid;
+        close(pc[0]);
         auth_child_fd = pc[1];
+        auth_child_pid = pid;
         // The auth child has just been started. Do not send any keystrokes to
         // it immediately, as users prefer pressing any key in the screen saver
         // to simply start the auth child, not begin password input!
@@ -87,8 +115,10 @@ int WatchAuthChild(const char* executable, int force_auth, const char* stdinbuf,
     }
   }
 
+  // Report whether the auth child is running.
   *auth_running = (auth_child_pid != 0);
 
+  // Send the provided keyboard buffer to stdin.
   if (stdinbuf != NULL && stdinbuf[0] != 0) {
     if (auth_child_pid != 0) {
       ssize_t to_write = (ssize_t)strlen(stdinbuf);

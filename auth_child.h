@@ -17,20 +17,28 @@ limitations under the License.
 #ifndef AUTH_CHILD_H
 #define AUTH_CHILD_H
 
-// Returns true if an auth child is either currently running, or should be
-// started (because force_auth is true).
+/*! \brief Checks whether an auth child should be running.
+ *
+ * \param force_auth If true, assume we want to start a new auth child.
+ * \return true if an auth child is expected to be running after a call to
+ *   WatchAuthChild() with this force_auth parameter.
+ */
 int WantAuthChild(int force_auth);
 
-// Starts the authentication child process if force_auth is set and no auth
-// child is running yet. Communicates stdinbuf to said auth child.
-// Returns true if authentication was successful (i.e. the auth child exited
-// with status zero).
-//
-// executable: executable to spawn for authentication.
-// force_auth: if set, the auth child will be started if not running yet.
-// stdinbuf: if set, this data is written to stdin of the auth child.
-// auth_running: will be set to the status of the current auth child on return.
-int WatchAuthChild(const char* executable, int force_auth, const char* stdinbuf,
-                   int* auth_running);
+/*! \brief Starts or stops the authentication child process.
+ *
+ * \param executable What binary to spawn for authentication. No arguments will
+ *   be passed.
+ * \param force_auth If true, the auth child will be spawned if not already
+ *   running.
+ * \param stdinbuf If non-NULL, this data will be sent to stdin of the auth
+ *   child.
+ * \param auth_running Will be set to the status of the current auth child (i.e.
+ *   true iff it is running).
+ * \return true if authentication was successful, i.e. if the auth child exited
+ *   with status zero.
+ */
+int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
+                   int *auth_running);
 
 #endif

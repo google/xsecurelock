@@ -29,12 +29,31 @@ limitations under the License.
 
 #include "../mlock_page.h"
 
+//! The X11 display.
 Display *display;
-Window window;
-GC gc;
-XFontStruct *font;
-unsigned long Black, White;
 
+//! The X11 window to draw in. Provided from $XSCREENSAVER_WINDOW.
+Window window;
+
+//! The X11 graphics context to draw with.
+GC gc;
+
+//! The font for the PAM messages.
+XFontStruct *font;
+
+//! The Black color (used as background).
+unsigned long Black;
+
+//! The White color (used as foreground).
+unsigned long White;
+
+/*! \brief Display a string in the window.
+ *
+ * The given title and message will be displayed on all screens.
+ *
+ * \param title The title of the message.
+ * \param str The message itself.
+ */
 void display_string(const char *title, const char *str) {
   Window root;
   int x, y;
@@ -76,16 +95,33 @@ void display_string(const char *title, const char *str) {
   XSync(display, True);
 }
 
+/*! \brief Show a message to the user.
+ *
+ * \param msg The message.
+ * \param is_error If true, the message is assumed to be an error.
+ */
 void alert(const char *msg, int is_error) {
   // Display message, wait for key or timeout.
   display_string(is_error ? "Error" : "PAM says", msg);
   sleep(1);
 }
 
+//! The size of the buffer to store the password in. Not NUL terminated.
 #define PWBUF_SIZE 256
-#define DISPLAYBUF_SIZE (PWBUF_SIZE + 2)  // Extra bytes for cursor and NUL.
 
-int prompt(const char *message, char **response, int echo) {
+//! The size of the buffer to use for display, with space for cursor and NUL.
+#define DISPLAYBUF_SIZE (PWBUF_SIZE + 2)
+
+/*! \brief Ask a question to the user.
+ *
+ * \param msg The message.
+ * \param response The response will be stored in a newly allocated buffer here.
+ *   The caller is supposed to eventually free() it.
+ * \param echo If true, the input will be shown; otherwise it will be hidden
+ *   (password entry).
+ * \return PAM_SUCCESS if successful, anything else otherwise.
+ */
+int prompt(const char *msg, char **response, int echo) {
   // Ask something. Return strdup'd string.
   struct {
     // Input buffer. Not NUL-terminated.
@@ -143,7 +179,7 @@ int prompt(const char *message, char **response, int echo) {
     // priv.pwlen + 2 <= sizeof(priv.displaybuf).
     priv.displaybuf[priv.displaylen] = blink ? '_' : ' ';
     priv.displaybuf[priv.displaylen + 1] = 0;
-    display_string(message, priv.displaybuf);
+    display_string(msg, priv.displaybuf);
 
     struct timeval timeout;
     timeout.tv_sec = 0;
@@ -220,6 +256,13 @@ int prompt(const char *message, char **response, int echo) {
   }
 }
 
+/*! \brief Perform a single PAM conversation step.
+ *
+ * \param msg The PAM message.
+ * \param resp The PAM response to store the output in.
+ * \return The PAM status (PAM_SUCCESS in case of success, or anything else in
+ *   case of error).
+ */
 int converse_one(const struct pam_message *msg, struct pam_response *resp) {
   switch (msg->msg_style) {
     case PAM_PROMPT_ECHO_OFF:
@@ -236,6 +279,15 @@ int converse_one(const struct pam_message *msg, struct pam_response *resp) {
   return PAM_CONV_ERR;
 }
 
+/*! \brief Perform a PAM conversation.
+ *
+ * \param num_msg The number of conversation steps to execute.
+ * \param msg The PAM messages.
+ * \param resp The PAM responses to store the output in.
+ * \param appdata_ptr Unused.
+ * \return The PAM status (PAM_SUCCESS in case of success, or anything else in
+ *   case of error).
+ */
 int converse(int num_msg, const struct pam_message **msg,
              struct pam_response **resp, void *appdata_ptr) {
   (void)appdata_ptr;
@@ -258,6 +310,15 @@ int converse(int num_msg, const struct pam_message **msg,
   return PAM_SUCCESS;
 }
 
+/*! \brief Perform PAM authentication.
+ *
+ * \param username The user name to authenticate as.
+ * \param hostname The host name to authenticate on.
+ * \param conv The PAM conversation handler.
+ * \param pam The PAM handle will be returned here.
+ * \return The PAM status (PAM_SUCCESS after successful authentication, or
+ *   anything else in case of error).
+ */
 int authenticate(const char *username, const char *hostname,
                  struct pam_conv *conv, pam_handle_t **pam) {
   int status = pam_start(PAM_SERVICE_NAME, username, conv, pam);
@@ -313,6 +374,12 @@ int authenticate(const char *username, const char *hostname,
   return status;
 }
 
+/*! \brief The main program.
+ *
+ * Usage: XSCREENSAVER_WINDOW=window_id ./auth_pam_x11; status=$?
+ *
+ * \return 0 if authentication successful, anything else otherwise.
+ */
 int main() {
   setlocale(LC_CTYPE, "");
 
