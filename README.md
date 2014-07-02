@@ -40,7 +40,7 @@ happen to you, switch to another terminal (`Ctrl-Alt-F1`), log in there, and
 run: `killall xsecurelock` to force unlocking of the screen.
 
 ```
-git clone URL_GOES_HERE
+git clone https://github.com/google/xsecurelock.git
 cd xsecurelock
 sh autogen.sh
 ./configure --with-pam-service-name=SERVICE-NAME
