@@ -59,6 +59,11 @@ void display_string(const char *title, const char *str) {
   int x, y;
   unsigned int w, h, depth, b;
 
+  static int region_x;
+  static int region_y;
+  static int region_w = 0;
+  static int region_h = 0;
+
   // Guess the number of displays. No need to be accurate here. If we wanted to,
   // we'd support Xinerama or XRandR.
   if (!XGetGeometry(display, window, &root, &x, &y, &w, &h, &b, &depth)) {
@@ -76,12 +81,20 @@ void display_string(const char *title, const char *str) {
   int tw_title = XTextWidth(font, title, len_title);
   int tw_str = XTextWidth(font, str, len_str);
 
-  XClearWindow(display, window);
+  if (region_w == 0 || region_h == 0) {
+    XClearWindow(display, window);
+  }
 
   int i;
   for (i = 0; i < screens; ++i) {
     int cx = (w * i) / screens + (w / screens) / 2;
     int cy = h / 2;
+
+    // Clear the region last written to.
+    if (region_w != 0 && region_h != 0) {
+      XClearArea(display, window, cx + region_x, cy + region_y, region_w,
+                 region_h, False);
+    }
 
     XDrawString(display, window, gc, cx - tw_title / 2,
                 cy - font->max_bounds.descent - 8, title, len_title);
@@ -89,6 +102,17 @@ void display_string(const char *title, const char *str) {
     XDrawString(display, window, gc, cx - tw_str / 2,
                 cy + font->max_bounds.ascent + 8, str, len_str);
   }
+
+  // Remember the region we just wrote to, relative to cx and cy.
+  if (tw_title > tw_str) {
+    region_x = -tw_title / 2;
+    region_w = tw_title;
+  } else {
+    region_x = -tw_str / 2;
+    region_w = tw_str;
+  }
+  region_y = -font->max_bounds.descent - 8 - font->max_bounds.ascent;
+  region_h = 2 * (font->max_bounds.ascent + font->max_bounds.descent + 8);
 
   // We have no event loop here. But this is a good point to flush the event
   // queue.
