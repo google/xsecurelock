@@ -237,6 +237,16 @@ int main(int argc, char **argv) {
       display, grab_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent, CWBackPixel | CWCursor, &coverattrs);
 
+  // Let's get notified if we lose visibility, so we can self-raise.
+  XSelectInput(display, grab_window, VisibilityChangeMask);
+  XSelectInput(display, saver_window, VisibilityChangeMask);
+
+  // Make sure we stay always on top.
+  XWindowChanges coverchanges;
+  coverchanges.stack_mode = Above;
+  XConfigureWindow(display, grab_window, CWStackMode, &coverchanges);
+  XConfigureWindow(display, saver_window, CWStackMode, &coverchanges);
+
   // Now provide the window ID as an environment variable (like XScreenSaver).
   char window_id_str[16];
   size_t window_id_len = snprintf(window_id_str, sizeof(window_id_str), "%lu",
@@ -369,9 +379,6 @@ int main(int argc, char **argv) {
       goto done;
     }
 
-    // If something else shows an OverrideRedirect window, we want to stay on
-    // top.
-    XRaiseWindow(display, grab_window);
     // If something changed our cursor, change it back.
     XDefineCursor(display, saver_window, coverattrs.cursor);
 
@@ -389,6 +396,21 @@ int main(int argc, char **argv) {
             h = priv.ev.xconfigure.height;
             XMoveResizeWindow(display, grab_window, 0, 0, w, h);
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
+          }
+          break;
+        case VisibilityNotify:
+          if (priv.ev.xvisibility.state != VisibilityUnobscured) {
+            // If something else shows an OverrideRedirect window, we want to
+            // stay on top.
+            if (priv.ev.xvisibility.window == saver_window) {
+              XRaiseWindow(display, saver_window);
+            } else if (priv.ev.xvisibility.window == grab_window) {
+              XRaiseWindow(display, grab_window);
+            } else {
+              fprintf(stderr,
+                      "Received unexpected VisibilityNotify for window %d.\n",
+                      (int)priv.ev.xvisibility.window);
+            }
           }
           break;
         case MotionNotify:
