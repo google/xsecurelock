@@ -23,7 +23,9 @@ xsecurelock_SOURCES = \
 	main.c
 xsecurelock_CPPFLAGS = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
-	-DDOCS_PATH=\"$(docdir)\"
+	-DDOCS_PATH=\"$(docdir)\" \
+	-DAUTH_EXECUTABLE=\"@auth_executable@\" \
+	-DSAVER_EXECUTABLE=\"@saver_executable@\"
 
 if HAVE_SCRNSAVER
 xsecurelock_CPPFLAGS += -DHAVE_SCRNSAVER

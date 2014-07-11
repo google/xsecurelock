@@ -60,6 +60,8 @@ Tell your desktop environment to run
 xsecurelock auth_pam_x11 saver_blank
 ```
 
+If the module names are left out, a sensible default will be chosen.
+
 # Authentication Modules
 
 The following authentication modules are included:

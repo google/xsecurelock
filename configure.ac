@@ -33,32 +33,73 @@ AC_SEARCH_LIBS(pam_authenticate, pam,
                [have_pam=true], [have_pam=false])
 AM_CONDITIONAL([HAVE_PAM], [test x$have_pam = xtrue])
 
-AC_ARG_WITH([pam_service_name],
-            AC_HELP_STRING([--with-pam-service-name],
-                           [The name of the PAM service that xsecurelock's auth
-                            helpers will authenticate as. This flag is
-                            mandatory. Be sure to verify that
-                            /etc/pam.d/SERVICENAME actually exists, as failure
-                            of doing so may prevent unlocking the screen.]),
-            [pam_service_name=$withval],
-            [AC_MSG_ERROR([--with-pam-service-name is mandatory. See --help.])])
-AC_SUBST(pam_service_name)
+pam_service_name=
+enable_pam_check_account_type=no
 
-AC_ARG_ENABLE([pam_check_account_type],
-              AC_HELP_STRING([--enable-pam-check-account-type], [Enable checking
-                              of PAM accounting result. Only enable this if
-                              accounting is properly configured on your system;
-                              especially keep this disabled if
-                              --with-pam-service-name is set to an
-                              authentication-only service name like
-                              common-auth.]),
-              [enable_pam_check_account_type=$enableval],
-              [enable_pam_check_account_type=no])
+AS_IF([test x$have_pam = xtrue], [
+  AC_ARG_WITH([pam_service_name],
+              AC_HELP_STRING([--with-pam-service-name],
+                             [The name of the PAM service that xsecurelock's
+                              auth helpers will authenticate as. This flag is
+                              mandatory. Be sure to verify that
+                              /etc/pam.d/SERVICENAME actually exists, as failure
+                              of doing so may prevent unlocking the screen.]),
+              [pam_service_name=$withval],
+              [AC_MSG_ERROR([--with-pam-service-name is mandatory.])])
+  AS_IF([test -f "/etc/pam.d/$pam_service_name"], [],
+        [AC_MSG_WARN([/etc/pam.d/$pam_service_name doesn't exist. Sure?])])
+
+  AC_ARG_ENABLE([pam_check_account_type],
+                AC_HELP_STRING([--enable-pam-check-account-type],
+                               [Enable checking of PAM accounting result. Only
+                                enable this if accounting is properly configured
+                                on your system; especially keep this disabled if
+                                --with-pam-service-name is set to an
+                                authentication-only service name like
+                                common-auth.]),
+                [enable_pam_check_account_type=$enableval],
+                [enable_pam_check_account_type=no])
+])
+
+AC_ARG_WITH([default_auth_module],
+            AC_HELP_STRING([--with-default-auth-module],
+                           [The default authentication module to use when none
+                            was specified. Can be overridden via the
+                            XSECURELOCK_AUTH environment variable or a command
+                            line argument. By default this is autodetected to be
+                            one of the supported authentication modules that
+                            require no setup.]),
+                            [auth_executable=$withval],
+                            [
+                             auth_executable=
+                             pamtester=
+                             AC_CHECK_PROGS([pamtester], [pamtester])
+                             AS_IF([test -n "$pamtester"],
+                                   [auth_executable=auth_pamtester])
+                             AS_IF([test x$have_pam = xtrue],
+                                   [auth_executable=auth_pam_x11])
+                             AS_IF([test -z "$auth_executable"],
+                                   [AC_MSG_ERROR([No auth executable found.])])
+                            ])
+
+AC_MSG_NOTICE([Configured default auth module: $auth_executable])
+
+AC_ARG_WITH([default_saver_module],
+            AC_HELP_STRING([--with-default-saver-module],
+                           [The default saver module to use when none wa
+                            pecified. Can be overridden via the
+                            XSECURELOCK_SAVER environment variable or a command
+                            line argument.]),
+                            [saver_executable=$withval],
+                            [saver_executable=saver_blank])
+
+AC_MSG_NOTICE([Configured default saver module: $saver_executable])
+
+AC_SUBST(pam_service_name)
+AC_SUBST(auth_executable)
+AC_SUBST(saver_executable)
 AM_CONDITIONAL([PAM_CHECK_ACCOUNT_TYPE],
                [test x$enable_pam_check_account_type = xyes])
-
-AS_IF([test -f "/etc/pam.d/$pam_service_name"], [],
-      [AC_MSG_WARN([/etc/pam.d/$pam_service_name doesn't exist. Is that OK?])])
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([helpers/auth_pamtester], [chmod +x helpers/auth_pamtester])

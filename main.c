@@ -63,9 +63,9 @@ limitations under the License.
    Button5MotionMask | ButtonMotionMask)
 
 //! The name of the auth child to execute, relative to HELPER_PATH.
-char *auth_executable = NULL;
+const char *auth_executable = AUTH_EXECUTABLE;
 //! The name of the saver child to execute, relative to HELPER_PATH.
-char *saver_executable = NULL;
+const char *saver_executable = SAVER_EXECUTABLE;
 
 enum WatchChildrenState {
   //! Request saver child.
@@ -146,15 +146,104 @@ int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
 void usage(const char *me) {
   printf(
       "Usage:\n"
-      "  %s auth_<authname> saver_<savername>\n"
+      "  %s [auth_<authname>] [saver_<savername>]\n"
       "\n"
       "Example:\n"
       "  %s auth_pam_x11 saver_blank\n"
       "\n"
+      "If an argument is not specified, the default will be used, which can\n"
+      "be set in the $XSECURELOCK_AUTH and $XSECURELOCK_SAVER environment\n"
+      "variables.\n"
+      "\n"
+      "Current default auth module: %s\n"
+      "Current default saver module: %s\n"
+      "\n"
       "This software is licensed under the Apache 2.0 License. Details are\n"
       "available at the following location:\n"
       "  " DOCS_PATH "/COPYING\n",
-      me, me);
+      me, me, auth_executable, saver_executable);
+}
+
+/*! \brief Load default settings from environment variables.
+ *
+ * These settings override what was figured out at ./configure time.
+ */
+void load_defaults() {
+  const char *str = getenv("XSECURELOCK_AUTH");
+  if (str != NULL && str[0] != 0) {
+    auth_executable = str;
+  }
+  str = getenv("XSECURELOCK_SAVER");
+  if (str != NULL && str[0] != 0) {
+    saver_executable = str;
+  }
+}
+
+/*! \brief Parse the command line arguments.
+ *
+ * This accepts saver_* or auth_* arguments, and puts them in their respective
+ * global variable.
+ *
+ * Possible errors will be printed on stderr.
+ *
+ * \return true if everything is OK, false otherwise.
+ */
+int parse_arguments(int argc, char **argv) {
+  int i;
+  for (i = 1; i < argc; ++i) {
+    if (!strncmp(argv[i], "auth_", 5)) {
+      auth_executable = argv[i];
+      continue;
+    }
+    if (!strncmp(argv[i], "saver_", 6)) {
+      saver_executable = argv[i];
+      continue;
+    }
+    // If we get here, the argument is unrecognized. Exit, then.
+    fprintf(stderr, "Unrecognized argument: %s.\n", argv[i]);
+    return 0;
+  }
+  return 1;
+}
+
+/*! \brief Check the settings.
+ *
+ * This tests whether the selected auth and saver executables are valid and
+ * actually executable. Failure of this could lead to an un-unlockable screen,
+ * and we sure don't want that.
+ *
+ * Possible errors will be printed on stderr.
+ *
+ * \return true if everything is OK, false otherwise.
+ */
+int check_settings() {
+  if (auth_executable == NULL) {
+    fprintf(stderr, "Auth module has not been specified in any way.\n");
+    return 0;
+  }
+  if (strchr(auth_executable, '.')) {
+    fprintf(stderr, "Auth module name may not contain a dot.\n");
+    return 0;
+  }
+  if (access(auth_executable, X_OK)) {
+    fprintf(stderr, "Auth module must be executable.\n");
+    return 0;
+  }
+
+  if (saver_executable == NULL) {
+    fprintf(stderr, "Auth module has not been specified in any way.\n");
+    return 0;
+  }
+  if (strchr(saver_executable, '.')) {
+    fprintf(stderr, "Saver module name may not contain a dot.\n");
+    return 0;
+  }
+  if (access(saver_executable, X_OK)) {
+    fprintf(stderr, "Saver module must be executable.\n");
+    return 0;
+  }
+
+  return 1;
 }
 
 /*! \brief The main program.
@@ -172,27 +261,12 @@ int main(int argc, char **argv) {
   }
 
   // Parse and verify arguments.
-  if (argc != 3) {
+  load_defaults();
+  if (!parse_arguments(argc, argv)) {
     usage(argv[0]);
     return 1;
   }
-
-  auth_executable = argv[1];
-  if (strncmp(auth_executable, "auth_", 5) || strchr(auth_executable, '.')) {
-    usage(argv[0]);
-    return 1;
-  }
-  if (access(auth_executable, X_OK)) {
-    usage(argv[0]);
-    return 1;
-  }
-
-  saver_executable = argv[2];
-  if (strncmp(saver_executable, "saver_", 5) || strchr(saver_executable, '.')) {
-    usage(argv[0]);
-    return 1;
-  }
-  if (access(saver_executable, X_OK)) {
+  if (!check_settings()) {
     usage(argv[0]);
     return 1;
   }
