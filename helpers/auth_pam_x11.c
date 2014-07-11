@@ -29,6 +29,23 @@ limitations under the License.
 
 #include "../mlock_page.h"
 
+//! The blinking interval in microseconds.
+#define BLINK_INTERVAL 250000
+
+//! The maximum time to wait at a prompt for user input in microseconds.
+#define PROMPT_TIMEOUT 60000000
+
+/*! \brief Exit on conversation errors. This seems required on Linux PAM.
+ *
+ * Maybe this should be a ./configure option, but as it seems generally harmless
+ * to call exit() from a PAM conversation, why not always do it.
+ *
+ * The symptom of the problem is BTW an endless loop of password prompts when
+ * hitting Escape to abort the prompt. The intended result would be a
+ * termination of pam_authenticate.
+ */
+#define EXIT_ON_CONVERSATION_ERROR
+
 //! The X11 display.
 Display *display;
 
@@ -168,7 +185,7 @@ int prompt(const char *msg, char **response, int echo) {
     size_t pos;
     int len;
   } priv;
-  int blink = 0;
+  int blinks = 0;
 
   if (!echo && MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
     perror("mlock");
@@ -178,6 +195,8 @@ int prompt(const char *msg, char **response, int echo) {
   }
 
   priv.pwlen = 0;
+
+  int max_blinks = PROMPT_TIMEOUT / BLINK_INTERVAL;
 
   for (;;) {
     if (echo) {
@@ -201,13 +220,19 @@ int prompt(const char *msg, char **response, int echo) {
     }
     // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
     // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-    priv.displaybuf[priv.displaylen] = blink ? '_' : ' ';
+    priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : '_';
     priv.displaybuf[priv.displaylen + 1] = 0;
     display_string(msg, priv.displaybuf);
 
+    // Blink the cursor.
+    ++blinks;
+    if (blinks > max_blinks) {
+      return PAM_CONV_ERR;
+    }
+
     struct timeval timeout;
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 250000;
+    timeout.tv_sec = BLINK_INTERVAL / 1000000;
+    timeout.tv_usec = BLINK_INTERVAL % 1000000;
 
     for (;;) {
       fd_set set;
@@ -225,6 +250,10 @@ int prompt(const char *msg, char **response, int echo) {
 
       // From now on, only do nonblocking selects so we update the screen ASAP.
       timeout.tv_usec = 0;
+
+      // Force the cursor to be in visible state while typing. This also resets
+      // the prompt timeout.
+      blinks = 0;
 
       ssize_t nread = read(0, &priv.inputbuf, 1);
       if (nread <= 0) {
@@ -251,7 +280,7 @@ int prompt(const char *msg, char **response, int echo) {
           break;
         }
         case 0:
-        case '\037':
+        case '\033':
           return PAM_CONV_ERR;
         case '\r':
         case '\n':
@@ -275,8 +304,6 @@ int prompt(const char *msg, char **response, int echo) {
           break;
       }
     }
-
-    blink = !blink;
   }
 }
 
@@ -327,6 +354,9 @@ int converse(int num_msg, const struct pam_message **msg,
       }
       free(*resp);
       *resp = NULL;
+#ifdef EXIT_ON_CONVERSATION_ERROR
+      exit(1);
+#endif
       return status;
     }
   }
