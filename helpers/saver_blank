@@ -14,5 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-xset s activate dpms force off
+# This is run in a setsid'd background process so xsecurelock's SIGTERM doesn't
+# interrupt the xset operation.
+(
+  trap '' TERM
+  xset s activate dpms force off
+) &
 exec sleep 3600

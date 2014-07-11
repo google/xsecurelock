@@ -29,6 +29,7 @@ pid_t saver_child_pid = 0;
 void WatchSaverChild(const char* executable, int should_be_running) {
   if (!should_be_running && saver_child_pid != 0) {
     // Kill the whole process group.
+    kill(saver_child_pid, SIGTERM);
     kill(-saver_child_pid, SIGTERM);
     while (saver_child_pid) {
       int status;
