@@ -440,7 +440,8 @@ int main(int argc, char **argv) {
   int retries;
   for (retries = 10; retries >= 0; --retries) {
     if (XGrabPointer(display, grab_window, False, ALL_POINTER_EVENTS,
-                      GrabModeAsync, GrabModeAsync, None, None, CurrentTime) == GrabSuccess) {
+                     GrabModeAsync, GrabModeAsync, None, None,
+                     CurrentTime) == GrabSuccess) {
       break;
     }
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
@@ -451,7 +452,7 @@ int main(int argc, char **argv) {
   }
   for (retries = 10; retries >= 0; --retries) {
     if (XGrabKeyboard(display, grab_window, False, GrabModeAsync, GrabModeAsync,
-                       CurrentTime) == GrabSuccess) {
+                      CurrentTime) == GrabSuccess) {
       break;
     }
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
@@ -508,7 +509,8 @@ int main(int argc, char **argv) {
 #ifdef REINSTATE_GRABS
     // This really should never be needed...
     if (XGrabPointer(display, grab_window, False, ALL_POINTER_EVENTS,
-                     GrabModeAsync, GrabModeAsync, None, None, CurrentTime) != GrabSuccess) {
+                     GrabModeAsync, GrabModeAsync, None, None,
+                     CurrentTime) != GrabSuccess) {
       fprintf(stderr, "Critical: cannot re-grab pointer.\n");
     }
     if (XGrabKeyboard(display, grab_window, False, GrabModeAsync, GrabModeAsync,
