@@ -361,8 +361,10 @@ int main(int argc, char **argv) {
       CopyFromParent, CWBackPixel | CWCursor, &coverattrs);
 
   // Let's get notified if we lose visibility, so we can self-raise.
-  XSelectInput(display, grab_window, VisibilityChangeMask | FocusChangeMask);
-  XSelectInput(display, saver_window, VisibilityChangeMask);
+  XSelectInput(display, grab_window,
+               StructureNotifyMask | VisibilityChangeMask | FocusChangeMask);
+  XSelectInput(display, saver_window,
+               StructureNotifyMask | VisibilityChangeMask);
 
   // Make sure we stay always on top.
   XWindowChanges coverchanges;
