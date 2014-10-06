@@ -59,6 +59,15 @@ limitations under the License.
  */
 #define REINSTATE_GRABS
 
+/*! \brief Try to bring the grab window to foreground in regular intervals.
+ *
+ * Some desktop environments have transparent OverrideRedirect notifications.
+ * These do not send a VisibilityNotify to this window, as some part still
+ * shines through. As a workaround, this enables raising the grab window
+ * periodically.
+ */
+#define AUTO_RAISE
+
 /*! \brief Exhaustive list of all mouse related X11 events.
  *
  * These will be selected for grab. It is important that this contains all
@@ -252,6 +261,38 @@ int check_settings() {
   }
 
   return 1;
+}
+
+/*! \brief Raise a window if necessary.
+ *
+ * Does not cause any events if the window is already on the top.
+ */
+void MaybeRaiseWindow(Display *display, Window w) {
+  Window root, parent, grandparent;
+  Window *children, *siblings;
+  unsigned int nchildren, nsiblings;
+  if (!XQueryTree(display, w, &root, &parent, &children, &nchildren)) {
+    fprintf(stderr, "XQueryTree failed.\n");
+    return;
+  }
+  XFree(children);
+  if (!XQueryTree(display, parent, &root, &grandparent, &siblings,
+                  &nsiblings)) {
+    fprintf(stderr, "XQueryTree failed.\n");
+    return;
+  }
+  if (nsiblings == 0) {
+    fprintf(stderr, "My parent window has no children.\n");
+    XFree(siblings);
+    return;
+  }
+  if (w == siblings[nsiblings - 1]) {
+    // Already on top. Good!
+  } else {
+    // Need to bring myself to the top first.
+    XRaiseWindow(display, w);
+  }
+  XFree(siblings);
 }
 
 /*! \brief The main program.
@@ -476,6 +517,11 @@ int main(int argc, char **argv) {
     }
 #endif
 
+#ifdef AUTO_RAISE
+    MaybeRaiseWindow(display, saver_window);
+    MaybeRaiseWindow(display, grab_window);
+#endif
+
     // Handle all events.
     while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
       if (XFilterEvent(&priv.ev, None)) {
@@ -490,6 +536,14 @@ int main(int argc, char **argv) {
             h = priv.ev.xconfigure.height;
             XMoveResizeWindow(display, grab_window, 0, 0, w, h);
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
+            // Just in case - ConfigureNotify might also be sent for raising
+          }
+          // Also, whatever window has been reconfigured, should also be raised
+          // to make sure.
+          if (priv.ev.xconfigure.window == saver_window) {
+            MaybeRaiseWindow(display, saver_window);
+          } else if (priv.ev.xconfigure.window == grab_window) {
+            MaybeRaiseWindow(display, grab_window);
           }
           break;
         case VisibilityNotify:
