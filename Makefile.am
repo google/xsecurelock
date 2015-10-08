@@ -30,6 +30,9 @@ xsecurelock_CPPFLAGS = \
 if HAVE_SCRNSAVER
 xsecurelock_CPPFLAGS += -DHAVE_SCRNSAVER
 endif
+if HAVE_COMPOSITE
+xsecurelock_CPPFLAGS += -DHAVE_COMPOSITE
+endif
 if HAVE_XF86MISC
 xsecurelock_CPPFLAGS += -DHAVE_XF86MISC
 endif

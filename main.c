@@ -37,6 +37,9 @@ limitations under the License.
 #ifdef HAVE_SCRNSAVER
 #include <X11/extensions/scrnsaver.h>
 #endif
+#ifdef HAVE_COMPOSITE
+#include <X11/extensions/Xcomposite.h>
+#endif
 #ifdef HAVE_XF86MISC
 #include <X11/extensions/xf86misc.h>
 #endif
@@ -348,13 +351,35 @@ int main(int argc, char **argv) {
   coverattrs.cursor =
       XCreatePixmapCursor(display, bg, bg, &Black, &Black, 0, 0);
 
+  Window parent_window = root_window;
+
+#ifdef HAVE_COMPOSITE
+  int composite_event_base, composite_error_base,
+      composite_major_version = 0, composite_minor_version = 0;
+  int have_composite =
+      XCompositeQueryExtension(display, &composite_event_base,
+                               &composite_error_base) &&
+      // Require at least XComposite 0.3.
+      XCompositeQueryVersion(display, &composite_major_version,
+                             &composite_minor_version) &&
+      (composite_major_version >= 1 || composite_minor_version >= 3);
+  Window composite_window;
+  if (have_composite) {
+    composite_window = XCompositeGetOverlayWindow(display, root_window);
+    parent_window = composite_window;
+    fprintf(stderr, "XComposite using parent window 0x%x.\n", parent_window);
+  } else {
+    fprintf(stderr, "XComposite extension not detected.\n");
+  }
+#endif
+
   // Create the two windows.
   // grab_window is the outer window which we grab input on.
   // saver_window is the "visible" window that the savers will draw on.
   // These windows are separated because XScreenSaver's savers might
   // XUngrabKeyboard on their window.
   Window grab_window = XCreateWindow(
-      display, root_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
+      display, parent_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent, CWOverrideRedirect | CWSaveUnder, &coverattrs);
   Window saver_window = XCreateWindow(
       display, grab_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
@@ -534,7 +559,7 @@ int main(int argc, char **argv) {
       }
       switch (priv.ev.type) {
         case ConfigureNotify:
-          if (priv.ev.xconfigure.window == root_window) {
+          if (priv.ev.xconfigure.window == parent_window) {
             // Root window size changed. Adjust the saver_window window too!
             w = priv.ev.xconfigure.width;
             h = priv.ev.xconfigure.height;
@@ -666,6 +691,11 @@ done:
   // Free our resources, and exit.
   XDestroyWindow(display, saver_window);
   XDestroyWindow(display, grab_window);
+#ifdef HAVE_COMPOSITE
+  if (have_composite) {
+    XCompositeReleaseOverlayWindow(display, composite_window);
+  }
+#endif
   XFreeCursor(display, coverattrs.cursor);
   XFreePixmap(display, bg);
 
