@@ -308,7 +308,7 @@ int main(int argc, char **argv) {
   // Change the current directory to HELPER_PATH so we don't need to process
   // path names.
   if (chdir(HELPER_PATH)) {
-    fprintf(stderr, "chdir %s", HELPER_PATH);
+    fprintf(stderr, "Could not switch to directory %s.\n", HELPER_PATH);
     return 1;
   }
 
