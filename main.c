@@ -367,7 +367,6 @@ int main(int argc, char **argv) {
   if (have_composite) {
     composite_window = XCompositeGetOverlayWindow(display, root_window);
     parent_window = composite_window;
-    fprintf(stderr, "XComposite using parent window 0x%x.\n", parent_window);
   } else {
     fprintf(stderr, "XComposite extension not detected.\n");
   }
