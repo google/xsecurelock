@@ -25,6 +25,10 @@ AC_SEARCH_LIBS(XScreenSaverQueryExtension, Xss,
                [have_scrnsaver=true], [have_scrnsaver=false])
 AM_CONDITIONAL([HAVE_SCRNSAVER], [test x$have_scrnsaver = xtrue])
 
+AC_SEARCH_LIBS(XCompositeQueryExtension, Xcomposite,
+               [have_composite=true], [have_composite=false])
+AM_CONDITIONAL([HAVE_COMPOSITE], [test x$have_composite = xtrue])
+
 AC_SEARCH_LIBS(XF86MiscSetGrabKeysState, Xxf86misc,
                [have_xf86misc=true], [have_xf86misc=false])
 AM_CONDITIONAL([HAVE_XF86MISC], [test x$have_xf86misc = xtrue])
