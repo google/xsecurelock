@@ -646,6 +646,7 @@ int main(int argc, char **argv) {
         case MappingNotify:
         case EnterNotify:
         case LeaveNotify:
+        case MapNotify:
           // Ignored.
           break;
         case FocusIn:
