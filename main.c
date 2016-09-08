@@ -558,7 +558,7 @@ int main(int argc, char **argv) {
       }
       switch (priv.ev.type) {
         case ConfigureNotify:
-          if (priv.ev.xconfigure.window == parent_window) {
+          if (priv.ev.xconfigure.window == root_window) {
             // Root window size changed. Adjust the saver_window window too!
             w = priv.ev.xconfigure.width;
             h = priv.ev.xconfigure.height;
