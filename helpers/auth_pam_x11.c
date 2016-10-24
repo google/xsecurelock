@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <X11/X.h>                // for Window, GCBackground, etc
 #include <X11/Xlib.h>             // for XDrawString, XGCValues, etc
+#include <ctype.h>                // for tolower, toupper
 #include <locale.h>               // for NULL, setlocale, LC_CTYPE
 #include <pwd.h>                  // for getpwuid, passwd
 #include <security/_pam_types.h>  // for PAM_SUCCESS, pam_strerror, etc
@@ -64,9 +65,23 @@ unsigned long Black;
 //! The White color (used as foreground).
 unsigned long White;
 
+/*! \brief Check if Caps Lock is active.
+ *
+ * \return 1 if caps lock is enabled, 0 otherwise.
+ */
+int capslock_active() {
+  Window root, child;
+  int root_x, root_y, win_x, win_y;
+  unsigned int mask = 0;
+  XQueryPointer(display, window, &root, &child, &root_x, &root_y, &win_x,
+                &win_y, &mask);
+  return !!(mask & LockMask);
+}
+
 /*! \brief Display a string in the window.
  *
- * The given title and message will be displayed on all screens.
+ * The given title and message will be displayed on all screens. In case caps
+ * lock is enabled, the string's case will be inverted.
  *
  * \param title The title of the message.
  * \param str The message itself.
@@ -100,6 +115,26 @@ void display_string(const char *title, const char *str) {
 
   if (region_w == 0 || region_h == 0) {
     XClearWindow(display, window);
+  }
+
+  // wHEN cAPS lOCK IS ACTIVE, REVERSE CASE OF ALL DISPLAYED TEXT.
+  if (capslock_active()) {
+    static char *title_capslock = NULL, *str_capslock = NULL;
+    size_t title_len = strlen(title);
+    size_t str_len = strlen(str);
+    size_t i;
+    title_capslock = realloc(title_capslock, title_len + 1);
+    for (i = 0; i <= title_len; ++i) {
+      title_capslock[i] = (title[i] == toupper(title[i])) ? tolower(title[i])
+                                                          : toupper(title[i]);
+    }
+    title = title_capslock;
+    str_capslock = realloc(str_capslock, str_len + 1);
+    for (i = 0; i <= str_len; ++i) {
+      str_capslock[i] =
+          (str[i] == toupper(str[i])) ? tolower(str[i]) : toupper(str[i]);
+    }
+    str = str_capslock;
   }
 
   int i;
