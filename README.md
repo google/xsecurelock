@@ -3,10 +3,10 @@
 XSecureLock is an X11 screen lock utility designed with the primary goal of
 security.
 
-Screen lock utilities are widespread, but in the past often had security issues
-regarding authentication bypass (a crashing screen locker would unlock the
-screen), information disclosure (notifications may appear on top of the screen
-saver), and sometimes even worse.
+Screen lock utilities are widespread. However, in the past they often had
+security issues regarding authentication bypass (a crashing screen locker would
+unlock the screen), information disclosure (notifications may appear on top of
+the screen saver), or sometimes even worse.
 
 In XSecureLock, security is achieved using a modular design to avoid the usual
 pitfalls of screen locking utility design on X11. Details are available in the
