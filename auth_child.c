@@ -30,6 +30,23 @@ pid_t auth_child_pid = 0;
 //! If auth_child_pid != 0, the FD which connects to stdin of the auth child.
 int auth_child_fd = 0;
 
+/*! \brief Return whether the wake-up keypress should be part of the password.
+ *
+ * Sending the wake-up keypress to the auth child is usually a bad idea because
+ * many people use "any" key, not their password's, to wake up the screen saver.
+ * Also, when using a blanking screen saver, one can't easily distinguish a
+ * locked screen from a turned-off screen, and may thus accidentally start
+ * entering the password into a web browser or similar "bad" place.
+ *
+ * However, it was requested by a user, so why not add it. Usage:
+ *
+ * XSECURELOCK_WANT_FIRST_KEYPRESS=1 xsecurelock
+ */
+int WantFirstKeypress() {
+  const char *var = getenv("XSECURELOCK_WANT_FIRST_KEYPRESS");
+  return var != NULL && !strcmp(var, "1");
+}
+
 int WantAuthChild(int force_auth) {
   if (force_auth) {
     return 1;
@@ -107,10 +124,12 @@ int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
         close(pc[0]);
         auth_child_fd = pc[1];
         auth_child_pid = pid;
-        // The auth child has just been started. Do not send any keystrokes to
-        // it immediately, as users prefer pressing any key in the screen saver
-        // to simply start the auth child, not begin password input!
-        stdinbuf = NULL;
+
+        if (!WantFirstKeypress()) {
+          // The auth child has just been started. Do not send any keystrokes to
+          // it immediately.
+          stdinbuf = NULL;
+        }
       }
     }
   }
