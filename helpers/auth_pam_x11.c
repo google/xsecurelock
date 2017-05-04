@@ -502,7 +502,18 @@ int main() {
 
   Black = BlackPixel(display, DefaultScreen(display));
   White = WhitePixel(display, DefaultScreen(display));
-  font = XLoadQueryFont(display, "fixed");
+  
+  font = NULL;
+  const char *font_name = getenv("XSECURELOCK_FONT");
+  if (font_name != NULL && font_name[0] != 0) {
+    font = XLoadQueryFont(display, font_name);
+    if (font == NULL) {
+      fprintf(stderr, "could not load the specified font %s - trying to fall back to fixed\n", font_name);
+    }
+  }
+  if (font == NULL) {
+    font = XLoadQueryFont(display, "fixed");
+  }
   if (font == NULL) {
     fprintf(stderr, "could not load a mind-bogglingly stupid font\n");
     exit(1);
