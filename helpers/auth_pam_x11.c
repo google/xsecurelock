@@ -502,7 +502,7 @@ int main() {
 
   Black = BlackPixel(display, DefaultScreen(display));
   White = WhitePixel(display, DefaultScreen(display));
-  
+
   font = NULL;
   const char *font_name = getenv("XSECURELOCK_FONT");
   if (font_name != NULL && font_name[0] != 0) {
@@ -523,8 +523,9 @@ int main() {
   gcattrs.function = GXcopy;
   gcattrs.foreground = White;
   gcattrs.background = Black;
-  gc = XCreateGC(display, window, GCFunction | GCForeground | GCBackground,
-                 &gcattrs);
+  gcattrs.font = font->fid;
+  gc = XCreateGC(display, window,
+                 GCFunction | GCForeground | GCBackground | GCFont, &gcattrs);
   XSetWindowBackground(display, window, Black);
 
   struct pam_conv conv;
