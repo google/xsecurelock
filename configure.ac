@@ -20,6 +20,8 @@ AC_CHECK_HEADER(X11/Xlib.h,
                 [], [AC_ERROR([X includes not found.])])
 AC_CHECK_LIB(X11, XOpenDisplay,
              [], [AC_ERROR([X library not found.])])
+AC_CHECK_LIB(rt, timer_settime,
+             [], [AC_ERROR([Timer library not found.])])
 
 AC_SEARCH_LIBS(XScreenSaverQueryExtension, Xss,
                [have_scrnsaver=true], [have_scrnsaver=false])
