@@ -58,6 +58,9 @@ if PAM_CHECK_ACCOUNT_TYPE
 auth_pam_x11_CPPFLAGS += \
 	-DPAM_CHECK_ACCOUNT_TYPE
 endif
+if HAVE_XKB
+auth_pam_x11_CPPFLAGS += -DHAVE_XKB
+endif
 endif
 
 docsdir = $(docdir)
