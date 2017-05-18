@@ -317,6 +317,34 @@ void load_defaults() {
       allow_unauthenticated_wakeup_time_sec = val;
     }
   }
+
+#ifdef __linux__
+  // On Linux systems, we can perform an additional check to make sure we've got
+  // access to the sleep lock file descriptor when we're running inside
+  // xss-lock.  Without this, xss-lock will permit the machine to go to sleep,
+  // and after opening the lid we'll permit unauthenticated wakeup.
+  if (allow_unauthenticated_wakeup_time_sec != 0.0f) {
+    char path[PATH_MAX + 1];
+    snprintf(path, sizeof(path), "/proc/%ld/exe", (long)getppid());
+    path[sizeof(path) - 1] = 0;
+    char buf[PATH_MAX];
+    ssize_t size = readlink(path, buf, sizeof(buf));
+#define XSS_LOCK_PATTERN "/xss-lock"
+    if (size >= (ssize_t)sizeof(XSS_LOCK_PATTERN) - 1 &&
+        size < (ssize_t)sizeof(buf)) {
+      if (!memcmp(buf + size - (sizeof(XSS_LOCK_PATTERN) - 1), XSS_LOCK_PATTERN,
+                  sizeof(XSS_LOCK_PATTERN) - 1)) {
+        const char *str = getenv("XSS_SLEEP_LOCK_FD");
+        if (str == NULL || str[0] == 0) {
+          fprintf(stderr,
+                  "Running from xss-lock without the ability of inhibiting "
+                  "sleep - disabling unauthenticated wakeup.\n");
+          allow_unauthenticated_wakeup_time_sec = 0.0f;
+        }
+      }
+    }
+  }
+#endif
 }
 
 /*! \brief Parse the command line arguments.
@@ -416,6 +444,32 @@ void MaybeRaiseWindow(Display *display, Window w) {
     XRaiseWindow(display, w);
   }
   XFree(siblings);
+}
+
+/*! \brief Tell xss-lock that we're done locking.
+ *
+ * This enables xss-lock to delay going to sleep until the screen is actually
+ * locked.
+ *
+ * \param fd The file descriptor of the X11 connection that we shouldn't close.
+ */
+void NotifyXSSLock(int x11_fd) {
+  const char *str = getenv("XSS_SLEEP_LOCK_FD");
+  if (str != NULL && str[0] != 0) {
+    char *endptr = NULL;
+    int fd = strtol(str, &endptr, 0);
+    if ((endptr != NULL && *endptr != 0)) {
+      fprintf(stderr,
+              "Ignoring non-numeric value of XSS_SLEEP_LOCK_FD. We're probably "
+              "inhibiting sleep now.\n");
+    } else if (fd == x11_fd) {
+      fprintf(stderr,
+              "XSS_SLEEP_LOCK_FD matches DISPLAY - what?!? We're probably "
+              "inhibiting sleep now.\n");
+    } else if (close(fd) != 0) {
+      perror("close(XSS_SLEEP_LOCK_FD)");
+    }
+  }
 }
 
 /*! \brief The main program.
@@ -778,6 +832,7 @@ int main(int argc, char **argv) {
                      w, h - ((h - rh) / 2 + rh));
     } else if (unauthenticated_wakeup_animation_active) {
       XClearWindow(display, saver_window);
+      NotifyXSSLock(x11_fd);
       unauthenticated_wakeup_animation_active = 0;
     }
 
