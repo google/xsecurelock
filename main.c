@@ -105,10 +105,10 @@ const char *saver_executable = SAVER_EXECUTABLE;
 //! Number of seconds to allow unauthenticated wakeup for. Always finite.
 float allow_unauthenticated_wakeup_time_sec =
     DEFAULT_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC;
-//! \brief The timer that, while armed, allows for unauthenticated wakeup.
+//! \brief The timers that, while both armed, allow for unauthenticated wakeup.
 //
 // Initialized iff allow_unauthenticated_wakeup_time_sec > 0.
-timer_t unauthenticated_wakeup_timer;
+timer_t unauthenticated_wakeup_timer[2];
 
 enum WatchChildrenState {
   //! Request saver child.
@@ -183,27 +183,42 @@ int AllowUnauthenticatedWakeUp(float* ratio_left) {
     return 0;
   }
 
-  // Now check the timer.
+  // Now check the timers.
   struct itimerspec its;
-  if (timer_gettime(unauthenticated_wakeup_timer, &its) < 0 /* broken */ ||
-      (its.it_value.tv_sec == 0 && its.it_value.tv_nsec == 0) /* exired */) {
-    // Once the timer was seen as expired or broken, disable it permanently for
-    // safety reasons.
-    allow_unauthenticated_wakeup_time_sec = 0.0f;
-    timer_delete(unauthenticated_wakeup_timer);
-    return 0;
-  }
-
-  // Calculate the ratio_left of expiry.
-  if (ratio_left != NULL) {
-    *ratio_left =
-        its.it_value.tv_sec * 1.0f / allow_unauthenticated_wakeup_time_sec +
-        its.it_value.tv_nsec * 1.0e-9f / allow_unauthenticated_wakeup_time_sec;
-    if (*ratio_left < 0.0f) {
-      *ratio_left = 0.0f;
+  size_t i;
+  for (i = 0; i < sizeof(unauthenticated_wakeup_timer) /
+                      sizeof(unauthenticated_wakeup_timer[0]);
+       ++i) {
+    if (timer_gettime(unauthenticated_wakeup_timer[i], &its) < 0 /* broken */ ||
+        (its.it_value.tv_sec == 0 && its.it_value.tv_nsec == 0) /* exired */) {
+      // Once a timer was seen as expired or broken, disable it permanently for
+      // safety reasons.
+      allow_unauthenticated_wakeup_time_sec = 0.0f;
+      size_t j;
+      for (j = 0; j < sizeof(unauthenticated_wakeup_timer) /
+                          sizeof(unauthenticated_wakeup_timer[0]);
+           ++j) {
+        timer_delete(unauthenticated_wakeup_timer[j]);
+      }
+      return 0;
     }
-    if (*ratio_left > 1.0f) {
-      *ratio_left = 1.0f;
+
+    // Calculate the ratio_left of expiry. We take the smallest remaining time
+    // from all timers.
+    if (ratio_left != NULL) {
+      float this_ratio =
+          its.it_value.tv_sec * 1.0f / allow_unauthenticated_wakeup_time_sec +
+          its.it_value.tv_nsec * 1.0e-9f /
+              allow_unauthenticated_wakeup_time_sec;
+      if (this_ratio < 0.0f) {
+        this_ratio = 0.0f;
+      }
+      if (this_ratio > 1.0f) {
+        this_ratio = 1.0f;
+      }
+      if (i == 0 || this_ratio < *ratio_left) {
+        *ratio_left = this_ratio;
+      }
     }
   }
 
@@ -485,17 +500,33 @@ int main(int argc, char **argv) {
       its.it_value.tv_nsec = 999999999;
     }
 
-    if (timer_create(CLOCK_MONOTONIC, &sev, &unauthenticated_wakeup_timer) <
+    if (timer_create(CLOCK_MONOTONIC, &sev, &unauthenticated_wakeup_timer[0]) <
         0) {
       fprintf(stderr,
               "Could not create a CLOCK_MONOTONIC timer - not allowing "
               "unauthenticated wakeup.\n");
       allow_unauthenticated_wakeup_time_sec = 0;
-    } else if (timer_settime(unauthenticated_wakeup_timer, 0, &its, NULL) < 0) {
+    } else if (timer_settime(unauthenticated_wakeup_timer[0], 0, &its, NULL) < 0) {
       fprintf(stderr,
               "Could not start a CLOCK_MONOTONIC timer - not allowing "
               "unauthenticated wakeup.\n");
-      timer_delete(unauthenticated_wakeup_timer);
+      timer_delete(unauthenticated_wakeup_timer[0]);
+      allow_unauthenticated_wakeup_time_sec = 0;
+    }
+
+    if (timer_create(CLOCK_REALTIME, &sev, &unauthenticated_wakeup_timer[1]) <
+        0) {
+      fprintf(stderr,
+              "Could not create a CLOCK_REALTIME timer - not allowing "
+              "unauthenticated wakeup.\n");
+      timer_delete(unauthenticated_wakeup_timer[0]);
+      allow_unauthenticated_wakeup_time_sec = 0;
+    } else if (timer_settime(unauthenticated_wakeup_timer[1], 0, &its, NULL) < 0) {
+      fprintf(stderr,
+              "Could not start a CLOCK_REALTIME timer - not allowing "
+              "unauthenticated wakeup.\n");
+      timer_delete(unauthenticated_wakeup_timer[1]);
+      timer_delete(unauthenticated_wakeup_timer[0]);
       allow_unauthenticated_wakeup_time_sec = 0;
     }
   }
