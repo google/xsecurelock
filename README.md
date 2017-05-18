@@ -138,9 +138,10 @@ exploits, the following measures are taken:
 * The main processes uses only a single buffer - to hold a single keystroke.
   Therefore it is impossible to exploit a buffer overrun in the main process by
   e.g. an overlong password entry.
-* The only exit condition of the program is the Authentication Module returning
-  with exit status zero, on which xsecurelock itself will return with status
-  zero; therefore especially paranoid users might want to run it as
+* The only exit conditions of the program is the Authentication Module returning
+  with exit status zero, or an incoming event in the first second of startup
+  (which is clearly visually indicated), on which xsecurelock itself will return
+  with status zero; therefore especially paranoid users might want to run it as
   `sh -c "xsecurelock ... || kill -9 -1"` :)
 
 # License
