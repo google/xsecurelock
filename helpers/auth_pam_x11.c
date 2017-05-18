@@ -28,6 +28,10 @@ limitations under the License.
 #include <sys/time.h>             // for timeval
 #include <unistd.h>               // for getuid, sleep, ssize_t
 
+#ifdef HAVE_XKB
+#include <X11/XKBlib.h>
+#endif
+
 #include "../mlock_page.h"
 
 //! The blinking interval in microseconds.
@@ -65,18 +69,79 @@ unsigned long Black;
 //! The White color (used as foreground).
 unsigned long White;
 
-/*! \brief Check if Caps Lock is active.
+#ifdef HAVE_XKB
+/*! \brief Check which modifiers are active.
  *
- * \return 1 if caps lock is enabled, 0 otherwise.
+ * \return The current modifier mask as a string.
  */
-int capslock_active() {
-  Window root, child;
-  int root_x, root_y, win_x, win_y;
-  unsigned int mask = 0;
-  XQueryPointer(display, window, &root, &child, &root_x, &root_y, &win_x,
-                &win_y, &mask);
-  return !!(mask & LockMask);
+const char *get_indicators() {
+  static char buf[128];
+  char *p;
+
+  XkbDescPtr xkb;
+  xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
+  if (XkbGetNames(display, XkbIndicatorNamesMask | XkbGroupNamesMask, xkb) !=
+      Success) {
+    fprintf(stderr, "XkbGetNames failed\n");
+    XkbFreeClientMap(xkb, 0, True);
+    return "";
+  }
+  XkbStateRec state;
+  if (XkbGetState(display, XkbUseCoreKbd, &state) != Success) {
+    fprintf(stderr, "XkbGetState failed\n");
+    XkbFreeClientMap(xkb, 0, True);
+    return "";
+  }
+  unsigned int istate;
+  if (XkbGetIndicatorState(display, XkbUseCoreKbd, &istate) != Success) {
+    fprintf(stderr, "XkbGetIndicatorState failed\n");
+    XkbFreeClientMap(xkb, 0, True);
+    return "";
+  }
+
+  p = buf;
+
+  const char *word = "Keyboard: ";
+  size_t n = strlen(word);
+  if (n >= sizeof(buf) - (p - buf)) {
+    fprintf(stderr, "Not enough space to store intro '%s'.\n", word);
+    return "";
+  }
+  memcpy(p, word, n);
+  p += n;
+
+  word = XGetAtomName(display, xkb->names->groups[state.group]);
+  n = strlen(word);
+  if (n >= sizeof(buf) - (p - buf)) {
+    fprintf(stderr, "Not enough space to store group name '%s'.\n", word);
+    return "";
+  }
+  memcpy(p, word, n);
+  p += n;
+
+  int i;
+  for (i = 0; i < XkbNumIndicators; i++) {
+    if (!(istate & (1 << i))) {
+      continue;
+    }
+    Atom namea = xkb->names->indicators[i];
+    if (namea == None) {
+      continue;
+    }
+    const char *word = XGetAtomName(display, namea);
+    size_t n = strlen(word);
+    if (n + 2 >= sizeof(buf) - (p - buf)) {
+      fprintf(stderr, "Not enough space to store modifier name '%s'.\n", word);
+      continue;
+    }
+    memcpy(p, ", ", 2);
+    memcpy(p+2, word, n);
+    p += n+2;
+  }
+  *p = 0;
+  return buf;
 }
+#endif
 
 /*! \brief Display a string in the window.
  *
@@ -107,40 +172,30 @@ void display_string(const char *title, const char *str) {
     h = 480;
   }
   int screens = (w * 9 + h * 8) / (h * 16);
+  int th = font->max_bounds.ascent + font->max_bounds.descent + 4;
+  int to = font->max_bounds.ascent + 2; // Text at to has bbox from 0 to th.
 
   int len_title = strlen(title);
-  int len_str = strlen(str);
   int tw_title = XTextWidth(font, title, len_title);
+
+  int len_str = strlen(str);
   int tw_str = XTextWidth(font, str, len_str);
+
+#ifdef HAVE_XKB
+  const char *indicators = get_indicators();
+  int len_indicators = strlen(indicators);
+  int tw_indicators = XTextWidth(font, indicators, len_indicators);
+#endif
 
   if (region_w == 0 || region_h == 0) {
     XClearWindow(display, window);
-  }
-
-  // wHEN cAPS lOCK IS ACTIVE, REVERSE CASE OF ALL DISPLAYED TEXT.
-  if (capslock_active()) {
-    static char *title_capslock = NULL, *str_capslock = NULL;
-    size_t title_len = strlen(title);
-    size_t str_len = strlen(str);
-    size_t i;
-    title_capslock = realloc(title_capslock, title_len + 1);
-    for (i = 0; i <= title_len; ++i) {
-      title_capslock[i] = (title[i] == toupper(title[i])) ? tolower(title[i])
-                                                          : toupper(title[i]);
-    }
-    title = title_capslock;
-    str_capslock = realloc(str_capslock, str_len + 1);
-    for (i = 0; i <= str_len; ++i) {
-      str_capslock[i] =
-          (str[i] == toupper(str[i])) ? tolower(str[i]) : toupper(str[i]);
-    }
-    str = str_capslock;
   }
 
   int i;
   for (i = 0; i < screens; ++i) {
     int cx = (w * i) / screens + (w / screens) / 2;
     int cy = h / 2;
+    int sy = cy + to - th * 2;
 
     // Clear the region last written to.
     if (region_w != 0 && region_h != 0) {
@@ -149,22 +204,34 @@ void display_string(const char *title, const char *str) {
     }
 
     XDrawString(display, window, gc, cx - tw_title / 2,
-                cy - font->max_bounds.descent - 8, title, len_title);
+                sy, title, len_title);
 
     XDrawString(display, window, gc, cx - tw_str / 2,
-                cy + font->max_bounds.ascent + 8, str, len_str);
+                sy + th * 2, str, len_str);
+
+#ifdef HAVE_XKB
+    XDrawString(display, window, gc, cx - tw_indicators / 2,
+                sy + th * 3, indicators, len_indicators);
+#endif
   }
 
   // Remember the region we just wrote to, relative to cx and cy.
-  if (tw_title > tw_str) {
-    region_x = -tw_title / 2;
-    region_w = tw_title;
-  } else {
-    region_x = -tw_str / 2;
+  region_w = tw_title;
+  if (tw_str > region_w) {
     region_w = tw_str;
   }
-  region_y = -font->max_bounds.descent - 8 - font->max_bounds.ascent;
-  region_h = 2 * (font->max_bounds.ascent + font->max_bounds.descent + 8);
+#ifdef HAVE_XKB
+  if (tw_indicators > region_w) {
+    region_w = tw_indicators;
+  }
+#endif
+  region_x = -region_w / 2;
+#ifdef HAVE_XKB
+  region_h = 4 * th;
+#else
+  region_h = 3 * th;
+#endif
+  region_y = -region_h / 2;
 
   // We have no event loop here. But this is a good point to flush the event
   // queue.

@@ -39,6 +39,10 @@ AC_SEARCH_LIBS(pam_authenticate, pam,
                [have_pam=true], [have_pam=false])
 AM_CONDITIONAL([HAVE_PAM], [test x$have_pam = xtrue])
 
+AC_SEARCH_LIBS(XkbGetIndicatorState, X11,
+               [have_xkb=true], [have_xkb=false])
+AM_CONDITIONAL([HAVE_XKB], [test x$have_xkb = xtrue])
+
 pam_service_name=
 enable_pam_check_account_type=no
 
