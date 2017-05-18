@@ -73,7 +73,7 @@ Just kidding about the last one :)
 # Automatic Locking
 
 To automatically lock the screen after some time of inactivity, use
-[xss-lock]() as follows:
+[xss-lock](https://bitbucket.org/raymonad/xss-lock) as follows:
 
 ```
 xset s 300 5
