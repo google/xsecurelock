@@ -58,14 +58,45 @@ make install
 Pick one of the [authentication modules] (#authentication-modules) and one of
 the [screen saver modules] (#screen-saver-modules).
 
-Tell your desktop environment to run
-"xsecurelock _authentication_module_ _screen_saver_module_", for example:
+Tell your desktop environment to run XSecureLock by using a command line such
+as one of the following:
 
 ```
-xsecurelock auth_pam_x11 saver_blank
+xsecurelock
+env XSECURELOCK_SAVER=saver_xscreensaver xsecurelock
+env XSECURELOCK_SAVER=saver_mplayer XSECURELOCK_WANT_FIRST_KEYPRESS=1 xsecurelock
+env XSECURELOCK_FONT=`xlsfonts | grep '\<iso8859-1\>' | shuf | head -n 1` xsecurelock
 ```
 
-If the module names are left out, a sensible default will be chosen.
+Just kidding about the last one :)
+
+# Automatic Locking
+
+To automatically lock the screen after some time of inactivity, use
+[xss-lock]() as follows:
+
+```
+xss-lock -l -- xsecurelock
+```
+
+The option `-l` is critical as it makes sure the screen cannot be unlocked
+without password after wakeup from sleep (via the `XSS_SLEEP_LOCK_FD` variable)!
+
+# Options
+
+Options to XSecureLock can be passed by environment variables:
+
+* `XSECURELOCK_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC`: number of seconds during
+  which the screen can be unlocked without authentication (to stop undesired
+  idle locking, e.g. while watching a movie). Primarily useful with xss-lock.
+  Defaults to 1 second.
+* `XSECURELOCK_AUTH`: specifies the desired authentication module.
+* `XSECURELOCK_FONT`: X11 font name to use for auth_pam_x11. You can get a list
+  of supported font names by running `xlsfonts`.
+* `XSECURELOCK_SAVER`: specifies the desired screen saver module.
+* `XSECURELOCK_WANT_FIRST_KEYPRESS`: If set to 1, the key pressed to stop the
+  screen saver and spawn the auth child is sent to the auth child (and thus
+  becomes part of the password entry).
 
 # Authentication Modules
 

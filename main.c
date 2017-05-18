@@ -261,22 +261,22 @@ int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
 void usage(const char *me) {
   printf(
       "Usage:\n"
-      "  %s [auth_<authname>] [saver_<savername>]\n"
+      "  env [variables...] %s\n"
       "\n"
-      "Example:\n"
-      "  %s auth_pam_x11 saver_blank\n"
+      "Environment variables:\n"
+      "  XSECURELOCK_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC=<seconds>\n"
+      "  XSECURELOCK_AUTH=<auth module>\n"
+      "  XSECURELOCK_FONT=<x11 font name>\n"
+      "  XSECURELOCK_SAVER=<saver module>\n"
+      "  XSECURELOCK_WANT_FIRST_KEYPRESS=<0|1>\n"
       "\n"
-      "If an argument is not specified, the default will be used, which can\n"
-      "be set in the $XSECURELOCK_AUTH and $XSECURELOCK_SAVER environment\n"
-      "variables.\n"
-      "\n"
-      "Current default auth module: %s\n"
-      "Current default saver module: %s\n"
+      "Default auth module: " AUTH_EXECUTABLE "\n"
+      "Default saver module: " SAVER_EXECUTABLE "\n"
       "\n"
       "This software is licensed under the Apache 2.0 License. Details are\n"
       "available at the following location:\n"
       "  " DOCS_PATH "/COPYING\n",
-      me, me, auth_executable, saver_executable);
+      me);
 }
 
 /*! \brief Load default settings from environment variables.
@@ -352,6 +352,9 @@ void load_defaults() {
  * This accepts saver_* or auth_* arguments, and puts them in their respective
  * global variable.
  *
+ * This is DEPRECATED - use the XSECURELOCK_SAVER and XSECURELOCK_AUTH
+ * environment variables instead!
+ *
  * Possible errors will be printed on stderr.
  *
  * \return true if everything is OK, false otherwise.
@@ -360,10 +363,16 @@ int parse_arguments(int argc, char **argv) {
   int i;
   for (i = 1; i < argc; ++i) {
     if (!strncmp(argv[i], "auth_", 5)) {
+      fprintf(stderr,
+              "Setting auth child name from command line is DEPRECATED.\nUse "
+              "the XSECURELOCK_AUTH environment variable instead.\n");
       auth_executable = argv[i];
       continue;
     }
     if (!strncmp(argv[i], "saver_", 6)) {
+      fprintf(stderr,
+              "Setting saver child name from command line is DEPRECATED.\nUse "
+              "the XSECURELOCK_SAVER environment variable instead.\n");
       saver_executable = argv[i];
       continue;
     }
@@ -389,6 +398,10 @@ int check_settings() {
     fprintf(stderr, "Auth module has not been specified in any way.\n");
     return 0;
   }
+  if (strncmp(auth_executable, "auth_", 5)) {
+    fprintf(stderr, "Auth module name must start with auth_.\n");
+    return 0;
+  }
   if (strchr(auth_executable, '.')) {
     fprintf(stderr, "Auth module name may not contain a dot.\n");
     return 0;
@@ -399,7 +412,11 @@ int check_settings() {
   }
 
   if (saver_executable == NULL) {
-    fprintf(stderr, "Auth module has not been specified in any way.\n");
+    fprintf(stderr, "Saver module has not been specified in any way.\n");
+    return 0;
+  }
+  if (strncmp(saver_executable, "saver_", 6)) {
+    fprintf(stderr, "Saver module name must start with saver_.\n");
     return 0;
   }
   if (strchr(saver_executable, '.')) {
