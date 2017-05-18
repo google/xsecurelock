@@ -76,20 +76,25 @@ To automatically lock the screen after some time of inactivity, use
 [xss-lock]() as follows:
 
 ```
-xss-lock -l -- xsecurelock
+xset s 300 5
+xss-lock -n 'xmessage -nearmouse "Locking screen..."' -l -- xsecurelock
 ```
 
-The option `-l` is critical as it makes sure the screen cannot be unlocked
-without password after wakeup from sleep (via the `XSS_SLEEP_LOCK_FD` variable)!
+or on a laptop:
+
+```
+xset s 300 5
+xss-lock -n /path/to/dim-screen.sh -l -- xsecurelock
+```
+
+The option `-l` is critical as it makes sure not to allow machine suspend before
+the screen saver is active - otherwise previous screen content may show up for a
+short time after wakeup!
 
 # Options
 
 Options to XSecureLock can be passed by environment variables:
 
-* `XSECURELOCK_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC`: number of seconds during
-  which the screen can be unlocked without authentication (to stop undesired
-  idle locking, e.g. while watching a movie). Primarily useful with xss-lock.
-  Defaults to 1 second.
 * `XSECURELOCK_AUTH`: specifies the desired authentication module.
 * `XSECURELOCK_FONT`: X11 font name to use for auth_pam_x11. You can get a list
   of supported font names by running `xlsfonts`.
@@ -170,9 +175,8 @@ exploits, the following measures are taken:
   Therefore it is impossible to exploit a buffer overrun in the main process by
   e.g. an overlong password entry.
 * The only exit conditions of the program is the Authentication Module returning
-  with exit status zero, or an incoming event in the first second of startup
-  (which is clearly visually indicated), on which xsecurelock itself will return
-  with status zero; therefore especially paranoid users might want to run it as
+  with exit status zero, on which xsecurelock itself will return with status
+  zero; therefore especially paranoid users might want to run it as
   `sh -c "xsecurelock ... || kill -9 -1"` :)
 
 # License

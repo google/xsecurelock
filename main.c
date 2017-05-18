@@ -54,22 +54,6 @@ limitations under the License.
  */
 #define WATCH_CHILDREN_HZ 10
 
-/*! \brief How often (in times per second) to draw the start animation.
- */
-#define UNAUTHENTICATED_WAKEUP_ANIMATION_HZ 60
-
-/*! \brief The default number of seconds to allow unauthenticated wakeup for.
- *
- * This can be overridden by the ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC variable.
- */
-#define DEFAULT_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC 1.0f
-
-/*! \brief The maximum number of seconds to allow unauthenticated wakeup for.
- *
- * This overrides the environment variable.
- */
-#define MAX_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC 10.0f
-
 /*! \brief Try to reinstate grabs in regular intervals.
  *
  * This will reinstate the grabs WATCH_CHILDREN_HZ times per second. This
@@ -102,13 +86,6 @@ limitations under the License.
 const char *auth_executable = AUTH_EXECUTABLE;
 //! The name of the saver child to execute, relative to HELPER_PATH.
 const char *saver_executable = SAVER_EXECUTABLE;
-//! Number of seconds to allow unauthenticated wakeup for. Always finite.
-float allow_unauthenticated_wakeup_time_sec =
-    DEFAULT_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC;
-//! \brief The timers that, while both armed, allow for unauthenticated wakeup.
-//
-// Initialized iff allow_unauthenticated_wakeup_time_sec > 0.
-timer_t unauthenticated_wakeup_timer[2];
 
 enum WatchChildrenState {
   //! Request saver child.
@@ -168,75 +145,11 @@ int WatchChildren(enum WatchChildrenState state, const char *stdinbuf) {
   return 0;
 }
 
-/*! \brief Check if we allow immediate unauthenticated wakeup.
- *
- * When returning true, also provides the ratio of the unauthenticated time
- * that's still left.
- *
- * This function is implemented so that if it ever returned zero, it'll always
- * return zero - this ensures that outside tasks meddling with the timer cannot
- * cause an unauthenticated wakeup at a later time.
- */
-int AllowUnauthenticatedWakeUp(float* ratio_left) {
-  // First do a quick check if it's disabled.
-  if (allow_unauthenticated_wakeup_time_sec <= 0.0f) {
-    return 0;
-  }
-
-  // Now check the timers.
-  struct itimerspec its;
-  size_t i;
-  for (i = 0; i < sizeof(unauthenticated_wakeup_timer) /
-                      sizeof(unauthenticated_wakeup_timer[0]);
-       ++i) {
-    if (timer_gettime(unauthenticated_wakeup_timer[i], &its) < 0 /* broken */ ||
-        (its.it_value.tv_sec == 0 && its.it_value.tv_nsec == 0) /* exired */) {
-      // Once a timer was seen as expired or broken, disable it permanently for
-      // safety reasons.
-      allow_unauthenticated_wakeup_time_sec = 0.0f;
-      size_t j;
-      for (j = 0; j < sizeof(unauthenticated_wakeup_timer) /
-                          sizeof(unauthenticated_wakeup_timer[0]);
-           ++j) {
-        timer_delete(unauthenticated_wakeup_timer[j]);
-      }
-      return 0;
-    }
-
-    // Calculate the ratio_left of expiry. We take the smallest remaining time
-    // from all timers.
-    if (ratio_left != NULL) {
-      float this_ratio =
-          its.it_value.tv_sec * 1.0f / allow_unauthenticated_wakeup_time_sec +
-          its.it_value.tv_nsec * 1.0e-9f /
-              allow_unauthenticated_wakeup_time_sec;
-      if (this_ratio < 0.0f) {
-        this_ratio = 0.0f;
-      }
-      if (this_ratio > 1.0f) {
-        this_ratio = 1.0f;
-      }
-      if (i == 0 || this_ratio < *ratio_left) {
-        *ratio_left = this_ratio;
-      }
-    }
-  }
-
-  return 1;
-}
-
 /*! \brief Wake up the screen saver in response to a keyboard or mouse event.
  *
- * Normally this switches to the auth child; however shortly after screen lock
- * launch, this optionally allows instant unlock.
- *
- * \return If true, authentication was successful or unnecessary, and the
- * program should exit.
+ * \return If true, authentication was successful, and the program should exit.
  */
 int WakeUp(const char *stdinbuf) {
-  if (AllowUnauthenticatedWakeUp(NULL)) {
-    return 1;
-  }
   return WatchChildren(WATCH_CHILDREN_FORCE_AUTH, stdinbuf);
 }
 
@@ -264,7 +177,6 @@ void usage(const char *me) {
       "  env [variables...] %s\n"
       "\n"
       "Environment variables:\n"
-      "  XSECURELOCK_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC=<seconds>\n"
       "  XSECURELOCK_AUTH=<auth module>\n"
       "  XSECURELOCK_FONT=<x11 font name>\n"
       "  XSECURELOCK_SAVER=<saver module>\n"
@@ -292,59 +204,6 @@ void load_defaults() {
   if (str != NULL && str[0] != 0) {
     saver_executable = str;
   }
-  str = getenv("XSECURELOCK_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC");
-  if (str != NULL && str[0] != 0) {
-    char *endptr = NULL;
-    float val = strtof(str, &endptr);
-    if ((endptr != NULL && *endptr != 0)) {
-      // Not numeric.
-      fprintf(stderr,
-              "Ignoring non-numeric value of "
-              "XSECURELOCK_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC.\n");
-    } else if (!(val <= MAX_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC)) {
-      // Too high.
-      fprintf(stderr,
-              "Limiting value of "
-              "XSECURELOCK_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC to %g sec.\n",
-              MAX_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC);
-      allow_unauthenticated_wakeup_time_sec =
-          MAX_ALLOW_UNAUTHENTICATED_WAKEUP_TIME_SEC;
-    } else if (val <= 0.0f) {
-      // Explicitly disabled.
-      allow_unauthenticated_wakeup_time_sec = 0.0f;
-    } else {
-      // Explicitly set.
-      allow_unauthenticated_wakeup_time_sec = val;
-    }
-  }
-
-#ifdef __linux__
-  // On Linux systems, we can perform an additional check to make sure we've got
-  // access to the sleep lock file descriptor when we're running inside
-  // xss-lock.  Without this, xss-lock will permit the machine to go to sleep,
-  // and after opening the lid we'll permit unauthenticated wakeup.
-  if (allow_unauthenticated_wakeup_time_sec != 0.0f) {
-    char path[PATH_MAX + 1];
-    snprintf(path, sizeof(path), "/proc/%ld/exe", (long)getppid());
-    path[sizeof(path) - 1] = 0;
-    char buf[PATH_MAX];
-    ssize_t size = readlink(path, buf, sizeof(buf));
-#define XSS_LOCK_PATTERN "/xss-lock"
-    if (size >= (ssize_t)sizeof(XSS_LOCK_PATTERN) - 1 &&
-        size < (ssize_t)sizeof(buf)) {
-      if (!memcmp(buf + size - (sizeof(XSS_LOCK_PATTERN) - 1), XSS_LOCK_PATTERN,
-                  sizeof(XSS_LOCK_PATTERN) - 1)) {
-        const char *str = getenv("XSS_SLEEP_LOCK_FD");
-        if (str == NULL || str[0] == 0) {
-          fprintf(stderr,
-                  "Running from xss-lock without the ability of inhibiting "
-                  "sleep - disabling unauthenticated wakeup.\n");
-          allow_unauthenticated_wakeup_time_sec = 0.0f;
-        }
-      }
-    }
-  }
-#endif
 }
 
 /*! \brief Parse the command line arguments.
@@ -466,7 +325,7 @@ void MaybeRaiseWindow(Display *display, Window w) {
 /*! \brief Tell xss-lock that we're done locking.
  *
  * This enables xss-lock to delay going to sleep until the screen is actually
- * locked.
+ * locked - useful to prevent information leaks after wakeup.
  *
  * \param fd The file descriptor of the X11 connection that we shouldn't close.
  */
@@ -530,77 +389,19 @@ int main(int argc, char **argv) {
   int h = DisplayHeight(display, DefaultScreen(display));
 
   // Prepare some nice window attributes for a screen saver window.
-  XColor Black, White;
-  Black.pixel = BlackPixel(display, DefaultScreen(display));
+  XColor black;
+  black.pixel = BlackPixel(display, DefaultScreen(display));
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
-              &Black);
-  White.pixel = WhitePixel(display, DefaultScreen(display));
-  XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
-              &White);
+              &black);
   Pixmap bg = XCreatePixmap(display, root_window, 1, 1, 1);
   XSetWindowAttributes coverattrs;
-  coverattrs.background_pixel = Black.pixel;
+  coverattrs.background_pixel = black.pixel;
   coverattrs.save_under = 1;
   coverattrs.override_redirect = 1;
   coverattrs.cursor =
-      XCreatePixmapCursor(display, bg, bg, &Black, &Black, 0, 0);
+      XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
 
   Window parent_window = root_window;
-
-  // From here on, the screen may get dark. So this is a good point to start the
-  // timer.
-  if (allow_unauthenticated_wakeup_time_sec > 0) {
-    struct sigevent sev;
-    memset(&sev, 0, sizeof(sev));
-    sev.sigev_notify = SIGEV_NONE;
-    struct itimerspec its;
-    memset(&its, 0, sizeof(its));
-
-    // Let's avoid including <math.h> and -lm just for this.
-    its.it_value.tv_sec = allow_unauthenticated_wakeup_time_sec;
-    if (its.it_value.tv_sec > allow_unauthenticated_wakeup_time_sec) {
-      // If we had for some reason rounded up, change it to rounding down.
-      --its.it_value.tv_sec;
-    }
-    its.it_value.tv_nsec =
-        (allow_unauthenticated_wakeup_time_sec - its.it_value.tv_sec) *
-        1000000000.0f;
-    if (its.it_value.tv_nsec >= 1000000000) {
-      // If due to a roundoff error we went above a whole second in tv_nsec,
-      // stay just below that.
-      its.it_value.tv_nsec = 999999999;
-    }
-
-    if (timer_create(CLOCK_MONOTONIC, &sev, &unauthenticated_wakeup_timer[0]) <
-        0) {
-      fprintf(stderr,
-              "Could not create a CLOCK_MONOTONIC timer - not allowing "
-              "unauthenticated wakeup.\n");
-      allow_unauthenticated_wakeup_time_sec = 0;
-    } else if (timer_settime(unauthenticated_wakeup_timer[0], 0, &its, NULL) < 0) {
-      fprintf(stderr,
-              "Could not start a CLOCK_MONOTONIC timer - not allowing "
-              "unauthenticated wakeup.\n");
-      timer_delete(unauthenticated_wakeup_timer[0]);
-      allow_unauthenticated_wakeup_time_sec = 0;
-    }
-
-    if (timer_create(CLOCK_REALTIME, &sev, &unauthenticated_wakeup_timer[1]) <
-        0) {
-      fprintf(stderr,
-              "Could not create a CLOCK_REALTIME timer - not allowing "
-              "unauthenticated wakeup.\n");
-      timer_delete(unauthenticated_wakeup_timer[0]);
-      allow_unauthenticated_wakeup_time_sec = 0;
-    } else if (timer_settime(unauthenticated_wakeup_timer[1], 0, &its, NULL) < 0) {
-      fprintf(stderr,
-              "Could not start a CLOCK_REALTIME timer - not allowing "
-              "unauthenticated wakeup.\n");
-      timer_delete(unauthenticated_wakeup_timer[1]);
-      timer_delete(unauthenticated_wakeup_timer[0]);
-      allow_unauthenticated_wakeup_time_sec = 0;
-    }
-  }
 
 #ifdef HAVE_COMPOSITE
   int composite_event_base, composite_error_base,
@@ -632,15 +433,6 @@ int main(int argc, char **argv) {
   Window saver_window = XCreateWindow(
       display, grab_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent, CWBackPixel | CWCursor, &coverattrs);
-
-  // Create a GC to draw the start animation.
-  XGCValues saver_gc_values;
-  saver_gc_values.foreground = White.pixel;
-  GC saver_white_gc =
-      XCreateGC(display, saver_window, GCForeground, &saver_gc_values);
-  saver_gc_values.foreground = Black.pixel;
-  GC saver_black_gc =
-      XCreateGC(display, saver_window, GCForeground, &saver_gc_values);
 
   // Let's get notified if we lose visibility, so we can self-raise.
   XSelectInput(display, grab_window,
@@ -774,25 +566,17 @@ int main(int argc, char **argv) {
 
   enum WatchChildrenState requested_saver_state = WATCH_CHILDREN_NORMAL;
   int x11_fd = ConnectionNumber(display);
-  int unauthenticated_wakeup_animation_active = 1;
+  int grab_window_mapped = 0, saver_window_mapped = 0, xss_lock_notified = 0;
   for (;;) {
-    int actual_hz = unauthenticated_wakeup_animation_active  //
-                        ? UNAUTHENTICATED_WAKEUP_ANIMATION_HZ
-                        : WATCH_CHILDREN_HZ;
-    enum WatchChildrenState actual_saver_state =
-        unauthenticated_wakeup_animation_active  //
-            ? WATCH_CHILDREN_SAVER_DISABLED
-            : requested_saver_state;
-
     // Watch children WATCH_CHILDREN_HZ times per second.
     fd_set in_fds;
     FD_ZERO(&in_fds);
     FD_SET(x11_fd, &in_fds);
     struct timeval tv;
-    tv.tv_usec = 1000000 / actual_hz;
+    tv.tv_usec = 1000000 / WATCH_CHILDREN_HZ;
     tv.tv_sec = 0;
     select(x11_fd + 1, &in_fds, 0, 0, &tv);
-    if (WatchChildren(actual_saver_state, NULL)) {
+    if (WatchChildren(requested_saver_state, NULL)) {
       goto done;
     }
 
@@ -816,42 +600,6 @@ int main(int argc, char **argv) {
     MaybeRaiseWindow(display, saver_window);
     MaybeRaiseWindow(display, grab_window);
 #endif
-
-    float ratio_left;
-    if (AllowUnauthenticatedWakeUp(&ratio_left)) {
-      // The remaining ratio is set up to be at least 0.01 so that we always
-      // have a visible indication of this condition, and at most 0.99 so none
-      // of the rectangles drawn below are ever empty.
-      int rw = w * (ratio_left * 0.98f + 0.01f);
-      if (rw > w) {
-        // Counter roundoff errors.
-        rw = w;
-      }
-      int rh = h * (ratio_left * 0.98f + 0.01f);
-      if (rh > h) {
-        // Counter roundoff errors.
-        rh = h;
-      }
-      XFillRectangle(display, saver_window, saver_black_gc,  //
-                     0, 0,                                   //
-                     w, (h - rh) / 2);
-      XFillRectangle(display, saver_window, saver_black_gc,  //
-                     0, (h - rh) / 2,                        //
-                     (w - rw) / 2, rh);
-      XFillRectangle(display, saver_window, saver_white_gc,  //
-                     (w - rw) / 2, (h - rh) / 2,             //
-                     rw, rh);
-      XFillRectangle(display, saver_window, saver_black_gc,  //
-                     (w - rw) / 2 + rw, (h - rh) / 2,        //
-                     w - ((w - rw) / 2 + rw), rh);
-      XFillRectangle(display, saver_window, saver_black_gc,  //
-                     0, (h - rh) / 2 + rh,                   //
-                     w, h - ((h - rh) / 2 + rh));
-    } else if (unauthenticated_wakeup_animation_active) {
-      XClearWindow(display, saver_window);
-      NotifyXSSLock(x11_fd);
-      unauthenticated_wakeup_animation_active = 0;
-    }
 
     // Handle all events.
     while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
@@ -949,8 +697,25 @@ int main(int argc, char **argv) {
         case MappingNotify:
         case EnterNotify:
         case LeaveNotify:
-        case MapNotify:
           // Ignored.
+          break;
+        case MapNotify:
+          if (priv.ev.xmap.window == grab_window) {
+            grab_window_mapped = 1;
+          } else if (priv.ev.xmap.window == saver_window) {
+            saver_window_mapped = 1;
+          }
+          if (grab_window_mapped && saver_window_mapped && !xss_lock_notified) {
+            NotifyXSSLock(x11_fd);
+            xss_lock_notified = 1;
+          }
+          break;
+        case UnmapNotify:
+          if (priv.ev.xmap.window == grab_window) {
+            grab_window_mapped = 0;
+          } else if (priv.ev.xmap.window == saver_window) {
+            saver_window_mapped = 0;
+          }
           break;
         case FocusIn:
         case FocusOut:
