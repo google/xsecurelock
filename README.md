@@ -55,8 +55,8 @@ make install
 
 # Setup
 
-Pick one of the [authentication modules] (#authentication-modules) and one of
-the [screen saver modules] (#screen-saver-modules).
+Pick one of the [authentication modules](#authentication-modules) and one of
+the [screen saver modules](#screen-saver-modules).
 
 Tell your desktop environment to run XSecureLock by using a command line such
 as one of the following:
