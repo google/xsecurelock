@@ -10,7 +10,7 @@ the screen saver), or sometimes even worse.
 
 In XSecureLock, security is achieved using a modular design to avoid the usual
 pitfalls of screen locking utility design on X11. Details are available in the
-[Security Design] (#security-design) section.
+[Security Design](#security-design) section.
 
 # Requirements
 
