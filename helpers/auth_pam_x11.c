@@ -477,7 +477,10 @@ int converse(int num_msg, const struct pam_message **msg,
  */
 int authenticate(const char *username, const char *hostname,
                  struct pam_conv *conv, pam_handle_t **pam) {
-  int status = pam_start(PAM_SERVICE_NAME, username, conv, pam);
+  const char *service_name = getenv("XSECURELOCK_PAM_SERVICE");
+  if (service_name == NULL || service_name[0] == '\0')
+    service_name = PAM_SERVICE_NAME;
+  int status = pam_start(service_name, username, conv, pam);
   if (status != PAM_SUCCESS) {
     fprintf(stderr, "pam_start: %d\n",
             status);  // Or can one call pam_strerror on a NULL handle?

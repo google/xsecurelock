@@ -38,11 +38,13 @@ distribution of choice, but will be similar:
 NOTE: In these instructions, please replace SERVICE-NAME by the name of an
 appropriate and existing file in `/etc/pam.d`.
 If xscreensaver is installed, `xscreensaver` should always be a good choice;
-otherwise, on Debian and Ubuntu, `common-auth` would work.
+otherwise, on Debian and Ubuntu, `common-auth` would work. This will be used as
+default and can be overridden with [`XSECURELOCK_PAM_SERVICE`](#options).
 
-Failure to do this will render unlocking the screen impossible! If this should
-happen to you, switch to another terminal (`Ctrl-Alt-F1`), log in there, and
-run: `killall xsecurelock` to force unlocking of the screen.
+Configuring a broken or missing SERVICE-NAME will render unlocking the screen
+impossible! If this should happen to you, switch to another terminal
+(`Ctrl-Alt-F1`), log in there, and run: `killall xsecurelock` to force unlocking
+of the screen.
 
 ```
 git clone https://github.com/google/xsecurelock.git
@@ -98,6 +100,8 @@ Options to XSecureLock can be passed by environment variables:
 * `XSECURELOCK_AUTH`: specifies the desired authentication module.
 * `XSECURELOCK_FONT`: X11 font name to use for auth_pam_x11. You can get a list
   of supported font names by running `xlsfonts`.
+* `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with that
+  name in `/etc/pam.d`.
 * `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 * `XSECURELOCK_WANT_FIRST_KEYPRESS`: If set to 1, the key pressed to stop the
   screen saver and spawn the auth child is sent to the auth child (and thus

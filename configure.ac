@@ -50,8 +50,8 @@ AS_IF([test x$have_pam = xtrue], [
   AC_ARG_WITH([pam_service_name],
               AC_HELP_STRING([--with-pam-service-name],
                              [The name of the PAM service that xsecurelock's
-                              auth helpers will authenticate as. This flag is
-                              mandatory. Be sure to verify that
+                              auth helpers will authenticate as by default.
+                              This flag is mandatory. Be sure to verify that
                               /etc/pam.d/SERVICENAME actually exists, as failure
                               of doing so may prevent unlocking the screen.]),
               [pam_service_name=$withval],
