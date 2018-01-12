@@ -24,6 +24,7 @@ limitations under the License.
 #include <X11/X.h>       // for CopyFromParent, etc
 #include <X11/Xlib.h>    // for XEvent, etc
 #include <X11/Xutil.h>   // for XLookupString
+#include <errno.h>       // for ECHILD, EINTR, errno
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE
 #include <signal.h>      // for sigaction, sigemptyset, etc
 #include <stdio.h>       // for fprintf, stderr
@@ -31,6 +32,7 @@ limitations under the License.
 #include <string.h>      // for strchr, strncmp
 #include <sys/select.h>  // for select, FD_SET, FD_ZERO, etc
 #include <sys/time.h>    // for timeval
+#include <sys/wait.h>    // for waitpid, WEXITSTATUS, etc
 #include <time.h>        // for nanosleep, timespec
 #include <unistd.h>      // for access, X_OK
 
@@ -86,6 +88,11 @@ limitations under the License.
 const char *auth_executable = AUTH_EXECUTABLE;
 //! The name of the saver child to execute, relative to HELPER_PATH.
 const char *saver_executable = SAVER_EXECUTABLE;
+//! The command to run once screen locking is complete.
+char *const *notify_command = NULL;
+
+//! The PID of a currently running notify command, or 0 if none is running.
+pid_t notify_command_pid = 0;
 
 enum WatchChildrenState {
   //! Request saver child.
@@ -174,7 +181,7 @@ int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
 void usage(const char *me) {
   printf(
       "Usage:\n"
-      "  env [variables...] %s\n"
+      "  env [variables...] %s [-- command to run when locked]\n"
       "\n"
       "Environment variables:\n"
       "  XSECURELOCK_AUTH=<auth module>\n"
@@ -234,6 +241,10 @@ int parse_arguments(int argc, char **argv) {
               "the XSECURELOCK_SAVER environment variable instead.\n");
       saver_executable = argv[i];
       continue;
+    }
+    if (!strcmp(argv[i], "--")) {
+      notify_command = argv + i + 1;
+      break;
     }
     // If we get here, the argument is unrecognized. Exit, then.
     fprintf(stderr, "Unrecognized argument: %s.\n", argv[i]);
@@ -322,14 +333,14 @@ void MaybeRaiseWindow(Display *display, Window w) {
   XFree(siblings);
 }
 
-/*! \brief Tell xss-lock that we're done locking.
+/*! \brief Tell xss-lock or others that we're done locking.
  *
  * This enables xss-lock to delay going to sleep until the screen is actually
  * locked - useful to prevent information leaks after wakeup.
  *
  * \param fd The file descriptor of the X11 connection that we shouldn't close.
  */
-void NotifyXSSLock(int x11_fd) {
+void NotifyOfLock(int x11_fd) {
   const char *str = getenv("XSS_SLEEP_LOCK_FD");
   if (str != NULL && str[0] != 0) {
     char *endptr = NULL;
@@ -344,6 +355,20 @@ void NotifyXSSLock(int x11_fd) {
               "inhibiting sleep now.\n");
     } else if (close(fd) != 0) {
       perror("close(XSS_SLEEP_LOCK_FD)");
+    }
+  }
+  if (notify_command != NULL && *notify_command != NULL) {
+    pid_t pid = fork();
+    if (pid == -1) {
+      perror("fork");
+    } else if (pid == 0) {
+      // Child process.
+      execvp(notify_command[0], notify_command);
+      perror("execvp");
+      exit(EXIT_FAILURE);
+    } else {
+      // Parent process after successful fork.
+      notify_command_pid = pid;
     }
   }
 }
@@ -607,6 +632,43 @@ int main(int argc, char **argv) {
     MaybeRaiseWindow(display, background_window);
 #endif
 
+    // Take care of zombies.
+    // TODO(divVerent): Refactor waitpid handling as callers mostly do the same
+    // handling anyway.
+    if (notify_command_pid != 0) {
+      int status;
+      pid_t pid = waitpid(notify_command_pid, &status, WNOHANG);
+      if (pid < 0) {
+        switch (errno) {
+          case ECHILD:
+            // The process is dead. Fine.
+            notify_command_pid = 0;
+            break;
+          case EINTR:
+            // Waitpid was interrupted. Fine, assume it's still running.
+            break;
+          default:
+            // Assume the child still lives. Shouldn't ever happen.
+            perror("waitpid");
+            break;
+        }
+      } else if (pid == notify_command_pid) {
+        if (WIFEXITED(status)) {
+          // Done notifying.
+          if (WEXITSTATUS(status) != EXIT_SUCCESS) {
+            fprintf(stderr, "Notification command failed with status %d.\n",
+                    WEXITSTATUS(status));
+          }
+          notify_command_pid = 0;
+        }
+        // Otherwise it was suspended or whatever. We need to keep waiting.
+      } else if (pid == 0) {
+        // We're still alive.
+      } else {
+        fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
+      }
+    }
+
     // Handle all events.
     while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
       if (XFilterEvent(&priv.ev, None)) {
@@ -713,7 +775,7 @@ int main(int argc, char **argv) {
           }
           if (background_window_mapped && saver_window_mapped &&
               !xss_lock_notified) {
-            NotifyXSSLock(x11_fd);
+            NotifyOfLock(x11_fd);
             xss_lock_notified = 1;
           }
           break;

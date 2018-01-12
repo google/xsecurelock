@@ -90,7 +90,8 @@ int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
           *auth_running = 0;
           return 1;
         }
-        // Otherwise, the auth child failed. That's ok. Just carry on.
+        // Otherwise, the auth child failed. That's the intended behavior in
+        // case of e.g. a wrong password, so don't log this. Just carry on.
         // This will eventually bring back the saver child.
       }
       // Otherwise, it was suspended or whatever. We need to keep waiting.

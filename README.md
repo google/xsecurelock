@@ -107,6 +107,10 @@ Options to XSecureLock can be passed by environment variables:
   screen saver and spawn the auth child is sent to the auth child (and thus
   becomes part of the password entry).
 
+Additionally, command line arguments following a "--" argument will be executed
+via `execvp` once locking is successful; this can be used to notify a calling
+process of successful locking.
+
 # Authentication Modules
 
 The following authentication modules are included:
