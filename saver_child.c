@@ -72,7 +72,7 @@ void WatchSaverChild(const char* executable, int should_be_running) {
       // Child process.
       setsid();
       execl(executable, executable, NULL);
-      perror("execvp");
+      perror("execl");
       exit(EXIT_FAILURE);
     } else {
       // Parent process after successful fork.

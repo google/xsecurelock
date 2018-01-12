@@ -117,7 +117,7 @@ int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
         close(pc[0]);
         close(pc[1]);
         execl(executable, executable, NULL);
-        perror("execvp");
+        perror("execl");
         exit(EXIT_FAILURE);
       } else {
         // Parent process after successful fork.
