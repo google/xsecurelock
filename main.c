@@ -423,19 +423,22 @@ int main(int argc, char **argv) {
 #endif
 
   // Create the two windows.
-  // grab_window is the outer window which we grab input on.
-  // saver_window is the "visible" window that the savers will draw on.
-  // These windows are separated because XScreenSaver's savers might
+  // background_window is the outer window which exists for security reasons (in
+  // case a subprocess may turn its window transparent or something).
+  // saver_window is the "visible" window that the saver and auth children will
+  // draw on. These windows are separated because XScreenSaver's savers might
   // XUngrabKeyboard on their window.
-  Window grab_window = XCreateWindow(
+  Window background_window = XCreateWindow(
       display, parent_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
-      CopyFromParent, CWOverrideRedirect | CWSaveUnder, &coverattrs);
+      CopyFromParent, CWBackPixel | CWOverrideRedirect | CWSaveUnder,
+      &coverattrs);
   Window saver_window = XCreateWindow(
-      display, grab_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
+      display, background_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent, CWBackPixel | CWCursor, &coverattrs);
 
   // Let's get notified if we lose visibility, so we can self-raise.
-  XSelectInput(display, grab_window,
+  XSelectInput(display, parent_window, FocusChangeMask);
+  XSelectInput(display, background_window,
                StructureNotifyMask | VisibilityChangeMask | FocusChangeMask);
   XSelectInput(display, saver_window,
                StructureNotifyMask | VisibilityChangeMask);
@@ -443,7 +446,7 @@ int main(int argc, char **argv) {
   // Make sure we stay always on top.
   XWindowChanges coverchanges;
   coverchanges.stack_mode = Above;
-  XConfigureWindow(display, grab_window, CWStackMode, &coverchanges);
+  XConfigureWindow(display, background_window, CWStackMode, &coverchanges);
   XConfigureWindow(display, saver_window, CWStackMode, &coverchanges);
 
   // Now provide the window ID as an environment variable (like XScreenSaver).
@@ -477,7 +480,7 @@ int main(int argc, char **argv) {
       // Note: we draw XIM stuff in saver_window so it's above the saver/auth
       // child. However, we receive events for the grab window.
       xic = XCreateIC(xim, XNInputStyle, input_styles[i], XNClientWindow,
-                      saver_window, XNFocusWindow, grab_window, NULL);
+                      saver_window, XNFocusWindow, background_window, NULL);
       if (xic != NULL) {
         break;
       }
@@ -495,7 +498,7 @@ int main(int argc, char **argv) {
     scrnsaver_event_base = 0;
     scrnsaver_error_base = 0;
   }
-  XScreenSaverSelectInput(display, grab_window, ScreenSaverNotifyMask);
+  XScreenSaverSelectInput(display, background_window, ScreenSaverNotifyMask);
 #endif
 
 #ifdef HAVE_XF86MISC
@@ -507,15 +510,11 @@ int main(int argc, char **argv) {
   }
 #endif
 
-  // Map our windows.
-  XMapWindow(display, grab_window);
-  XMapWindow(display, saver_window);
-
   // Acquire all grabs we need. Retry in case the window manager is still
   // holding some grabs while starting XSecureLock.
   int retries;
   for (retries = 10; retries >= 0; --retries) {
-    if (XGrabPointer(display, grab_window, False, ALL_POINTER_EVENTS,
+    if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
                      GrabModeAsync, GrabModeAsync, None, None,
                      CurrentTime) == GrabSuccess) {
       break;
@@ -527,8 +526,8 @@ int main(int argc, char **argv) {
     return 1;
   }
   for (retries = 10; retries >= 0; --retries) {
-    if (XGrabKeyboard(display, grab_window, False, GrabModeAsync, GrabModeAsync,
-                      CurrentTime) == GrabSuccess) {
+    if (XGrabKeyboard(display, parent_window, False, GrabModeAsync,
+                      GrabModeAsync, CurrentTime) == GrabSuccess) {
       break;
     }
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
@@ -537,6 +536,12 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Could not grab keyboard.\n");
     return 1;
   }
+
+  // Map our windows.
+  // This is done after grabbing so failure to grab does not blank the screen
+  // yet, thereby "confirming" the screen lock.
+  XMapRaised(display, background_window);
+  XMapRaised(display, saver_window);
 
   // Private (possibly containing information about the user's password) data.
   // This data is locked to RAM using mlock() to avoid leakage to disk via swap.
@@ -566,7 +571,8 @@ int main(int argc, char **argv) {
 
   enum WatchChildrenState requested_saver_state = WATCH_CHILDREN_NORMAL;
   int x11_fd = ConnectionNumber(display);
-  int grab_window_mapped = 0, saver_window_mapped = 0, xss_lock_notified = 0;
+  int background_window_mapped = 0, saver_window_mapped = 0,
+      xss_lock_notified = 0;
   for (;;) {
     // Watch children WATCH_CHILDREN_HZ times per second.
     fd_set in_fds;
@@ -585,20 +591,20 @@ int main(int argc, char **argv) {
 
 #ifdef REINSTATE_GRABS
     // This really should never be needed...
-    if (XGrabPointer(display, grab_window, False, ALL_POINTER_EVENTS,
+    if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
                      GrabModeAsync, GrabModeAsync, None, None,
                      CurrentTime) != GrabSuccess) {
       fprintf(stderr, "Critical: cannot re-grab pointer.\n");
     }
-    if (XGrabKeyboard(display, grab_window, False, GrabModeAsync, GrabModeAsync,
-                      CurrentTime) != GrabSuccess) {
+    if (XGrabKeyboard(display, parent_window, False, GrabModeAsync,
+                      GrabModeAsync, CurrentTime) != GrabSuccess) {
       fprintf(stderr, "Critical: cannot re-grab keyboard.\n");
     }
 #endif
 
 #ifdef AUTO_RAISE
     MaybeRaiseWindow(display, saver_window);
-    MaybeRaiseWindow(display, grab_window);
+    MaybeRaiseWindow(display, background_window);
 #endif
 
     // Handle all events.
@@ -613,7 +619,7 @@ int main(int argc, char **argv) {
             // Root window size changed. Adjust the saver_window window too!
             w = priv.ev.xconfigure.width;
             h = priv.ev.xconfigure.height;
-            XMoveResizeWindow(display, grab_window, 0, 0, w, h);
+            XMoveResizeWindow(display, background_window, 0, 0, w, h);
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
             // Just in case - ConfigureNotify might also be sent for raising
           }
@@ -621,8 +627,8 @@ int main(int argc, char **argv) {
           // to make sure.
           if (priv.ev.xconfigure.window == saver_window) {
             MaybeRaiseWindow(display, saver_window);
-          } else if (priv.ev.xconfigure.window == grab_window) {
-            MaybeRaiseWindow(display, grab_window);
+          } else if (priv.ev.xconfigure.window == background_window) {
+            MaybeRaiseWindow(display, background_window);
           }
           break;
         case VisibilityNotify:
@@ -631,8 +637,8 @@ int main(int argc, char **argv) {
             // stay on top.
             if (priv.ev.xvisibility.window == saver_window) {
               XRaiseWindow(display, saver_window);
-            } else if (priv.ev.xvisibility.window == grab_window) {
-              XRaiseWindow(display, grab_window);
+            } else if (priv.ev.xvisibility.window == background_window) {
+              XRaiseWindow(display, background_window);
             } else {
               fprintf(stderr,
                       "Received unexpected VisibilityNotify for window %d.\n",
@@ -700,34 +706,35 @@ int main(int argc, char **argv) {
           // Ignored.
           break;
         case MapNotify:
-          if (priv.ev.xmap.window == grab_window) {
-            grab_window_mapped = 1;
+          if (priv.ev.xmap.window == background_window) {
+            background_window_mapped = 1;
           } else if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 1;
           }
-          if (grab_window_mapped && saver_window_mapped && !xss_lock_notified) {
+          if (background_window_mapped && saver_window_mapped &&
+              !xss_lock_notified) {
             NotifyXSSLock(x11_fd);
             xss_lock_notified = 1;
           }
           break;
         case UnmapNotify:
-          if (priv.ev.xmap.window == grab_window) {
-            grab_window_mapped = 0;
+          if (priv.ev.xmap.window == background_window) {
+            background_window_mapped = 0;
           } else if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 0;
           }
           break;
         case FocusIn:
         case FocusOut:
-          if (priv.ev.xfocus.window == grab_window &&
+          if (priv.ev.xfocus.window == parent_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
             fprintf(stderr, "WARNING: lost grab, trying to grab again.\n");
-            if (XGrabKeyboard(display, grab_window, False, GrabModeAsync,
+            if (XGrabKeyboard(display, parent_window, False, GrabModeAsync,
                               GrabModeAsync, CurrentTime) != GrabSuccess) {
               fprintf(stderr,
                       "Critical: lost grab but cannot re-grab keyboard.\n");
             }
-            if (XGrabPointer(display, grab_window, False, ALL_POINTER_EVENTS,
+            if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
                              GrabModeAsync, GrabModeAsync, None, None,
                              CurrentTime) != GrabSuccess) {
               fprintf(stderr,
@@ -758,7 +765,7 @@ int main(int argc, char **argv) {
 done:
   // Free our resources, and exit.
   XDestroyWindow(display, saver_window);
-  XDestroyWindow(display, grab_window);
+  XDestroyWindow(display, background_window);
 #ifdef HAVE_COMPOSITE
   if (have_composite) {
     XCompositeReleaseOverlayWindow(display, composite_window);
