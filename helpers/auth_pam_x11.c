@@ -35,10 +35,10 @@ limitations under the License.
 #include "../mlock_page.h"
 
 //! The blinking interval in microseconds.
-#define BLINK_INTERVAL 250000
+#define BLINK_INTERVAL (250 * 1000)
 
 //! The maximum time to wait at a prompt for user input in microseconds.
-#define PROMPT_TIMEOUT 60000000
+#define PROMPT_TIMEOUT (5 * 60 * 1000 * 1000)
 
 //! The X11 display.
 Display *display;
