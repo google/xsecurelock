@@ -83,8 +83,8 @@ static int ContainsNonControl(const char* buf) {
   return 0;
 }
 
-int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
-                   int *auth_running) {
+int WatchAuthChild(Display *dpy, Window w, const char *executable,
+                   int force_auth, const char *stdinbuf, int *auth_running) {
   if (auth_child_pid != 0) {
     // Check if auth child returned.
     int status;
@@ -114,6 +114,8 @@ int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
         kill(-auth_child_pid, SIGTERM);
         auth_child_pid = 0;
         close(auth_child_fd);
+        // Now is the time to remove anything the child may have displayed.
+        XClearWindow(dpy, w);
         // If auth child exited with success status, stop the screen saver.
         if (WEXITSTATUS(status) == EXIT_SUCCESS) {
           *auth_running = 0;

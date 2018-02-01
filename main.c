@@ -121,7 +121,8 @@ enum WatchChildrenState {
  * \param stdinbuf Key presses to send to the auth child, if set.
  * \return If true, authentication was successful and the program should exit.
  */
-int WatchChildren(enum WatchChildrenState state, const char *stdinbuf) {
+int WatchChildren(Display *dpy, Window w, enum WatchChildrenState state,
+                  const char *stdinbuf) {
   int auth_running = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
 
   // Note: auth_running is true whenever we WANT to run authentication, or it is
@@ -129,13 +130,14 @@ int WatchChildren(enum WatchChildrenState state, const char *stdinbuf) {
   // later.
   if (auth_running) {
     // Make sure the saver is shut down to not interfere with the screen.
-    WatchSaverChild(saver_executable, 0);
+    WatchSaverChild(dpy, w, saver_executable, 0);
 
     // Actually start the auth child, or notice termination.
-    if (WatchAuthChild(auth_executable, state == WATCH_CHILDREN_FORCE_AUTH,
-                       stdinbuf, &auth_running)) {
+    if (WatchAuthChild(dpy, w, auth_executable,
+                       state == WATCH_CHILDREN_FORCE_AUTH, stdinbuf,
+                       &auth_running)) {
       // Auth performed successfully. Terminate the other children.
-      WatchSaverChild(saver_executable, 0);
+      WatchSaverChild(dpy, w, saver_executable, 0);
       // Now terminate the screen lock.
       return 1;
     }
@@ -145,7 +147,8 @@ int WatchChildren(enum WatchChildrenState state, const char *stdinbuf) {
   // didn't start one, or because it just terminated.
   // Show the screen saver.
   if (!auth_running) {
-    WatchSaverChild(saver_executable, state != WATCH_CHILDREN_SAVER_DISABLED);
+    WatchSaverChild(dpy, w, saver_executable,
+                    state != WATCH_CHILDREN_SAVER_DISABLED);
   }
 
   // Do not terminate the screen lock.
@@ -156,8 +159,8 @@ int WatchChildren(enum WatchChildrenState state, const char *stdinbuf) {
  *
  * \return If true, authentication was successful, and the program should exit.
  */
-int WakeUp(const char *stdinbuf) {
-  return WatchChildren(WATCH_CHILDREN_FORCE_AUTH, stdinbuf);
+int WakeUp(Display* dpy, Window w, const char *stdinbuf) {
+  return WatchChildren(dpy, w, WATCH_CHILDREN_FORCE_AUTH, stdinbuf);
 }
 
 /*! \brief An X11 error handler that merely logs errors to stderr.
@@ -607,7 +610,7 @@ int main(int argc, char **argv) {
     tv.tv_usec = 1000000 / WATCH_CHILDREN_HZ;
     tv.tv_sec = 0;
     select(x11_fd + 1, &in_fds, 0, 0, &tv);
-    if (WatchChildren(requested_saver_state, NULL)) {
+    if (WatchChildren(display, saver_window, requested_saver_state, NULL)) {
       goto done;
     }
 
@@ -711,7 +714,7 @@ int main(int argc, char **argv) {
         case MotionNotify:
         case ButtonPress:
           // Mouse events launch the auth child.
-          if (WakeUp(NULL)) {
+          if (WakeUp(display, saver_window, NULL)) {
             goto done;
           }
           break;
@@ -756,7 +759,7 @@ int main(int argc, char **argv) {
             priv.buf[0] = 0;
           }
           // In any case, the saver will be activated.
-          if (WakeUp(priv.buf)) {
+          if (WakeUp(display, saver_window, priv.buf)) {
             goto done;
           }
         } break;

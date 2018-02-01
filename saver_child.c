@@ -26,7 +26,8 @@ limitations under the License.
 //! The PID of a currently running saver child, or 0 if none is running.
 static pid_t saver_child_pid = 0;
 
-void WatchSaverChild(const char* executable, int should_be_running) {
+void WatchSaverChild(Display* dpy, Window w, const char* executable,
+                     int should_be_running) {
   if (!should_be_running && saver_child_pid != 0) {
     // Kill the whole process group.
     kill(saver_child_pid, SIGTERM);
@@ -56,6 +57,8 @@ void WatchSaverChild(const char* executable, int should_be_running) {
                     WEXITSTATUS(status));
           }
           saver_child_pid = 0;
+          // Now is the time to remove anything the child may have displayed.
+          XClearWindow(dpy, w);
         }
         // Otherwise it was suspended or whatever. We need to keep waiting.
       } else {
