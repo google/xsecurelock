@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "auth_child.h"
 
+#include <ctype.h>     // for isprint
 #include <errno.h>     // for ECHILD, EINTR, errno
 #include <signal.h>    // for kill, SIGTERM
 #include <stdio.h>     // for perror, fprintf, stderr
@@ -52,6 +53,16 @@ int WantAuthChild(int force_auth) {
     return 1;
   }
   return (auth_child_pid != 0);
+}
+
+static int ContainsPrintable(const char* buf) {
+  while (*buf) {
+    if (isprint((unsigned char) *buf)) {
+      return 1;
+    }
+    ++buf;
+  }
+  return 0;
 }
 
 int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
@@ -126,7 +137,7 @@ int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
         auth_child_fd = pc[1];
         auth_child_pid = pid;
 
-        if (!WantFirstKeypress()) {
+        if (!(WantFirstKeypress() && ContainsPrintable(stdinbuf))) {
           // The auth child has just been started. Do not send any keystrokes to
           // it immediately.
           stdinbuf = NULL;
