@@ -16,7 +16,6 @@ limitations under the License.
 
 #include "auth_child.h"
 
-#include <ctype.h>     // for isprint
 #include <errno.h>     // for ECHILD, EINTR, errno
 #include <signal.h>    // for kill, SIGTERM
 #include <stdio.h>     // for perror, fprintf, stderr
@@ -55,9 +54,28 @@ int WantAuthChild(int force_auth) {
   return (auth_child_pid != 0);
 }
 
-static int ContainsPrintable(const char* buf) {
+/*! \brief Return whether buf contains exclusively control characters.
+ *
+ * Because there is no portable way of doing this (other than relying on wchar
+ * routines that are nowhere else exercised in the main program), I'll just
+ * match precisely those that ASCII defines as control codes - 00 to 1f as well
+ * as 7f (DEL).
+ *
+ * We do this so we do not forward control keys to the auth child when just
+ * waking it up (e.g. because the user tried to unlock the screen with ESC or
+ * ENTER).
+ *
+ * \param buf The string to check.
+ * \return 1 if buf contains at least one non-control character, and 0
+ *   otherwise.
+ */
+static int ContainsNonControl(const char* buf) {
   while (*buf) {
-    if (isprint((unsigned char) *buf)) {
+    // Note: this almost isprint but not quite - isprint returns false on
+    // high bytes in UTF-8 locales but we do want to forward anything UTF-8.
+    // An alternative could be walking the string with multibyte functions and
+    // using iswprint - but I'd rather not do that anywhere security critical.
+    if (*buf < '\000' || (*buf > '\037' && *buf != '\177')) {
       return 1;
     }
     ++buf;
@@ -138,7 +156,7 @@ int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
         auth_child_pid = pid;
 
         if (stdinbuf != NULL &&
-            !(WantFirstKeypress() && ContainsPrintable(stdinbuf))) {
+            !(WantFirstKeypress() && ContainsNonControl(stdinbuf))) {
           // The auth child has just been started. Do not send any keystrokes to
           // it immediately.
           stdinbuf = NULL;
