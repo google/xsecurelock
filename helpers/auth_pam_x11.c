@@ -244,9 +244,17 @@ void display_string(const char *title, const char *str) {
  * \param is_error If true, the message is assumed to be an error.
  */
 void alert(const char *msg, int is_error) {
-  // Display message, wait for key or timeout.
+  // Display message.
   display_string(is_error ? "Error" : "PAM says", msg);
-  sleep(1);
+
+  // Sleep for up to 1 second _or_ a key press.
+  struct timeval timeout;
+  timeout.tv_sec = 1;
+  timeout.tv_usec = 0;
+  fd_set set;
+  FD_ZERO(&set);
+  FD_SET(0, &set);
+  select(1, &set, NULL, NULL, &timeout);
 }
 
 //! The size of the buffer to store the password in. Not NUL terminated.
