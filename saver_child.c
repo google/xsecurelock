@@ -24,7 +24,7 @@ limitations under the License.
 #include <unistd.h>    // for pid_t, execl, fork, setsid
 
 //! The PID of a currently running saver child, or 0 if none is running.
-pid_t saver_child_pid = 0;
+static pid_t saver_child_pid = 0;
 
 void WatchSaverChild(const char* executable, int should_be_running) {
   if (!should_be_running && saver_child_pid != 0) {

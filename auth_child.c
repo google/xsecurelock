@@ -25,10 +25,10 @@ limitations under the License.
 #include <unistd.h>    // for close, pid_t, ssize_t, dup2, etc
 
 //! The PID of a currently running saver child, or 0 if none is running.
-pid_t auth_child_pid = 0;
+static pid_t auth_child_pid = 0;
 
 //! If auth_child_pid != 0, the FD which connects to stdin of the auth child.
-int auth_child_fd = 0;
+static int auth_child_fd = 0;
 
 /*! \brief Return whether the wake-up keypress should be part of the password.
  *
@@ -42,7 +42,7 @@ int auth_child_fd = 0;
  *
  * XSECURELOCK_WANT_FIRST_KEYPRESS=1 xsecurelock
  */
-int WantFirstKeypress() {
+static int WantFirstKeypress() {
   const char *var = getenv("XSECURELOCK_WANT_FIRST_KEYPRESS");
   return var != NULL && !strcmp(var, "1");
 }
