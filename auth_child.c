@@ -137,7 +137,8 @@ int WatchAuthChild(const char *executable, int force_auth, const char *stdinbuf,
         auth_child_fd = pc[1];
         auth_child_pid = pid;
 
-        if (!(WantFirstKeypress() && ContainsPrintable(stdinbuf))) {
+        if (stdinbuf != NULL &&
+            !(WantFirstKeypress() && ContainsPrintable(stdinbuf))) {
           // The auth child has just been started. Do not send any keystrokes to
           // it immediately.
           stdinbuf = NULL;
