@@ -40,17 +40,6 @@ limitations under the License.
 //! The maximum time to wait at a prompt for user input in microseconds.
 #define PROMPT_TIMEOUT 60000000
 
-/*! \brief Exit on conversation errors. This seems required on Linux PAM.
- *
- * Maybe this should be a ./configure option, but as it seems generally harmless
- * to call exit() from a PAM conversation, why not always do it.
- *
- * The symptom of the problem is BTW an endless loop of password prompts when
- * hitting Escape to abort the prompt. The intended result would be a
- * termination of pam_authenticate.
- */
-#define EXIT_ON_CONVERSATION_ERROR
-
 //! The X11 display.
 Display *display;
 
@@ -68,6 +57,9 @@ unsigned long Black;
 
 //! The White color (used as foreground).
 unsigned long White;
+
+//! Set if a conversation error has happened during the last PAM call.
+static int conv_error = 0;
 
 #ifdef HAVE_XKB
 /*! \brief Check which modifiers are active.
@@ -367,6 +359,7 @@ int prompt(const char *msg, char **response, int echo) {
 
       ssize_t nread = read(0, &priv.inputbuf, 1);
       if (nread <= 0) {
+        fprintf(stderr, "EOF on password input - bailing out.\n");
         return PAM_CONV_ERR;
       }
       switch (priv.inputbuf) {
@@ -409,6 +402,7 @@ int prompt(const char *msg, char **response, int echo) {
             priv.pwbuf[priv.pwlen] = priv.inputbuf;
             ++priv.pwlen;
           } else {
+            fprintf(stderr, "Password entered is too long - bailing out.\n");
             return PAM_CONV_ERR;
           }
           break;
@@ -425,6 +419,7 @@ int prompt(const char *msg, char **response, int echo) {
  *   case of error).
  */
 int converse_one(const struct pam_message *msg, struct pam_response *resp) {
+  resp->resp_retcode = 0;  // Unused but should be set to zero.
   switch (msg->msg_style) {
     case PAM_PROMPT_ECHO_OFF:
       return prompt(msg->msg, &resp->resp, 0);
@@ -453,6 +448,15 @@ int converse(int num_msg, const struct pam_message **msg,
              struct pam_response **resp, void *appdata_ptr) {
   (void)appdata_ptr;
 
+  if (conv_error) {
+    fprintf(stderr,
+            "converse() got called again with %d messages (first: %s) after "
+            "having failed before - this is very likely a bug in the PAM "
+            "module having made the call. Bailing out.\n",
+            num_msg, num_msg <= 0 ? "(none)" : msg[0]->msg);
+    exit(1);
+  }
+
   *resp = calloc(num_msg, sizeof(struct pam_response));
 
   int i;
@@ -464,14 +468,41 @@ int converse(int num_msg, const struct pam_message **msg,
       }
       free(*resp);
       *resp = NULL;
-#ifdef EXIT_ON_CONVERSATION_ERROR
-      exit(1);
-#endif
+      conv_error = 1;
       return status;
     }
   }
 
   return PAM_SUCCESS;
+}
+
+/*! \brief Perform a single PAM operation with retrying logic.
+ */
+int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
+                          pam_handle_t *pam, int flags) {
+  int attempt = 0;
+  for (;;) {
+    conv_error = 0;
+    int status = pam_call(pam, flags);
+    if (conv_error) {  // Timeout or escape.
+      return status;
+    }
+    switch (status) {
+      // Never retry these:
+      case PAM_ABORT:             // This is fine.
+      case PAM_MAXTRIES:          // D'oh.
+      case PAM_NEW_AUTHTOK_REQD:  // hunter2 no longer good enough.
+      case PAM_SUCCESS:           // Duh.
+        return status;
+      default:
+        // Let's try again then.
+        ++attempt;
+        if (attempt >= 3) {
+          return status;
+        }
+        break;
+    }
+  }
 }
 
 /*! \brief Perform PAM authentication.
@@ -511,19 +542,23 @@ int authenticate(const char *username, const char *hostname,
     return status;
   }
 
-  status = pam_authenticate(*pam, 0);
+  status = call_pam_with_retries(pam_authenticate, *pam, 0);
   if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_authenticate: %s\n", pam_strerror(*pam, status));
+    if (!conv_error) {
+      fprintf(stderr, "pam_authenticate: %s\n", pam_strerror(*pam, status));
+    }
     return status;
   }
 
-  int status2 = pam_acct_mgmt(*pam, 0);
-
+  int status2 = call_pam_with_retries(pam_acct_mgmt, *pam, 0);
   if (status2 == PAM_NEW_AUTHTOK_REQD) {
-    status2 = pam_chauthtok(*pam, PAM_CHANGE_EXPIRED_AUTHTOK);
+    status2 =
+        call_pam_with_retries(pam_chauthtok, *pam, PAM_CHANGE_EXPIRED_AUTHTOK);
 #ifdef PAM_CHECK_ACCOUNT_TYPE
     if (status2 != PAM_SUCCESS) {
-      fprintf(stderr, "pam_chauthtok: %s\n", pam_strerror(*pam, status2));
+      if (!conv_error) {
+        fprintf(stderr, "pam_chauthtok: %s\n", pam_strerror(*pam, status2));
+      }
       return status2;
     }
 #endif
@@ -533,7 +568,9 @@ int authenticate(const char *username, const char *hostname,
   if (status2 != PAM_SUCCESS) {
     // If this one is true, it must be coming from pam_acct_mgmt, as
     // pam_chauthtok's result already has been checked against PAM_SUCCESS.
-    fprintf(stderr, "pam_acct_mgmt: %s\n", pam_strerror(*pam, status2));
+    if (!conv_error) {
+      fprintf(stderr, "pam_acct_mgmt: %s\n", pam_strerror(*pam, status2));
+    }
     return status2;
   }
 #endif
