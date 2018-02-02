@@ -22,6 +22,6 @@ sleep 60
 # interrupt the xset operation.
 (
   trap '' TERM
-  xset s activate dpms force off
+  exec xset s activate dpms force off
 ) &
 exec sleep 3600
