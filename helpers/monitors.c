@@ -69,6 +69,16 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
 
 #ifdef HAVE_XRANDR
   if (MaybeInitXRandR(dpy)) {
+    // Translate to absolute coordinates so we can compare them to XRandR data.
+    int wx, wy;
+    Window child;
+    if (!XTranslateCoordinates(dpy, w, DefaultRootWindow(dpy), xwa.x, xwa.y,
+                               &wx, &wy, &child)) {
+      fprintf(stderr, "XTranslateCoordinates failed.\n");
+      wx = xwa.x;
+      wy = xwa.y;
+    }
+
     XRRScreenResources* screenres = XRRGetScreenResources(dpy, w);
     if (screenres != NULL) {
       for (int k = 0; k < screenres->noutput; ++k) {
@@ -83,14 +93,13 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
                                       : output->ncrtc ? output->crtcs[0] : 0);
           XRRCrtcInfo* info = (crtc ? XRRGetCrtcInfo(dpy, screenres, crtc) : 0);
           if (info != NULL) {
-            int x = CLAMP(info->x, xwa.x, xwa.x + xwa.width) - xwa.x;
-            int y = CLAMP(info->y, xwa.y, xwa.y + xwa.height) - xwa.y;
-            int w = CLAMP(info->x + (int)info->width, xwa.x + x,
-                          xwa.x + xwa.width) -
-                    (xwa.x + x);
-            int h = CLAMP(info->y + (int)info->height, xwa.y + y,
-                          xwa.y + xwa.height) -
-                    (xwa.y + y);
+            int x = CLAMP(info->x, wx, wx + xwa.width) - wx;
+            int y = CLAMP(info->y, wy, wy + xwa.height) - wy;
+            int w = CLAMP(info->x + (int)info->width, wx + x, wx + xwa.width) -
+                    (wx + x);
+            int h =
+                CLAMP(info->y + (int)info->height, wy + y, wy + xwa.height) -
+                (wy + y);
             if (w <= 0 || h <= 0) {
               continue;
             }
