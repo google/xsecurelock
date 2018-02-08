@@ -32,6 +32,7 @@ limitations under the License.
 #include <X11/XKBlib.h>
 #endif
 
+#include "../env_settings.h"
 #include "../mlock_page.h"
 
 //! The blinking interval in microseconds.
@@ -516,9 +517,8 @@ int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
  */
 int authenticate(const char *username, const char *hostname,
                  struct pam_conv *conv, pam_handle_t **pam) {
-  const char *service_name = getenv("XSECURELOCK_PAM_SERVICE");
-  if (service_name == NULL || service_name[0] == '\0')
-    service_name = PAM_SERVICE_NAME;
+  const char *service_name =
+      GetStringSetting("XSECURELOCK_PAM_SERVICE", PAM_SERVICE_NAME);
   int status = pam_start(service_name, username, conv, pam);
   if (status != PAM_SUCCESS) {
     fprintf(stderr, "pam_start: %d\n",
@@ -604,23 +604,18 @@ int main() {
     return 1;
   }
 
-  char *window_id_str = getenv("XSCREENSAVER_WINDOW");
-  if (window_id_str != NULL) {
-    char *end;
-    long long int window_id = strtoll(window_id_str, &end, 0);
-    if (*end) {
-      fprintf(stderr, "invalid window ID: %s\n", window_id_str);
-      return 1;
-    }
-    window = window_id;
+  window = GetUnsignedLongLongSetting("XSCREENSAVER_WINDOW", None);
+  if (window == None) {
+    fprintf(stderr, "Invalid window ID in XSCREENSAVER_WINDOW.\n");
+    return 1;
   }
 
   Black = BlackPixel(display, DefaultScreen(display));
   White = WhitePixel(display, DefaultScreen(display));
 
   font = NULL;
-  const char *font_name = getenv("XSECURELOCK_FONT");
-  if (font_name != NULL && font_name[0] != 0) {
+  const char *font_name = GetStringSetting("XSECURELOCK_FONT", "");
+  if (font_name[0] != 0) {
     font = XLoadQueryFont(display, font_name);
     if (font == NULL) {
       fprintf(stderr, "could not load the specified font %s - trying to fall back to fixed\n", font_name);

@@ -47,6 +47,7 @@ limitations under the License.
 #endif
 
 #include "auth_child.h"
+#include "env_settings.h"
 #include "mlock_page.h"
 #include "saver_child.h"
 
@@ -85,9 +86,9 @@ limitations under the License.
    Button5MotionMask | ButtonMotionMask)
 
 //! The name of the auth child to execute, relative to HELPER_PATH.
-const char *auth_executable = AUTH_EXECUTABLE;
+const char *auth_executable;
 //! The name of the saver child to execute, relative to HELPER_PATH.
-const char *saver_executable = SAVER_EXECUTABLE;
+const char *saver_executable;
 //! The command to run once screen locking is complete.
 char *const *notify_command = NULL;
 #ifdef HAVE_COMPOSITE
@@ -214,19 +215,10 @@ void usage(const char *me) {
  * These settings override what was figured out at ./configure time.
  */
 void load_defaults() {
-  const char *str = getenv("XSECURELOCK_AUTH");
-  if (str != NULL && str[0] != 0) {
-    auth_executable = str;
-  }
-  str = getenv("XSECURELOCK_SAVER");
-  if (str != NULL && str[0] != 0) {
-    saver_executable = str;
-  }
+  auth_executable = GetStringSetting("XSECURELOCK_AUTH", AUTH_EXECUTABLE);
+  saver_executable = GetStringSetting("XSECURELOCK_SAVER", SAVER_EXECUTABLE);
 #ifdef HAVE_COMPOSITE
-  str = getenv("XSECURELOCK_NO_COMPOSITE");
-  if (str != NULL && str[0] != 0) {
-    no_composite = !strcmp(str, "1");
-  }
+  no_composite = GetIntSetting("XSECURELOCK_NO_COMPOSITE", 0);
 #endif
 }
 
@@ -358,19 +350,13 @@ void MaybeRaiseWindow(Display *display, Window w) {
  * \param fd The file descriptor of the X11 connection that we shouldn't close.
  */
 void NotifyOfLock(int x11_fd) {
-  const char *str = getenv("XSS_SLEEP_LOCK_FD");
-  if (str != NULL && str[0] != 0) {
-    char *endptr = NULL;
-    int fd = strtol(str, &endptr, 0);
-    if ((endptr != NULL && *endptr != 0)) {
-      fprintf(stderr,
-              "Ignoring non-numeric value of XSS_SLEEP_LOCK_FD. We're probably "
-              "inhibiting sleep now.\n");
-    } else if (fd == x11_fd) {
-      fprintf(stderr,
-              "XSS_SLEEP_LOCK_FD matches DISPLAY - what?!? We're probably "
-              "inhibiting sleep now.\n");
-    } else if (close(fd) != 0) {
+  int fd = GetIntSetting("XSS_SLEEP_LOCK_FD", -1);
+  if (fd == x11_fd) {
+    fprintf(stderr,
+            "XSS_SLEEP_LOCK_FD matches DISPLAY - what?!? We're probably "
+            "inhibiting sleep now.\n");
+  } else if (fd != -1) {
+    if (close(fd) != 0) {
       perror("close(XSS_SLEEP_LOCK_FD)");
     }
   }
