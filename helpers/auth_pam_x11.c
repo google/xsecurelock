@@ -61,6 +61,9 @@ unsigned long White;
 //! Set if a conversation error has happened during the last PAM call.
 static int conv_error = 0;
 
+//! The cursor character displayed at the end of the masked password input.
+static const char cursor[] = "_";
+
 #ifdef HAVE_XKB
 /*! \brief Check which modifiers are active.
  *
@@ -173,15 +176,13 @@ void display_string(const char *title, const char *str) {
   int len_str = strlen(str);
   int tw_str = XTextWidth(font, str, len_str);
 
+  int tw_cursor = XTextWidth(font, cursor, strlen(cursor));
+
 #ifdef HAVE_XKB
   const char *indicators = get_indicators();
   int len_indicators = strlen(indicators);
   int tw_indicators = XTextWidth(font, indicators, len_indicators);
 #endif
-
-  if (region_w == 0 || region_h == 0) {
-    XClearWindow(display, window);
-  }
 
   int i;
   for (i = 0; i < screens; ++i) {
@@ -217,6 +218,7 @@ void display_string(const char *title, const char *str) {
     region_w = tw_indicators;
   }
 #endif
+  region_w += tw_cursor;
   region_x = -region_w / 2;
 #ifdef HAVE_XKB
   region_h = 4 * th;
@@ -322,7 +324,7 @@ int prompt(const char *msg, char **response, int echo) {
     }
     // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
     // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-    priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : '_';
+    priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
     priv.displaybuf[priv.displaylen + 1] = 0;
     display_string(msg, priv.displaybuf);
 
