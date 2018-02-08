@@ -100,6 +100,9 @@ Options to XSecureLock can be passed by environment variables:
 * `XSECURELOCK_AUTH`: specifies the desired authentication module.
 * `XSECURELOCK_FONT`: X11 font name to use for auth_pam_x11. You can get a list
   of supported font names by running `xlsfonts`.
+* `XSECURELOCK_NO_COMPOSITE`: disables covering the composite overlay window.
+  This switches to a more traditional way of locking, but may allow desktop
+  notifications to be visible on top of the screen lock. Not recommended.
 * `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with that
   name in `/etc/pam.d`.
 * `XSECURELOCK_SAVER`: specifies the desired screen saver module.

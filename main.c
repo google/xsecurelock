@@ -90,6 +90,10 @@ const char *auth_executable = AUTH_EXECUTABLE;
 const char *saver_executable = SAVER_EXECUTABLE;
 //! The command to run once screen locking is complete.
 char *const *notify_command = NULL;
+#ifdef HAVE_COMPOSITE
+//! Do not use XComposite to cover transparent notifications.
+int no_composite = 0;
+#endif
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
@@ -189,6 +193,10 @@ void usage(const char *me) {
       "Environment variables:\n"
       "  XSECURELOCK_AUTH=<auth module>\n"
       "  XSECURELOCK_FONT=<x11 font name>\n"
+#ifdef HAVE_COMPOSITE
+      "  XSECURELOCK_NO_COMPOSITE=<0|1>\n"
+#endif
+      "  XSECURELOCK_PAM_SERVICE=<PAM service name>\n"
       "  XSECURELOCK_SAVER=<saver module>\n"
       "  XSECURELOCK_WANT_FIRST_KEYPRESS=<0|1>\n"
       "\n"
@@ -214,6 +222,12 @@ void load_defaults() {
   if (str != NULL && str[0] != 0) {
     saver_executable = str;
   }
+#ifdef HAVE_COMPOSITE
+  str = getenv("XSECURELOCK_NO_COMPOSITE");
+  if (str != NULL && str[0] != 0) {
+    no_composite = !strcmp(str, "1");
+  }
+#endif
 }
 
 /*! \brief Parse the command line arguments.
@@ -441,12 +455,17 @@ int main(int argc, char **argv) {
       XCompositeQueryVersion(display, &composite_major_version,
                              &composite_minor_version) &&
       (composite_major_version >= 1 || composite_minor_version >= 3);
+  if (!have_composite) {
+    fprintf(stderr, "XComposite extension not detected.\n");
+  }
+  if (have_composite && no_composite) {
+    fprintf(stderr, "XComposite extension detected but disabled by user.\n");
+    have_composite = 0;
+  }
   Window composite_window;
   if (have_composite) {
     composite_window = XCompositeGetOverlayWindow(display, root_window);
     parent_window = composite_window;
-  } else {
-    fprintf(stderr, "XComposite extension not detected.\n");
   }
 #endif
 
