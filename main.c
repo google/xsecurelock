@@ -408,6 +408,13 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // TODO(divVerent): Support that?
+  if (ScreenCount(display) != 1) {
+    fprintf(stderr,
+            "Warning: 'Zaphod' configurations are not supported at this point. "
+            "Only locking the default screen.\n");
+  }
+
   // Who's the root?
   Window root_window = DefaultRootWindow(display);
 
