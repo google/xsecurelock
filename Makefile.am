@@ -51,6 +51,8 @@ helpers_PROGRAMS = \
 	auth_pam_x11
 auth_pam_x11_SOURCES = \
 	helpers/auth_pam_x11.c \
+	helpers/monitors.c \
+	helpers/monitors.h \
 	mlock_page.h
 auth_pam_x11_CPPFLAGS = \
 	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
@@ -60,6 +62,9 @@ auth_pam_x11_CPPFLAGS += \
 endif
 if HAVE_XKB
 auth_pam_x11_CPPFLAGS += -DHAVE_XKB
+endif
+if HAVE_XRANDR
+auth_pam_x11_CPPFLAGS += -DHAVE_XRANDR
 endif
 endif
 

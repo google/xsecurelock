@@ -43,6 +43,10 @@ AC_SEARCH_LIBS(XkbGetIndicatorState, X11,
                [have_xkb=true], [have_xkb=false])
 AM_CONDITIONAL([HAVE_XKB], [test x$have_xkb = xtrue])
 
+AC_SEARCH_LIBS(XRRGetCrtcInfo, Xrandr,
+               [have_xrandr=true], [have_xrandr=false])
+AM_CONDITIONAL([HAVE_XRANDR], [test x$have_xrandr = xtrue])
+
 pam_service_name=
 enable_pam_check_account_type=no
 

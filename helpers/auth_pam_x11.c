@@ -33,6 +33,7 @@ limitations under the License.
 #endif
 
 #include "../mlock_page.h"
+#include "monitors.h"
 
 //! The blinking interval in microseconds.
 #define BLINK_INTERVAL (250 * 1000)
@@ -60,6 +61,10 @@ unsigned long White;
 
 //! Set if a conversation error has happened during the last PAM call.
 static int conv_error = 0;
+
+#define MAX_MONITORS 16
+static int num_monitors;
+static Monitor monitors[MAX_MONITORS];
 
 #ifdef HAVE_XKB
 /*! \brief Check which modifiers are active.
@@ -144,26 +149,11 @@ const char *get_indicators() {
  * \param str The message itself.
  */
 void display_string(const char *title, const char *str) {
-  Window root;
-  int x, y;
-  unsigned int w, h, depth, b;
-
   static int region_x;
   static int region_y;
   static int region_w = 0;
   static int region_h = 0;
 
-  // Guess the number of displays. No need to be accurate here. If we wanted to,
-  // we'd support Xinerama or XRandR.
-  if (!XGetGeometry(display, window, &root, &x, &y, &w, &h, &b, &depth)) {
-    fprintf(stderr, "XGetGeometry failed.");
-    // At least make it somehow visible, if for some odd reason the XDrawString
-    // calls should succeed. If they don't, the default X11 error handler will
-    // kill us, which is the desired behaviour.
-    w = 640;
-    h = 480;
-  }
-  int screens = (w * 9 + h * 8) / (h * 16);
   int th = font->max_bounds.ascent + font->max_bounds.descent + 4;
   int to = font->max_bounds.ascent + 2; // Text at to has bbox from 0 to th.
 
@@ -184,9 +174,9 @@ void display_string(const char *title, const char *str) {
   }
 
   int i;
-  for (i = 0; i < screens; ++i) {
-    int cx = (w * i) / screens + (w / screens) / 2;
-    int cy = h / 2;
+  for (i = 0; i < num_monitors; ++i) {
+    int cx = monitors[i].x + monitors[i].width / 2;
+    int cy = monitors[i].y + monitors[i].height / 2;
     int sy = cy + to - th * 2;
 
     // Clear the region last written to.
@@ -224,10 +214,6 @@ void display_string(const char *title, const char *str) {
   region_h = 3 * th;
 #endif
   region_y = -region_h / 2;
-
-  // We have no event loop here. But this is a good point to flush the event
-  // queue.
-  XSync(display, True);
 }
 
 /*! \brief Show a message to the user.
@@ -267,6 +253,9 @@ void alert(const char *msg, int is_error) {
 int prompt(const char *msg, char **response, int echo) {
   // Ask something. Return strdup'd string.
   struct {
+    // The received X11 event.
+    XEvent ev;
+
     // Input buffer. Not NUL-terminated.
     char pwbuf[PWBUF_SIZE];
     // Current input length.
@@ -406,6 +395,14 @@ int prompt(const char *msg, char **response, int echo) {
             return PAM_CONV_ERR;
           }
           break;
+      }
+    }
+
+    // Handle X11 events that queued up.
+    while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
+      if (IsMonitorChangeEvent(display, priv.ev.type)) {
+        num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
+        XClearWindow(display, window);
       }
     }
   }
@@ -642,6 +639,9 @@ int main() {
   gc = XCreateGC(display, window,
                  GCFunction | GCForeground | GCBackground | GCFont, &gcattrs);
   XSetWindowBackground(display, window, Black);
+
+  SelectMonitorChangeEvents(display, window);
+  num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
 
   struct pam_conv conv;
   conv.conv = converse;
