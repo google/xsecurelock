@@ -487,7 +487,8 @@ int main(int argc, char **argv) {
       CopyFromParent, CWBackPixel | CWCursor, &coverattrs);
 
   // Let's get notified if we lose visibility, so we can self-raise.
-  XSelectInput(display, parent_window, FocusChangeMask);
+  XSelectInput(display, parent_window,
+               StructureNotifyMask | FocusChangeMask);
   XSelectInput(display, background_window,
                StructureNotifyMask | VisibilityChangeMask | FocusChangeMask);
   XSelectInput(display, saver_window,
