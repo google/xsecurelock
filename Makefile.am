@@ -18,6 +18,7 @@ bin_PROGRAMS = xsecurelock
 
 xsecurelock_SOURCES = \
 	auth_child.c auth_child.h \
+	env_settings.c env_settings.h \
 	saver_child.c saver_child.h \
 	mlock_page.h \
 	main.c
@@ -51,8 +52,8 @@ helpers_PROGRAMS = \
 	auth_pam_x11
 auth_pam_x11_SOURCES = \
 	helpers/auth_pam_x11.c \
-	helpers/monitors.c \
-	helpers/monitors.h \
+	env_settings.c env_settings.h \
+	helpers/monitors.c helpers/monitors.h \
 	mlock_page.h
 auth_pam_x11_CPPFLAGS = \
 	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
