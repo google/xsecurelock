@@ -429,6 +429,9 @@ int main(int argc, char **argv) {
   XSelectInput(display, root_window, StructureNotifyMask);
   int w = DisplayWidth(display, DefaultScreen(display));
   int h = DisplayHeight(display, DefaultScreen(display));
+#ifdef DEBUG_EVENTS
+  fprintf(stderr, "DisplayWidthHeight %d %d\n", w, h);
+#endif
 
   // Prepare some nice window attributes for a screen saver window.
   XColor black;
@@ -699,10 +702,18 @@ int main(int argc, char **argv) {
       }
       switch (priv.ev.type) {
         case ConfigureNotify:
+#ifdef DEBUG_EVENTS
+          fprintf(stderr, "ConfigureNotify %lu %d %d\n",
+                  (unsigned long)priv.ev.xconfigure.window,
+                  priv.ev.xconfigure.width, priv.ev.xconfigure.height);
+#endif
           if (priv.ev.xconfigure.window == root_window) {
             // Root window size changed. Adjust the saver_window window too!
             w = priv.ev.xconfigure.width;
             h = priv.ev.xconfigure.height;
+#ifdef DEBUG_EVENTS
+            fprintf(stderr, "DisplayWidthHeight %d %d\n", w, h);
+#endif
             XMoveResizeWindow(display, background_window, 0, 0, w, h);
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
             // Just in case - ConfigureNotify might also be sent for raising
@@ -716,6 +727,11 @@ int main(int argc, char **argv) {
           }
           break;
         case VisibilityNotify:
+#ifdef DEBUG_EVENTS
+          fprintf(stderr, "VisibilityNotify %lu %d\n",
+                  (unsigned long)priv.ev.xvisibility.window,
+                  priv.ev.xvisibility.state);
+#endif
           if (priv.ev.xvisibility.state != VisibilityUnobscured) {
             // If something else shows an OverrideRedirect window, we want to
             // stay on top.
@@ -790,6 +806,10 @@ int main(int argc, char **argv) {
           // Ignored.
           break;
         case MapNotify:
+#ifdef DEBUG_EVENTS
+          fprintf(stderr, "MapNotify %lu\n",
+                  (unsigned long)priv.ev.xmap.window);
+#endif
           if (priv.ev.xmap.window == background_window) {
             background_window_mapped = 1;
           } else if (priv.ev.xmap.window == saver_window) {
@@ -802,6 +822,10 @@ int main(int argc, char **argv) {
           }
           break;
         case UnmapNotify:
+#ifdef DEBUG_EVENTS
+          fprintf(stderr, "UnmapNotify %lu\n",
+                  (unsigned long)priv.ev.xmap.window);
+#endif
           if (priv.ev.xmap.window == background_window) {
             background_window_mapped = 0;
           } else if (priv.ev.xmap.window == saver_window) {
@@ -810,6 +834,10 @@ int main(int argc, char **argv) {
           break;
         case FocusIn:
         case FocusOut:
+#ifdef DEBUG_EVENTS
+          fprintf(stderr, "Focus%d %lu\n", priv.ev.xfocus.mode,
+                  (unsigned long)priv.ev.xfocus.window);
+#endif
           if (priv.ev.xfocus.window == parent_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
             fprintf(stderr, "WARNING: lost grab, trying to grab again.\n");
@@ -827,6 +855,10 @@ int main(int argc, char **argv) {
           }
           break;
         default:
+#ifdef DEBUG_EVENTS
+          fprintf(stderr, "Event%d %lu\n", priv.ev.type,
+                  (unsigned long)priv.ev.xany.window);
+#endif
 #ifdef HAVE_SCRNSAVER
           // Handle screen saver notifications. If the screen is blanked anyway,
           // turn off the saver child.
