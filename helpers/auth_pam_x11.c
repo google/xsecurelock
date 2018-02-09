@@ -29,13 +29,13 @@ limitations under the License.
 #include <unistd.h>                 // for gethostname, getuid, read, ssize_t
 
 #ifdef HAVE_XKB
-#include <X11/XKBlib.h>             // for XkbFreeClientMap, XkbGetIndicator...
+#include <X11/XKBlib.h>  // for XkbFreeClientMap, XkbGetIndicator...
 #endif
 
-#include "../env_settings.h"        // for GetStringSetting
-#include "../mlock_page.h"          // for MLOCK_PAGE
-#include "../xscreensaver_api.h"    // for ReadWindowID
-#include "monitors.h"               // for Monitor, GetMonitors, IsMonitorCh...
+#include "../env_settings.h"      // for GetStringSetting
+#include "../mlock_page.h"        // for MLOCK_PAGE
+#include "../xscreensaver_api.h"  // for ReadWindowID
+#include "monitors.h"             // for Monitor, GetMonitors, IsMonitorCh...
 
 //! The blinking interval in microseconds.
 #define BLINK_INTERVAL (250 * 1000)
@@ -134,8 +134,8 @@ const char *get_indicators() {
       continue;
     }
     memcpy(p, ", ", 2);
-    memcpy(p+2, word, n);
-    p += n+2;
+    memcpy(p + 2, word, n);
+    p += n + 2;
   }
   *p = 0;
   return buf;
@@ -157,7 +157,7 @@ void display_string(const char *title, const char *str) {
   static int region_h = 0;
 
   int th = font->max_bounds.ascent + font->max_bounds.descent + 4;
-  int to = font->max_bounds.ascent + 2; // Text at to has bbox from 0 to th.
+  int to = font->max_bounds.ascent + 2;  // Text at to has bbox from 0 to th.
 
   int len_title = strlen(title);
   int tw_title = XTextWidth(font, title, len_title);
@@ -187,15 +187,14 @@ void display_string(const char *title, const char *str) {
                  region_h, False);
     }
 
-    XDrawString(display, window, gc, cx - tw_title / 2,
-                sy, title, len_title);
+    XDrawString(display, window, gc, cx - tw_title / 2, sy, title, len_title);
 
-    XDrawString(display, window, gc, cx - tw_str / 2,
-                sy + th * 2, str, len_str);
+    XDrawString(display, window, gc, cx - tw_str / 2, sy + th * 2, str,
+                len_str);
 
 #ifdef HAVE_XKB
-    XDrawString(display, window, gc, cx - tw_indicators / 2,
-                sy + th * 3, indicators, len_indicators);
+    XDrawString(display, window, gc, cx - tw_indicators / 2, sy + th * 3,
+                indicators, len_indicators);
 #endif
   }
 
@@ -616,7 +615,10 @@ int main() {
   if (font_name[0] != 0) {
     font = XLoadQueryFont(display, font_name);
     if (font == NULL) {
-      fprintf(stderr, "could not load the specified font %s - trying to fall back to fixed\n", font_name);
+      fprintf(stderr,
+              "could not load the specified font %s - trying to fall back to "
+              "fixed\n",
+              font_name);
     }
   }
   if (font == NULL) {

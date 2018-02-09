@@ -71,7 +71,7 @@ int WantAuthChild(int force_auth) {
  * \return 1 if buf contains at least one non-control character, and 0
  *   otherwise.
  */
-static int ContainsNonControl(const char* buf) {
+static int ContainsNonControl(const char *buf) {
   while (*buf) {
     // Note: this almost isprint but not quite - isprint returns false on
     // high bytes in UTF-8 locales but we do want to forward anything UTF-8.

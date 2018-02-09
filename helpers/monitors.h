@@ -17,9 +17,9 @@ limitations under the License.
 #ifndef MONITORS_H
 #define MONITORS_H
 
-#include <stddef.h>    // for size_t
 #include <X11/X.h>     // for Window
 #include <X11/Xlib.h>  // for Display
+#include <stddef.h>    // for size_t
 
 typedef struct {
   int x, y, width, height;
@@ -43,7 +43,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
 
 /*! \brief Enable receiving monitor change events for the given display at w.
  */
-void SelectMonitorChangeEvents(Display *dpy, Window w);
+void SelectMonitorChangeEvents(Display* dpy, Window w);
 
 /*! \brief Returns the event type that indicates a change to the monitor
  *    configuration.

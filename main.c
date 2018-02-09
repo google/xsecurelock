@@ -15,45 +15,45 @@ limitations under the License.
 */
 
 /*!
-  *\brief XSecureLock.
+ *\brief XSecureLock.
  *
-  *XSecureLock is an X11 screen lock utility designed with the primary goal of
-  *security.
+ *XSecureLock is an X11 screen lock utility designed with the primary goal of
+ *security.
  */
 
-#include <X11/X.h>                      // for Window, GrabModeAsync, None
-#include <X11/Xlib.h>                   // for XEvent, XSelectInput, XSetWin...
-#include <X11/Xutil.h>                  // for XLookupString
-#include <errno.h>                      // for ECHILD, EINTR, errno
-#include <locale.h>                     // for NULL, setlocale, LC_CTYPE
-#include <signal.h>                     // for sigaction, sigemptyset, SIGPIPE
-#include <stdio.h>                      // for fprintf, stderr, perror, printf
-#include <stdlib.h>                     // for EXIT_SUCCESS, WEXITSTATUS, exit
-#include <string.h>                     // for __s1_len, __s2_len, strncmp
-#include <sys/select.h>                 // for timeval, select, FD_SET, FD_ZERO
-#include <sys/wait.h>                   // for waitpid, WNOHANG
-#include <time.h>                       // for nanosleep, timespec
-#include <unistd.h>                     // for access, pid_t, X_OK, chdir
-#include "auth_child.h"                 // for WantAuthChild, WatchAuthChild
-#include "env_settings.h"               // for GetIntSetting, GetStringSetting
-#include "mlock_page.h"                 // for MLOCK_PAGE
-#include "saver_child.h"                // for WatchSaverChild
+#include <X11/X.h>         // for Window, GrabModeAsync, None
+#include <X11/Xlib.h>      // for XEvent, XSelectInput, XSetWin...
+#include <X11/Xutil.h>     // for XLookupString
+#include <errno.h>         // for ECHILD, EINTR, errno
+#include <locale.h>        // for NULL, setlocale, LC_CTYPE
+#include <signal.h>        // for sigaction, sigemptyset, SIGPIPE
+#include <stdio.h>         // for fprintf, stderr, perror, printf
+#include <stdlib.h>        // for EXIT_SUCCESS, WEXITSTATUS, exit
+#include <string.h>        // for __s1_len, __s2_len, strncmp
+#include <sys/select.h>    // for timeval, select, FD_SET, FD_ZERO
+#include <sys/wait.h>      // for waitpid, WNOHANG
+#include <time.h>          // for nanosleep, timespec
+#include <unistd.h>        // for access, pid_t, X_OK, chdir
+#include "auth_child.h"    // for WantAuthChild, WatchAuthChild
+#include "env_settings.h"  // for GetIntSetting, GetStringSetting
+#include "mlock_page.h"    // for MLOCK_PAGE
+#include "saver_child.h"   // for WatchSaverChild
 
 #ifdef HAVE_SCRNSAVER
-#include <X11/extensions/saver.h>       // for ScreenSaverNotify, ScreenSave...
-#include <X11/extensions/scrnsaver.h>   // for XScreenSaverNotifyEvent, XScr...
+#include <X11/extensions/saver.h>      // for ScreenSaverNotify, ScreenSave...
+#include <X11/extensions/scrnsaver.h>  // for XScreenSaverNotifyEvent, XScr...
 #endif
 #ifdef HAVE_COMPOSITE
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
 #endif
 #ifdef HAVE_XF86MISC
-#include <X11/extensions/xf86misc.h>    // for XF86MiscSetGrabKeysState
+#include <X11/extensions/xf86misc.h>  // for XF86MiscSetGrabKeysState
 #endif
 
-#include "auth_child.h"                 // for WantAuthChild, WatchAuthChild
-#include "env_settings.h"               // for GetIntSetting, GetStringSetting
-#include "mlock_page.h"                 // for MLOCK_PAGE
-#include "saver_child.h"                // for WatchSaverChild
+#include "auth_child.h"    // for WantAuthChild, WatchAuthChild
+#include "env_settings.h"  // for GetIntSetting, GetStringSetting
+#include "mlock_page.h"    // for MLOCK_PAGE
+#include "saver_child.h"   // for WatchSaverChild
 
 /*! \brief How often (in times per second) to watch child processes.
  *
@@ -168,7 +168,7 @@ int WatchChildren(Display *dpy, Window w, enum WatchChildrenState state,
  *
  * \return If true, authentication was successful, and the program should exit.
  */
-int WakeUp(Display* dpy, Window w, const char *stdinbuf) {
+int WakeUp(Display *dpy, Window w, const char *stdinbuf) {
   return WatchChildren(dpy, w, WATCH_CHILDREN_FORCE_AUTH, stdinbuf);
 }
 
@@ -205,9 +205,12 @@ void usage(const char *me) {
       "  XSECURELOCK_SAVER=<saver module>\n"
       "  XSECURELOCK_WANT_FIRST_KEYPRESS=<0|1>\n"
       "\n"
-      "Default auth module: " AUTH_EXECUTABLE "\n"
-      "Default global saver module: " GLOBAL_SAVER_EXECUTABLE "\n"
-      "Default per-screen saver module: " SAVER_EXECUTABLE "\n"
+      "Default auth module: " AUTH_EXECUTABLE
+      "\n"
+      "Default global saver module: " GLOBAL_SAVER_EXECUTABLE
+      "\n"
+      "Default per-screen saver module: " SAVER_EXECUTABLE
+      "\n"
       "\n"
       "This software is licensed under the Apache 2.0 License. Details are\n"
       "available at the following location:\n"
@@ -448,8 +451,8 @@ int main(int argc, char **argv) {
   Window parent_window = root_window;
 
 #ifdef HAVE_COMPOSITE
-  int composite_event_base, composite_error_base,
-      composite_major_version = 0, composite_minor_version = 0;
+  int composite_event_base, composite_error_base, composite_major_version = 0,
+                                                  composite_minor_version = 0;
   int have_composite =
       XCompositeQueryExtension(display, &composite_event_base,
                                &composite_error_base) &&
@@ -486,8 +489,7 @@ int main(int argc, char **argv) {
       CopyFromParent, CWBackPixel | CWCursor, &coverattrs);
 
   // Let's get notified if we lose visibility, so we can self-raise.
-  XSelectInput(display, parent_window,
-               StructureNotifyMask | FocusChangeMask);
+  XSelectInput(display, parent_window, StructureNotifyMask | FocusChangeMask);
   XSelectInput(display, background_window,
                StructureNotifyMask | VisibilityChangeMask | FocusChangeMask);
   XSelectInput(display, saver_window,

@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>                // for Window, CopyFromParent, CWBackPixel
-#include <X11/Xlib.h>             // for XEvent, XFlush, XNextEvent, XOpenDi...
-#include <signal.h>               // for signal, SIGTERM
-#include <stdio.h>                // for fprintf, NULL, stderr
-#include <string.h>               // for memcmp, memcpy
-#include <sys/select.h>           // for select, FD_SET, FD_ZERO, fd_set
+#include <X11/X.h>       // for Window, CopyFromParent, CWBackPixel
+#include <X11/Xlib.h>    // for XEvent, XFlush, XNextEvent, XOpenDi...
+#include <signal.h>      // for signal, SIGTERM
+#include <stdio.h>       // for fprintf, NULL, stderr
+#include <string.h>      // for memcmp, memcpy
+#include <sys/select.h>  // for select, FD_SET, FD_ZERO, fd_set
 
 #include "../env_settings.h"      // for GetStringSetting
 #include "../saver_child.h"       // for MAX_SAVERS
@@ -29,7 +29,7 @@ limitations under the License.
 volatile int sigterm = 0;
 
 static void handle_sigterm(int unused_signo) {
-  (void) unused_signo;
+  (void)unused_signo;
   sigterm = 1;
 }
 
@@ -50,7 +50,8 @@ static void WatchSavers(void) {
 
 static void SpawnSavers(Window parent) {
   XSetWindowAttributes attrs;
-  attrs.background_pixel = BlackPixel(display, DefaultScreen(display));;
+  attrs.background_pixel = BlackPixel(display, DefaultScreen(display));
+  ;
   for (size_t i = 0; i < num_monitors; ++i) {
     windows[i] =
         XCreateWindow(display, parent, monitors[i].x, monitors[i].y,

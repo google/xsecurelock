@@ -33,7 +33,7 @@ limitations under the License.
  * \param should_be_running If true, the saver child is started if not running
  *   yet; if alse, the saver child will be terminated.
  */
-void WatchSaverChild(Display* dpy, Window w, int index,
-                     const char* executable, int should_be_running);
+void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
+                     int should_be_running);
 
 #endif

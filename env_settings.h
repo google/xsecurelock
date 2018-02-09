@@ -48,6 +48,6 @@ int GetIntSetting(const char* name, int def);
  * \param def The default value.
  * \return The value of the setting, or def if unset or empty.
  */
-const char *GetStringSetting(const char* name, const char* def);
+const char* GetStringSetting(const char* name, const char* def);
 
 #endif

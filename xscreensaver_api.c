@@ -16,9 +16,9 @@ limitations under the License.
 
 #include "xscreensaver_api.h"
 
-#include <X11/X.h>         // for Window
-#include <stdio.h>         // for fprintf, stderr
-#include <stdlib.h>        // for setenv
+#include <X11/X.h>   // for Window
+#include <stdio.h>   // for fprintf, stderr
+#include <stdlib.h>  // for setenv
 
 #include "env_settings.h"  // for GetUnsignedLongLongSetting
 

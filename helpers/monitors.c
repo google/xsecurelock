@@ -16,10 +16,10 @@ limitations under the License.
 
 #include "monitors.h"
 
-#include <X11/Xlib.h>               // for XWindowAttributes, Display, XGetW...
-#include <stdio.h>                  // for fprintf, stderr
-#include <stdlib.h>                 // for qsort
-#include <string.h>                 // for memcmp, memset
+#include <X11/Xlib.h>  // for XWindowAttributes, Display, XGetW...
+#include <stdio.h>     // for fprintf, stderr
+#include <stdlib.h>    // for qsort
+#include <string.h>    // for memcmp, memset
 
 #ifdef HAVE_XRANDR
 #include <X11/extensions/Xrandr.h>  // for XRRCrtcInfo, XRROutputInfo, XRRSc...
