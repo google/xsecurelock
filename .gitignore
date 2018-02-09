@@ -22,6 +22,7 @@
 
 # Binaries.
 /auth_pam_x11
+/saver_multiplex
 /xsecurelock
 
 # Doxygen stuff.
