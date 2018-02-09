@@ -100,6 +100,9 @@ Options to XSecureLock can be passed by environment variables:
 * `XSECURELOCK_AUTH`: specifies the desired authentication module.
 * `XSECURELOCK_FONT`: X11 font name to use for auth_pam_x11. You can get a list
   of supported font names by running `xlsfonts`.
+* `XSECURELOCK_GLOBAL_SAVER`: specifies the desired global screen saver module
+  (by default this is a multiplexer that runs `XSECURELOCK_SAVER` on each
+  screen).
 * `XSECURELOCK_NO_COMPOSITE`: disables covering the composite overlay window.
   This switches to a more traditional way of locking, but may allow desktop
   notifications to be visible on top of the screen lock. Not recommended.
@@ -150,6 +153,8 @@ The following screen saver modules are included:
 * `saver_mplayer` and `saver_mpv`: Plays a video using mplayer or mpv,
   respectively. The video to play is selected at random among all files in
   `~/Videos`.
+* `saver_multiplex`: Watches the display configuration and runs another screen
+  saver module once on each screen; used internally.
 * `saver_xscreensaver`: Runs an XScreenSaver hack from an existing XScreenSaver
   setup.
 
