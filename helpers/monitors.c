@@ -84,7 +84,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
       for (int k = 0; k < screenres->noutput; ++k) {
         XRROutputInfo* output =
             XRRGetOutputInfo(dpy, screenres, screenres->outputs[k]);
-        if (output != NULL) {
+        if (output != NULL && output->connection == RR_Connected) {
           // NOTE: If an output has multiple Crtcs (i.e. if the screen is
           // cloned), we only look at the first. Let's assume that the center of
           // that one should always be onscreen anyway (even though they may not
