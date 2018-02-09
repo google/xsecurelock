@@ -96,8 +96,8 @@ int main() {
   saver_executable = GetStringSetting("XSECURELOCK_SAVER", SAVER_EXECUTABLE);
 
   SelectMonitorChangeEvents(display, parent);
-
   num_monitors = GetMonitors(display, parent, monitors, MAX_MONITORS);
+
   SpawnSavers(parent);
 
   signal(SIGTERM, handle_sigterm);
