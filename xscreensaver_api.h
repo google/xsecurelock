@@ -17,7 +17,7 @@ limitations under the License.
 #ifndef XSCREENSAVER_API_H
 #define XSCREENSAVER_API_H
 
-#include <X11/Xlib.h>
+#include <X11/X.h>  // for Window
 
 /*! \brief Export the given window ID to the environment for a saver/auth child.
  *

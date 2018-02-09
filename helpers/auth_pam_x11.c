@@ -14,28 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>                // for Window, GCBackground, etc
-#include <X11/Xlib.h>             // for XDrawString, XGCValues, etc
-#include <ctype.h>                // for tolower, toupper
-#include <locale.h>               // for NULL, setlocale, LC_CTYPE
-#include <pwd.h>                  // for getpwuid, passwd
-#include <security/_pam_types.h>  // for PAM_SUCCESS, pam_strerror, etc
-#include <security/pam_appl.h>    // for pam_acct_mgmt, etc
-#include <stdio.h>                // for fprintf, stderr, NULL, etc
-#include <stdlib.h>               // for free, getenv, calloc, exit, etc
-#include <string.h>               // for strlen
-#include <sys/select.h>           // for select, FD_SET, FD_ZERO, etc
-#include <sys/time.h>             // for timeval
-#include <unistd.h>               // for getuid, sleep, ssize_t
+#include <X11/X.h>                  // for Atom, Success, None, GCBackground
+#include <X11/Xlib.h>               // for XDrawString, XTextWidth, XFontStruct
+#include <X11/extensions/XKB.h>     // for XkbUseCoreKbd, XkbGroupNamesMask
+#include <X11/extensions/XKBstr.h>  // for XkbStateRec, _XkbDesc, _XkbNamesRec
+#include <locale.h>                 // for NULL, setlocale, LC_CTYPE
+#include <pwd.h>                    // for getpwuid, passwd
+#include <security/_pam_types.h>    // for PAM_SUCCESS, pam_strerror, pam_re...
+#include <security/pam_appl.h>      // for pam_end, pam_start, pam_acct_mgmt
+#include <stdio.h>                  // for fprintf, stderr, perror, NULL
+#include <stdlib.h>                 // for mblen, exit, free, calloc, getenv
+#include <string.h>                 // for memcpy, strlen, memset
+#include <sys/select.h>             // for timeval, select, FD_SET, FD_ZERO
+#include <unistd.h>                 // for gethostname, getuid, read, ssize_t
 
 #ifdef HAVE_XKB
-#include <X11/XKBlib.h>
+#include <X11/XKBlib.h>             // for XkbFreeClientMap, XkbGetIndicator...
 #endif
 
-#include "../env_settings.h"
-#include "../mlock_page.h"
-#include "../xscreensaver_api.h"
-#include "monitors.h"
+#include "../env_settings.h"        // for GetStringSetting
+#include "../mlock_page.h"          // for MLOCK_PAGE
+#include "../xscreensaver_api.h"    // for ReadWindowID
+#include "monitors.h"               // for Monitor, GetMonitors, IsMonitorCh...
 
 //! The blinking interval in microseconds.
 #define BLINK_INTERVAL (250 * 1000)

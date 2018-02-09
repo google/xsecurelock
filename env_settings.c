@@ -16,10 +16,9 @@ limitations under the License.
 
 #include "env_settings.h"
 
-#include <errno.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <errno.h>   // for errno, ERANGE
+#include <stdio.h>   // for fprintf, NULL, stderr
+#include <stdlib.h>  // for getenv, strtol, strtoull
 
 unsigned long long GetUnsignedLongLongSetting(const char* name,
                                               unsigned long long def) {

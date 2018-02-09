@@ -14,21 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>                // for Window, GCBackground, etc
-#include <X11/Xlib.h>             // for XDrawString, XGCValues, etc
-#include <signal.h>
-#include <stdio.h>                // for fprintf, stderr, NULL, etc
-#include <stdlib.h>               // for free, getenv, calloc, exit, etc
-#include <string.h>               // for strlen
+#include <X11/X.h>                // for Window, CopyFromParent, CWBackPixel
+#include <X11/Xlib.h>             // for XEvent, XFlush, XNextEvent, XOpenDi...
+#include <signal.h>               // for signal, SIGTERM
+#include <stdio.h>                // for fprintf, NULL, stderr
+#include <string.h>               // for memcmp, memcpy
+#include <sys/select.h>           // for select, FD_SET, FD_ZERO, fd_set
 
-#ifdef HAVE_XKB
-#include <X11/XKBlib.h>
-#endif
-
-#include "../env_settings.h"
-#include "../saver_child.h"
-#include "../xscreensaver_api.h"
-#include "monitors.h"
+#include "../env_settings.h"      // for GetStringSetting
+#include "../saver_child.h"       // for MAX_SAVERS
+#include "../xscreensaver_api.h"  // for ReadWindowID
+#include "monitors.h"             // for IsMonitorChangeEvent, Monitor, Sele...
 
 volatile int sigterm = 0;
 

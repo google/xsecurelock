@@ -17,8 +17,9 @@ limitations under the License.
 #ifndef MONITORS_H
 #define MONITORS_H
 
-#include <stdlib.h>
-#include <X11/Xlib.h>
+#include <stddef.h>    // for size_t
+#include <X11/X.h>     // for Window
+#include <X11/Xlib.h>  // for Display
 
 typedef struct {
   int x, y, width, height;

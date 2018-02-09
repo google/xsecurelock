@@ -21,35 +21,39 @@ limitations under the License.
   *security.
  */
 
-#include <X11/X.h>       // for CopyFromParent, etc
-#include <X11/Xlib.h>    // for XEvent, etc
-#include <X11/Xutil.h>   // for XLookupString
-#include <errno.h>       // for ECHILD, EINTR, errno
-#include <locale.h>      // for NULL, setlocale, LC_CTYPE
-#include <signal.h>      // for sigaction, sigemptyset, etc
-#include <stdio.h>       // for fprintf, stderr
-#include <stdlib.h>      // for EXIT_SUCCESS
-#include <string.h>      // for strchr, strncmp
-#include <sys/select.h>  // for select, FD_SET, FD_ZERO, etc
-#include <sys/time.h>    // for timeval
-#include <sys/wait.h>    // for waitpid, WEXITSTATUS, etc
-#include <time.h>        // for nanosleep, timespec
-#include <unistd.h>      // for access, X_OK
+#include <X11/X.h>                      // for Window, GrabModeAsync, None
+#include <X11/Xlib.h>                   // for XEvent, XSelectInput, XSetWin...
+#include <X11/Xutil.h>                  // for XLookupString
+#include <errno.h>                      // for ECHILD, EINTR, errno
+#include <locale.h>                     // for NULL, setlocale, LC_CTYPE
+#include <signal.h>                     // for sigaction, sigemptyset, SIGPIPE
+#include <stdio.h>                      // for fprintf, stderr, perror, printf
+#include <stdlib.h>                     // for EXIT_SUCCESS, WEXITSTATUS, exit
+#include <string.h>                     // for __s1_len, __s2_len, strncmp
+#include <sys/select.h>                 // for timeval, select, FD_SET, FD_ZERO
+#include <sys/wait.h>                   // for waitpid, WNOHANG
+#include <time.h>                       // for nanosleep, timespec
+#include <unistd.h>                     // for access, pid_t, X_OK, chdir
+#include "auth_child.h"                 // for WantAuthChild, WatchAuthChild
+#include "env_settings.h"               // for GetIntSetting, GetStringSetting
+#include "mlock_page.h"                 // for MLOCK_PAGE
+#include "saver_child.h"                // for WatchSaverChild
 
 #ifdef HAVE_SCRNSAVER
-#include <X11/extensions/scrnsaver.h>
+#include <X11/extensions/saver.h>       // for ScreenSaverNotify, ScreenSave...
+#include <X11/extensions/scrnsaver.h>   // for XScreenSaverNotifyEvent, XScr...
 #endif
 #ifdef HAVE_COMPOSITE
-#include <X11/extensions/Xcomposite.h>
+#include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
 #endif
 #ifdef HAVE_XF86MISC
-#include <X11/extensions/xf86misc.h>
+#include <X11/extensions/xf86misc.h>    // for XF86MiscSetGrabKeysState
 #endif
 
-#include "auth_child.h"
-#include "env_settings.h"
-#include "mlock_page.h"
-#include "saver_child.h"
+#include "auth_child.h"                 // for WantAuthChild, WatchAuthChild
+#include "env_settings.h"               // for GetIntSetting, GetStringSetting
+#include "mlock_page.h"                 // for MLOCK_PAGE
+#include "saver_child.h"                // for WatchSaverChild
 
 /*! \brief How often (in times per second) to watch child processes.
  *

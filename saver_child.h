@@ -17,7 +17,8 @@ limitations under the License.
 #ifndef SAVER_CHILD_H
 #define SAVER_CHILD_H
 
-#include <X11/Xlib.h>
+#include <X11/X.h>     // for Window
+#include <X11/Xlib.h>  // for Display
 
 #define MAX_SAVERS 16
 
