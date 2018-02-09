@@ -135,14 +135,14 @@ int WatchChildren(Display *dpy, Window w, enum WatchChildrenState state,
   // later.
   if (auth_running) {
     // Make sure the saver is shut down to not interfere with the screen.
-    WatchSaverChild(dpy, w, saver_executable, 0);
+    WatchSaverChild(dpy, w, 0, saver_executable, 0);
 
     // Actually start the auth child, or notice termination.
     if (WatchAuthChild(dpy, w, auth_executable,
                        state == WATCH_CHILDREN_FORCE_AUTH, stdinbuf,
                        &auth_running)) {
       // Auth performed successfully. Terminate the other children.
-      WatchSaverChild(dpy, w, saver_executable, 0);
+      WatchSaverChild(dpy, w, 0, saver_executable, 0);
       // Now terminate the screen lock.
       return 1;
     }
@@ -152,7 +152,7 @@ int WatchChildren(Display *dpy, Window w, enum WatchChildrenState state,
   // didn't start one, or because it just terminated.
   // Show the screen saver.
   if (!auth_running) {
-    WatchSaverChild(dpy, w, saver_executable,
+    WatchSaverChild(dpy, w, 0, saver_executable,
                     state != WATCH_CHILDREN_SAVER_DISABLED);
   }
 

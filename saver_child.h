@@ -19,17 +19,20 @@ limitations under the License.
 
 #include <X11/Xlib.h>
 
+#define MAX_SAVERS 16
+
 /*! \brief Starts or stops the screen saver child process.
  *
  * \param dpy The X11 display.
  * \param w The screen saver window. Will get cleared after saver child
  *   execution.
+ * \param index The index of the saver to maintain (0 <= index < MAX_SAVERS).
  * \param executable What binary to spawn for screen saving. No arguments will
  *   be passed.
  * \param should_be_running If true, the saver child is started if not running
  *   yet; if alse, the saver child will be terminated.
  */
-void WatchSaverChild(Display* dpy, Window w, const char* executable,
-                     int should_be_running);
+void WatchSaverChild(Display* dpy, Window w, int index,
+                     const char* executable, int should_be_running);
 
 #endif
