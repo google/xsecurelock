@@ -98,12 +98,22 @@ AC_ARG_WITH([default_auth_module],
 
 AC_MSG_NOTICE([Configured default auth module: $auth_executable])
 
+AC_ARG_WITH([default_global_saver_module],
+            AC_HELP_STRING([--with-default-global-saver-module],
+                           [The default global saver module to use when none was
+                            pecified. Can be overridden via the
+                            XSECURELOCK_GLOBAL_SAVER environment variable.]),
+                            [global_saver_executable=$withval],
+                            [global_saver_executable=saver_multiplex])
+
+AC_MSG_NOTICE([Configured default global saver module: ]dnl
+[$global_saver_executable])
+
 AC_ARG_WITH([default_saver_module],
             AC_HELP_STRING([--with-default-saver-module],
-                           [The default saver module to use when none wa
-                            pecified. Can be overridden via the
-                            XSECURELOCK_SAVER environment variable or a command
-                            line argument.]),
+                           [The default per-screen saver module to use when none
+                            was pecified. Can be overridden via the
+                            XSECURELOCK_SAVER environment variable.]),
                             [saver_executable=$withval],
                             [saver_executable=saver_blank])
 
@@ -111,6 +121,7 @@ AC_MSG_NOTICE([Configured default saver module: $saver_executable])
 
 AC_SUBST(pam_service_name)
 AC_SUBST(auth_executable)
+AC_SUBST(global_saver_executable)
 AC_SUBST(saver_executable)
 AM_CONDITIONAL([PAM_CHECK_ACCOUNT_TYPE],
                [test x$enable_pam_check_account_type = xyes])

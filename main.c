@@ -202,7 +202,8 @@ void usage(const char *me) {
       "  XSECURELOCK_WANT_FIRST_KEYPRESS=<0|1>\n"
       "\n"
       "Default auth module: " AUTH_EXECUTABLE "\n"
-      "Default saver module: " SAVER_EXECUTABLE "\n"
+      "Default global saver module: " GLOBAL_SAVER_EXECUTABLE "\n"
+      "Default per-screen saver module: " SAVER_EXECUTABLE "\n"
       "\n"
       "This software is licensed under the Apache 2.0 License. Details are\n"
       "available at the following location:\n"
@@ -216,7 +217,8 @@ void usage(const char *me) {
  */
 void load_defaults() {
   auth_executable = GetStringSetting("XSECURELOCK_AUTH", AUTH_EXECUTABLE);
-  saver_executable = GetStringSetting("XSECURELOCK_SAVER", SAVER_EXECUTABLE);
+  saver_executable =
+      GetStringSetting("XSECURELOCK_GLOBAL_SAVER", GLOBAL_SAVER_EXECUTABLE);
 #ifdef HAVE_COMPOSITE
   no_composite = GetIntSetting("XSECURELOCK_NO_COMPOSITE", 0);
 #endif

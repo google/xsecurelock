@@ -27,6 +27,7 @@ xsecurelock_CPPFLAGS = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
 	-DDOCS_PATH=\"$(docdir)\" \
 	-DAUTH_EXECUTABLE=\"@auth_executable@\" \
+	-DGLOBAL_SAVER_EXECUTABLE=\"@global_saver_executable@\" \
 	-DSAVER_EXECUTABLE=\"@saver_executable@\"
 
 if HAVE_SCRNSAVER
