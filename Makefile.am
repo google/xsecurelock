@@ -48,8 +48,22 @@ helpers_SCRIPTS = \
 	helpers/saver_mpv \
 	helpers/saver_xscreensaver
 
-if HAVE_PAM
 helpers_PROGRAMS = \
+	saver_multiplex
+saver_multiplex_SOURCES = \
+	helpers/saver_multiplex.c \
+	env_settings.c env_settings.h \
+	helpers/monitors.c helpers/monitors.h \
+	saver_child.c saver_child.h \
+	xscreensaver_api.c xscreensaver_api.h
+saver_multiplex_CPPFLAGS = \
+	-DSAVER_EXECUTABLE=\"@saver_executable@\"
+if HAVE_XRANDR
+saver_multiplex_CPPFLAGS += -DHAVE_XRANDR
+endif
+
+if HAVE_PAM
+helpers_PROGRAMS += \
 	auth_pam_x11
 auth_pam_x11_SOURCES = \
 	helpers/auth_pam_x11.c \

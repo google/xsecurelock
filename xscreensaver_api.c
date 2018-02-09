@@ -16,8 +16,11 @@ limitations under the License.
 
 #include "xscreensaver_api.h"
 
-#include <X11/Xlib.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <X11/Xlib.h>
+
+#include "env_settings.h"
 
 void ExportWindowID(Window w) {
   char window_id_str[32];

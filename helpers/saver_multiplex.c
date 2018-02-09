@@ -25,40 +25,50 @@ limitations under the License.
 #include <X11/XKBlib.h>
 #endif
 
+#include "../env_settings.h"
 #include "../saver_child.h"
 #include "../xscreensaver_api.h"
 #include "monitors.h"
 
 volatile int sigterm = 0;
 
-static void handle_sigterm(int) {
+static void handle_sigterm(int unused_signo) {
+  (void) unused_signo;
   sigterm = 1;
 }
 
 #define MAX_MONITORS MAX_SAVERS
+
+static const char *saver_executable;
 
 static Display *display;
 static Monitor monitors[MAX_MONITORS];
 static size_t num_monitors;
 static Window windows[MAX_MONITORS];
 
+static void WatchSavers(void) {
+  for (size_t i = 0; i < num_monitors; ++i) {
+    WatchSaverChild(display, windows[i], i, saver_executable, 1);
+  }
+}
+
 static void SpawnSavers(Window parent) {
   XSetWindowAttributes attrs;
-  coverattrs.background_pixel = BlackPixel(display, DefaultScreen(display));;
+  attrs.background_pixel = BlackPixel(display, DefaultScreen(display));;
   for (size_t i = 0; i < num_monitors; ++i) {
     windows[i] = XCreateWindow(display, parent, monitors[i].x, monitors[i].y,
                                monitors[i].width, monitors[i].height, 0,
                                CopyFromParent, InputOutput, CopyFromParent,
                                CWBackPixel | CWCursor, &attrs);
     XMapWindow(display, windows[i]);
-    WatchSaverChild(display, windows[i], i, saver_executable, 1);
   }
+  WatchSavers();
 }
 
-static void KillSavers() {
+static void KillSavers(void) {
   for (size_t i = 0; i < num_monitors; ++i) {
     WatchSaverChild(display, windows[i], i, saver_executable, 0);
-    XDestroyWindow(windows[i]);
+    XDestroyWindow(display, windows[i]);
   }
 }
 
@@ -73,22 +83,27 @@ int main() {
     fprintf(stderr, "could not connect to $DISPLAY\n");
     return 1;
   }
+  int x11_fd = ConnectionNumber(display);
 
-  window = ReadWindowID();
-  if (window == None) {
-    fprintf(stderr, "Invalid/no window ID in XSCREENSAVER_WINDOW.\n");
+  Window parent = ReadWindowID();
+  if (parent == None) {
+    fprintf(stderr, "Invalid/no parent ID in XSCREENSAVER_WINDOW.\n");
     return 1;
   }
 
-  SelectMonitorChangeEvents(display, window);
+  saver_executable = GetStringSetting("XSECURELOCK_SAVER", SAVER_EXECUTABLE);
 
-  num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
-  SpawnSavers(window);
+  SelectMonitorChangeEvents(display, parent);
+
+  num_monitors = GetMonitors(display, parent, monitors, MAX_MONITORS);
+  SpawnSavers(parent);
 
   signal(SIGTERM, handle_sigterm);
   for (;;) {
     // We're using non-blocking X11 event handling and select() so we can
-    // reliably catch SIGTERM and exit the loop.
+    // reliably catch SIGTERM and exit the loop. Also, SIGCHLD (screen saver
+    // dies) will interrupt the select() as well and let WatchSavers() respawn
+    // that saver.
     fd_set in_fds;
     FD_ZERO(&in_fds);
     FD_SET(x11_fd, &in_fds);
@@ -96,18 +111,19 @@ int main() {
     if (sigterm) {
       break;
     }
+    WatchSavers();
     XEvent ev;
-    while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
-      if (IsMonitorChangeEvent(ev)) {
+    while (XPending(display) && (XNextEvent(display, &ev), 1)) {
+      if (IsMonitorChangeEvent(display, ev.type)) {
         Monitor new_monitors[MAX_SAVERS];
         size_t new_num_monitors =
-            GetMonitors(display, window, monitors, MAX_SAVERS);
+            GetMonitors(display, parent, monitors, MAX_SAVERS);
         if (new_monitors != monitors ||
             memcmp(new_monitors, monitors, sizeof(monitors))) {
           KillSavers();
           num_monitors = new_num_monitors;
           memcpy(monitors, new_monitors, sizeof(monitors));
-          SpawnSavers(window);
+          SpawnSavers(parent);
         }
       }
     }
