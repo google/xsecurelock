@@ -34,6 +34,7 @@ limitations under the License.
 
 #include "../env_settings.h"
 #include "../mlock_page.h"
+#include "../xscreensaver_api.h"
 #include "monitors.h"
 
 //! The blinking interval in microseconds.
@@ -601,9 +602,9 @@ int main() {
     return 1;
   }
 
-  window = GetUnsignedLongLongSetting("XSCREENSAVER_WINDOW", None);
+  window = ReadWindowID();
   if (window == None) {
-    fprintf(stderr, "Invalid window ID in XSCREENSAVER_WINDOW.\n");
+    fprintf(stderr, "Invalid/no window ID in XSCREENSAVER_WINDOW.\n");
     return 1;
   }
 

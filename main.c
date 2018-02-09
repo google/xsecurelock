@@ -493,16 +493,6 @@ int main(int argc, char **argv) {
   XConfigureWindow(display, background_window, CWStackMode, &coverchanges);
   XConfigureWindow(display, saver_window, CWStackMode, &coverchanges);
 
-  // Now provide the window ID as an environment variable (like XScreenSaver).
-  char window_id_str[16];
-  size_t window_id_len = snprintf(window_id_str, sizeof(window_id_str), "%lu",
-                                  (unsigned long)saver_window);
-  if (window_id_len <= 0 || window_id_len >= sizeof(window_id_str)) {
-    fprintf(stderr, "Window ID doesn't fit into buffer.\n");
-    return 1;
-  }
-  setenv("XSCREENSAVER_WINDOW", window_id_str, 1);
-
   // Initialize XInput so we can get multibyte key events.
   XIM xim = XOpenIM(display, NULL, NULL, NULL);
   if (xim == NULL) {

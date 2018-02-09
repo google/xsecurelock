@@ -21,7 +21,8 @@ xsecurelock_SOURCES = \
 	env_settings.c env_settings.h \
 	saver_child.c saver_child.h \
 	mlock_page.h \
-	main.c
+	main.c \
+	xscreensaver_api.c xscreensaver_api.h
 xsecurelock_CPPFLAGS = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
 	-DDOCS_PATH=\"$(docdir)\" \
@@ -54,7 +55,8 @@ auth_pam_x11_SOURCES = \
 	helpers/auth_pam_x11.c \
 	env_settings.c env_settings.h \
 	helpers/monitors.c helpers/monitors.h \
-	mlock_page.h
+	mlock_page.h \
+	xscreensaver_api.c xscreensaver_api.h
 auth_pam_x11_CPPFLAGS = \
 	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
 if PAM_CHECK_ACCOUNT_TYPE

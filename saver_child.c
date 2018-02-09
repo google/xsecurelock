@@ -23,6 +23,8 @@ limitations under the License.
 #include <sys/wait.h>  // for WEXITSTATUS, waitpid, etc
 #include <unistd.h>    // for pid_t, execl, fork, setsid
 
+#include "xscreensaver_api.h"
+
 //! The PIDs of currently running saver children, or 0 if not running.
 static pid_t saver_child_pid[MAX_SAVERS] = {0};
 
@@ -79,6 +81,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
     } else if (pid == 0) {
       // Child process.
       setsid();
+      ExportWindowID(w);
       execl(executable, executable, NULL);
       perror("execl");
       exit(EXIT_FAILURE);
