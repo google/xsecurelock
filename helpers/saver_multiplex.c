@@ -56,12 +56,14 @@ static void SpawnSavers(Window parent) {
   XSetWindowAttributes attrs;
   attrs.background_pixel = BlackPixel(display, DefaultScreen(display));;
   for (size_t i = 0; i < num_monitors; ++i) {
-    windows[i] = XCreateWindow(display, parent, monitors[i].x, monitors[i].y,
-                               monitors[i].width, monitors[i].height, 0,
-                               CopyFromParent, InputOutput, CopyFromParent,
-                               CWBackPixel | CWCursor, &attrs);
-    XMapWindow(display, windows[i]);
+    windows[i] =
+        XCreateWindow(display, parent, monitors[i].x, monitors[i].y,
+                      monitors[i].width, monitors[i].height, 0, CopyFromParent,
+                      InputOutput, CopyFromParent, CWBackPixel, &attrs);
+    XMapRaised(display, windows[i]);
   }
+  // Need to flush the display so savers sure can access the window.
+  XFlush(display);
   WatchSavers();
 }
 

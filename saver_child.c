@@ -35,6 +35,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
             MAX_SAVERS);
     return;
   }
+
   if (!should_be_running && saver_child_pid[index] != 0) {
     // Kill the whole process group.
     kill(saver_child_pid[index], SIGTERM);
@@ -74,7 +75,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
     }
   }
 
-  if (should_be_running && saver_child_pid == 0) {
+  if (should_be_running && saver_child_pid[index] == 0) {
     pid_t pid = fork();
     if (pid == -1) {
       perror("fork");

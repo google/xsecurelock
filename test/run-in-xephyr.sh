@@ -1,5 +1,7 @@
 #!/bin/sh
 
+export XSECURELOCK_SAVER=saver_xscreensaver
+
 set -ex
 make -C .. CPPFLAGS+=-DDEBUG_EVENTS clean all
 startx \

@@ -605,6 +605,9 @@ int main(int argc, char **argv) {
   sa.sa_flags = 0;
   sigaction(SIGPIPE, &sa, NULL);
 
+  // Need to flush the display so savers sure can access the window.
+  XFlush(display);
+
   enum WatchChildrenState requested_saver_state = WATCH_CHILDREN_NORMAL;
   int x11_fd = ConnectionNumber(display);
   int background_window_mapped = 0, saver_window_mapped = 0,
