@@ -21,33 +21,44 @@ limitations under the License.
 #include <stdlib.h>    // for qsort
 #include <string.h>    // for memcmp, memset
 
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR12
 #include <X11/extensions/Xrandr.h>  // for XRRCrtcInfo, XRROutputInfo, XRRSc...
 #include <X11/extensions/randr.h>   // for RRNotify, RRCrtcChangeNotifyMask
 #endif
 
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR12
 static Display* initialized_for = NULL;
-static int supported;
+static int have_xrandr12;
+#ifdef HAVE_XRANDR15
+static int have_xrandr15;
+#endif
 static int event_base;
 static int error_base;
 
 static int MaybeInitXRandR(Display* dpy) {
   if (dpy != initialized_for) {
-    supported = 0;
+    have_xrandr12 = 0;
+#ifdef HAVE_XRANDR15
+    have_xrandr15 = 0;
+#endif
     if (XRRQueryExtension(dpy, &event_base, &error_base)) {
       int major, minor;
       if (XRRQueryVersion(dpy, &major, &minor)) {
         // XRandR before 1.2 can't connect multiple screens to one, so the
         // default root window size tracking is sufficient for that.
         if (major > 1 || (major == 1 && minor >= 2)) {
-          supported = 1;
+          have_xrandr12 = 1;
         }
+#ifdef HAVE_XRANDR15
+        if (major > 1 || (major == 1 && minor >= 5)) {
+          have_xrandr15 = 1;
+        }
+#endif
       }
     }
     initialized_for = dpy;
   }
-  return supported;
+  return have_xrandr12;
 }
 #endif
 
@@ -69,7 +80,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
   XWindowAttributes xwa;
   XGetWindowAttributes(dpy, w, &xwa);
 
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR12
   if (MaybeInitXRandR(dpy)) {
     // Translate to absolute coordinates so we can compare them to XRandR data.
     int wx, wy;
@@ -81,43 +92,77 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
       wy = xwa.y;
     }
 
-    XRRScreenResources* screenres = XRRGetScreenResources(dpy, w);
-    if (screenres != NULL) {
-      for (int k = 0; k < screenres->noutput; ++k) {
-        XRROutputInfo* output =
-            XRRGetOutputInfo(dpy, screenres, screenres->outputs[k]);
-        if (output != NULL && output->connection == RR_Connected) {
-          // NOTE: If an output has multiple Crtcs (i.e. if the screen is
-          // cloned), we only look at the first. Let's assume that the center of
-          // that one should always be onscreen anyway (even though they may not
-          // be, as cloned displays can have different panning settings).
-          RRCrtc crtc = (output->crtc ? output->crtc
-                                      : output->ncrtc ? output->crtcs[0] : 0);
-          XRRCrtcInfo* info = (crtc ? XRRGetCrtcInfo(dpy, screenres, crtc) : 0);
-          if (info != NULL) {
+#ifdef HAVE_XRANDR15
+    if (have_xrandr15) {
+      int num_rrmonitors;
+      XRRMonitorInfo* rrmonitors = XRRGetMonitors(dpy, w, 1, &num_rrmonitors);
+      if (rrmonitors != NULL) {
+        for (int i = 0; i < num_rrmonitors; ++i) {
+          XRRMonitorInfo* info = &rrmonitors[i];
+          if (num_monitors < max_monitors) {
             int x = CLAMP(info->x, wx, wx + xwa.width) - wx;
             int y = CLAMP(info->y, wy, wy + xwa.height) - wy;
-            int w = CLAMP(info->x + (int)info->width, wx + x, wx + xwa.width) -
-                    (wx + x);
-            int h =
-                CLAMP(info->y + (int)info->height, wy + y, wy + xwa.height) -
-                (wy + y);
+            int w =
+                CLAMP(info->x + info->width, wx + x, wx + xwa.width) - (wx + x);
+            int h = CLAMP(info->y + info->height, wy + y, wy + xwa.height) -
+                    (wy + y);
             if (w <= 0 || h <= 0) {
               continue;
             }
-            if (num_monitors < max_monitors) {
-              out_monitors[num_monitors].x = x;
-              out_monitors[num_monitors].y = y;
-              out_monitors[num_monitors].width = w;
-              out_monitors[num_monitors].height = h;
-              ++num_monitors;
-            }
-            XRRFreeCrtcInfo(info);
+            out_monitors[num_monitors].x = x;
+            out_monitors[num_monitors].y = y;
+            out_monitors[num_monitors].width = w;
+            out_monitors[num_monitors].height = h;
+            ++num_monitors;
           }
-          XRRFreeOutputInfo(output);
         }
+        XRRFreeMonitors(rrmonitors);
       }
-      XRRFreeScreenResources(screenres);
+    }
+#endif
+
+    if (num_monitors == 0) {
+      XRRScreenResources* screenres = XRRGetScreenResources(dpy, w);
+      if (screenres != NULL) {
+        for (int i = 0; i < screenres->noutput; ++i) {
+          XRROutputInfo* output =
+              XRRGetOutputInfo(dpy, screenres, screenres->outputs[i]);
+          if (output != NULL && output->connection == RR_Connected) {
+            // NOTE: If an output has multiple Crtcs (i.e. if the screen is
+            // cloned), we only look at the first. Let's assume that the center
+            // of that one should always be onscreen anyway (even though they
+            // may not be, as cloned displays can have different panning
+            // settings).
+            RRCrtc crtc = (output->crtc ? output->crtc
+                                        : output->ncrtc ? output->crtcs[0] : 0);
+            XRRCrtcInfo* info =
+                (crtc ? XRRGetCrtcInfo(dpy, screenres, crtc) : 0);
+            if (info != NULL) {
+              int x = CLAMP(info->x, wx, wx + xwa.width) - wx;
+              int y = CLAMP(info->y, wy, wy + xwa.height) - wy;
+              int w =
+                  CLAMP(info->x + (int)info->width, wx + x, wx + xwa.width) -
+                  (wx + x);
+              int h =
+                  CLAMP(info->y + (int)info->height, wy + y, wy + xwa.height) -
+                  (wy + y);
+              if (w <= 0 || h <= 0) {
+                continue;
+              }
+              if (num_monitors < max_monitors) {
+                out_monitors[num_monitors].x = x;
+                out_monitors[num_monitors].y = y;
+                out_monitors[num_monitors].width = w;
+                out_monitors[num_monitors].height = h;
+                ++num_monitors;
+              }
+              XRRFreeCrtcInfo(info);
+            }
+            XRRFreeOutputInfo(output);
+          }
+        }
+        XRRFreeScreenResources(screenres);
+      }
     }
   }
 #endif
@@ -152,7 +197,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
 }
 
 void SelectMonitorChangeEvents(Display* dpy, Window w) {
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR12
   if (MaybeInitXRandR(dpy)) {
     XRRSelectInput(dpy, w,
                    RRScreenChangeNotifyMask | RRCrtcChangeNotifyMask |
@@ -162,7 +207,7 @@ void SelectMonitorChangeEvents(Display* dpy, Window w) {
 }
 
 int IsMonitorChangeEvent(Display* dpy, int type) {
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR12
   if (MaybeInitXRandR(dpy)) {
     switch (type - event_base) {
       case RRScreenChangeNotify:

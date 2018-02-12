@@ -59,8 +59,11 @@ saver_multiplex_SOURCES = \
 	xscreensaver_api.c xscreensaver_api.h
 saver_multiplex_CPPFLAGS = \
 	-DSAVER_EXECUTABLE=\"@saver_executable@\"
-if HAVE_XRANDR
-saver_multiplex_CPPFLAGS += -DHAVE_XRANDR
+if HAVE_XRANDR12
+saver_multiplex_CPPFLAGS += -DHAVE_XRANDR12
+endif
+if HAVE_XRANDR15
+saver_multiplex_CPPFLAGS += -DHAVE_XRANDR15
 endif
 
 if HAVE_PAM
@@ -81,8 +84,11 @@ endif
 if HAVE_XKB
 auth_pam_x11_CPPFLAGS += -DHAVE_XKB
 endif
-if HAVE_XRANDR
-auth_pam_x11_CPPFLAGS += -DHAVE_XRANDR
+if HAVE_XRANDR12
+auth_pam_x11_CPPFLAGS += -DHAVE_XRANDR12
+endif
+if HAVE_XRANDR15
+auth_pam_x11_CPPFLAGS += -DHAVE_XRANDR15
 endif
 endif
 

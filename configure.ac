@@ -43,9 +43,13 @@ AC_SEARCH_LIBS(XkbGetIndicatorState, X11,
                [have_xkb=true], [have_xkb=false])
 AM_CONDITIONAL([HAVE_XKB], [test x$have_xkb = xtrue])
 
-AC_SEARCH_LIBS(XRRGetCrtcInfo, Xrandr,
-               [have_xrandr=true], [have_xrandr=false])
-AM_CONDITIONAL([HAVE_XRANDR], [test x$have_xrandr = xtrue])
+AC_SEARCH_LIBS(XRRGetMonitors, Xrandr,
+               [have_xrandr15=true], [have_xrandr15=false])
+AM_CONDITIONAL([HAVE_XRANDR15], [test x$have_xrandr15 = xtrue])
+
+AC_SEARCH_LIBS(XRRGetScreenResources, Xrandr,
+               [have_xrandr12=true], [have_xrandr12=false])
+AM_CONDITIONAL([HAVE_XRANDR12], [test x$have_xrandr12 = xtrue])
 
 pam_service_name=
 enable_pam_check_account_type=no
