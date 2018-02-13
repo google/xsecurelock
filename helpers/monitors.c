@@ -64,8 +64,59 @@ static int MaybeInitXRandR(Display* dpy) {
 
 #define CLAMP(x, mi, ma) ((x) < (mi) ? (mi) : (x) > (ma) ? (ma) : (x))
 
-static int compare_monitors(const void* a, const void* b) {
+static int CompareMonitors(const void* a, const void* b) {
   return memcmp(a, b, sizeof(Monitor));
+}
+
+static int IntervalsOverlap(int astart, int asize, int bstart, int bsize) {
+  // Compute exclusive bounds.
+  int aend = astart + asize;
+  int bend = bstart + bsize;
+  // If one interval starts at or after the other, there's no overlap.
+  if (astart >= bend || bstart >= aend) {
+    return 0;
+  }
+  // Otherwise, there must be an overlap.
+  return 1;
+}
+
+static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
+                size_t max_monitors, int x, int y, int w, int h) {
+#ifdef DEBUG_EVENTS
+  fprintf(stderr, "try %d %d %d %d\n", x, y, w, h);
+#endif
+  // Too many monitors? Stop collecting them.
+  if (*num_monitors >= max_monitors) {
+#ifdef DEBUG_EVENTS
+    fprintf(stderr, "skip (too many)\n");
+#endif
+    return;
+  }
+  // Skip empty "monitors".
+  if (w <= 0 || h <= 0) {
+#ifdef DEBUG_EVENTS
+    fprintf(stderr, "skip (zero)\n");
+#endif
+    return;
+  }
+  // Skip overlapping "monitors" (typically in cloned display setups).
+  for (size_t i = 0; i < *num_monitors; ++i) {
+    if (IntervalsOverlap(x, w, out_monitors[i].x, out_monitors[i].width) &&
+        IntervalsOverlap(y, h, out_monitors[i].y, out_monitors[i].height)) {
+#ifdef DEBUG_EVENTS
+      fprintf(stderr, "skip (overlap with %d)\n", (int)i);
+#endif
+      return;
+    }
+  }
+#ifdef DEBUG_EVENTS
+  fprintf(stderr, "monitor %d = %d %d %d %d\n", (int)*num_monitors, x, y, w, h);
+#endif
+  out_monitors[*num_monitors].x = x;
+  out_monitors[*num_monitors].y = y;
+  out_monitors[*num_monitors].width = w;
+  out_monitors[*num_monitors].height = h;
+  ++*num_monitors;
 }
 
 size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
@@ -99,22 +150,13 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
       if (rrmonitors != NULL) {
         for (int i = 0; i < num_rrmonitors; ++i) {
           XRRMonitorInfo* info = &rrmonitors[i];
-          if (num_monitors < max_monitors) {
-            int x = CLAMP(info->x, wx, wx + xwa.width) - wx;
-            int y = CLAMP(info->y, wy, wy + xwa.height) - wy;
-            int w =
-                CLAMP(info->x + info->width, wx + x, wx + xwa.width) - (wx + x);
-            int h = CLAMP(info->y + info->height, wy + y, wy + xwa.height) -
-                    (wy + y);
-            if (w <= 0 || h <= 0) {
-              continue;
-            }
-            out_monitors[num_monitors].x = x;
-            out_monitors[num_monitors].y = y;
-            out_monitors[num_monitors].width = w;
-            out_monitors[num_monitors].height = h;
-            ++num_monitors;
-          }
+          int x = CLAMP(info->x, wx, wx + xwa.width) - wx;
+          int y = CLAMP(info->y, wy, wy + xwa.height) - wy;
+          int w =
+              CLAMP(info->x + info->width, wx + x, wx + xwa.width) - (wx + x);
+          int h =
+              CLAMP(info->y + info->height, wy + y, wy + xwa.height) - (wy + y);
+          AddMonitor(out_monitors, &num_monitors, max_monitors, x, y, w, h);
         }
         XRRFreeMonitors(rrmonitors);
       }
@@ -146,16 +188,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
               int h =
                   CLAMP(info->y + (int)info->height, wy + y, wy + xwa.height) -
                   (wy + y);
-              if (w <= 0 || h <= 0) {
-                continue;
-              }
-              if (num_monitors < max_monitors) {
-                out_monitors[num_monitors].x = x;
-                out_monitors[num_monitors].y = y;
-                out_monitors[num_monitors].width = w;
-                out_monitors[num_monitors].height = h;
-                ++num_monitors;
-              }
+              AddMonitor(out_monitors, &num_monitors, max_monitors, x, y, w, h);
               XRRFreeCrtcInfo(info);
             }
             XRRFreeOutputInfo(output);
@@ -174,18 +207,17 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
                                         (size_t)(xwa.height * 16),  //
                                     1, max_monitors);
     for (num_monitors = 0; num_monitors < guessed_monitors; ++num_monitors) {
-      out_monitors[num_monitors].x =
-          xwa.width * num_monitors / guessed_monitors;
-      out_monitors[num_monitors].y = 0;
-      out_monitors[num_monitors].width =
-          (xwa.width * (num_monitors + 1) / guessed_monitors) -
-          (xwa.width * num_monitors / guessed_monitors);
-      out_monitors[num_monitors].height = xwa.height;
+      int x = xwa.width * num_monitors / guessed_monitors;
+      int y = 0;
+      int w = (xwa.width * (num_monitors + 1) / guessed_monitors) -
+              (xwa.width * num_monitors / guessed_monitors);
+      int h = xwa.height;
+      AddMonitor(out_monitors, &num_monitors, max_monitors, x, y, w, h);
     }
   }
 
   // Sort the monitors in some deterministic order.
-  qsort(out_monitors, num_monitors, sizeof(*out_monitors), compare_monitors);
+  qsort(out_monitors, num_monitors, sizeof(*out_monitors), CompareMonitors);
 
   // Fill the rest with zeros.
   if (num_monitors < max_monitors) {
