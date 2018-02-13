@@ -165,6 +165,9 @@ void display_string(const char *title, const char *str) {
     h = 480;
   }
   int screens = (w * 9 + h * 8) / (h * 16);
+  if (screens < 1) {
+    screens = 1;
+  }
   int th = font->max_bounds.ascent + font->max_bounds.descent + 4;
   int to = font->max_bounds.ascent + 2; // Text at to has bbox from 0 to th.
 
