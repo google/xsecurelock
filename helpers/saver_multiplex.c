@@ -17,9 +17,11 @@ limitations under the License.
 #include <X11/X.h>       // for Window, CopyFromParent, CWBackPixel
 #include <X11/Xlib.h>    // for XEvent, XFlush, XNextEvent, XOpenDi...
 #include <signal.h>      // for signal, SIGTERM
+#include <stdlib.h>      // for setenv
 #include <stdio.h>       // for fprintf, NULL, stderr
 #include <string.h>      // for memcmp, memcpy
 #include <sys/select.h>  // for select, FD_SET, FD_ZERO, fd_set
+#include <unistd.h>      // for sleep
 
 #include "../env_settings.h"      // for GetStringSetting
 #include "../saver_child.h"       // for MAX_SAVERS
@@ -51,7 +53,6 @@ static void WatchSavers(void) {
 static void SpawnSavers(Window parent) {
   XSetWindowAttributes attrs;
   attrs.background_pixel = BlackPixel(display, DefaultScreen(display));
-  ;
   for (size_t i = 0; i < num_monitors; ++i) {
     windows[i] =
         XCreateWindow(display, parent, monitors[i].x, monitors[i].y,
@@ -78,6 +79,15 @@ static void KillSavers(void) {
  * Spawns spearate saver subprocesses, one on each screen.
  */
 int main() {
+  if (GetIntSetting("XSECURELOCK_INSIDE_SAVER_MULTIPLEX", 0)) {
+    fprintf(stderr, "starting saver_multiplex inside saver_multiplex?!?\n");
+    // If we die, the parent process will revive us, so let's sleep a while to
+    // conserve battery and avoid log spam in this case.
+    sleep(60);
+    return 1;
+  }
+  setenv("XSECURELOCK_INSIDE_SAVER_MULTIPLEX", "1", 1);
+
   if ((display = XOpenDisplay(NULL)) == NULL) {
     fprintf(stderr, "could not connect to $DISPLAY\n");
     return 1;
