@@ -42,7 +42,9 @@ void WatchSaverChild(Display* dpy, Window w, const char* executable,
         switch (errno) {
           case ECHILD:
             // The process is dead. Fine.
-            kill(-saver_child_pid, SIGTERM);
+            if (should_be_running) {
+              kill(-saver_child_pid, SIGTERM);
+            }
             saver_child_pid = 0;
             XClearWindow(dpy, w);
             break;
