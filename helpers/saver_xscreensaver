@@ -53,11 +53,7 @@ while IFS= read -r saver; do
   fi
 done < <(allsavers)
 
-if [[ -z ${random_saver} ]]; then
-  xset s activate
-  sleep 1
-  exit
+if [[ -n ${random_saver} ]]; then
+  eval "${random_saver}" &
 fi
-
-eval "${random_saver}" &
 exec ./saver_blank
