@@ -35,6 +35,12 @@ static void handle_sigterm(int unused_signo) {
   sigterm = 1;
 }
 
+static void handle_sigchld(int unused_signo) {
+  // No handling needed - we just want to interrupt the select() in the main
+  // loop.
+  (void)unused_signo;
+}
+
 #define MAX_MONITORS MAX_SAVERS
 
 static const char *saver_executable;
@@ -108,6 +114,7 @@ int main() {
   SpawnSavers(parent);
 
   signal(SIGTERM, handle_sigterm);
+  signal(SIGCHLD, handle_sigchld);
   for (;;) {
     // We're using non-blocking X11 event handling and select() so we can
     // reliably catch SIGTERM and exit the loop. Also, SIGCHLD (screen saver
