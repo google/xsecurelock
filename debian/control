@@ -9,6 +9,8 @@ Build-Depends: debhelper (>= 8.0.0),
   libpam-dev,
   libc6,
   libx11-dev,
+  libxcomposite-dev,
+  libxss-dev,
   x11proto-core-dev
 Standards-Version: 3.9.4
 Homepage: https://github.com/google/xsecurelock
