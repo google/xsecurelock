@@ -23,25 +23,53 @@ AC_CHECK_LIB(X11, XOpenDisplay,
 AC_CHECK_LIB(rt, timer_settime,
              [], [AC_ERROR([Timer library not found.])])
 
-AC_SEARCH_LIBS(XScreenSaverQueryExtension, Xss,
-               [have_scrnsaver=true], [have_scrnsaver=false])
-AM_CONDITIONAL([HAVE_SCRNSAVER], [test x$have_scrnsaver = xtrue])
+# RP_SEARCH_LIBS(sym, lib, macro, flag, default, description)
+AC_DEFUN([RP_SEARCH_LIBS], [
+          AC_ARG_WITH([$4],
+                      [AS_HELP_STRING([--with-$4],
+                                      [$6 @<:@default=$5@:>@])],
+                                      [with_$4=$withval],
+                                      [with_$4=check])
+          AS_IF([test "x$with_$4" = xno],
+                [have_$4=false],
+                [AC_SEARCH_LIBS([$1], [$2],
+                                [have_$4=true],
+                                [AS_IF([test "x$with_$4" = xcheck],
+                                       [have_$4=false],
+                                       [AC_MSG_ERROR([--with-$4 was enabled, but test for $4 failed])])])])
+          AM_CONDITIONAL([$3], [test x$have_$4 = xtrue])])
 
-AC_SEARCH_LIBS(XCompositeQueryExtension, Xcomposite,
-               [have_composite=true], [have_composite=false])
-AM_CONDITIONAL([HAVE_COMPOSITE], [test x$have_composite = xtrue])
+# The X11 Screen Saver extension is used to turn off the screen saver when X11
+# handles screen blanking (e.g. via timeout) anyway. Saves CPU power.
+RP_SEARCH_LIBS(XScreenSaverQueryExtension, Xss,
+               [HAVE_SCRNSAVER], [xss], [check],
+               [Use the X11 Screen Saver extension to save power])
 
-AC_SEARCH_LIBS(XF86MiscSetGrabKeysState, Xxf86misc,
-               [have_xf86misc=true], [have_xf86misc=false])
-AM_CONDITIONAL([HAVE_XF86MISC], [test x$have_xf86misc = xtrue])
+# The Composite extension needs an explicit opt-out because not having it can
+# cause desktop notifications to appear on top of the screen saver (privacy
+# risk).
+RP_SEARCH_LIBS(XCompositeQueryExtension, Xcomposite,
+               [HAVE_COMPOSITE], [xcomposite], [yes],
+               [Use the X11 Composite extension to cover desktop notifications])
 
-AC_SEARCH_LIBS(pam_authenticate, pam,
-               [have_pam=true], [have_pam=false])
-AM_CONDITIONAL([HAVE_PAM], [test x$have_pam = xtrue])
+# This extension doesn't really exist anymore, but served to counteract the
+# (also no longer existing) AllowClosedownGrabs and similar X server settings.
+RP_SEARCH_LIBS(XF86MiscSetGrabKeysState, Xxf86misc,
+               [HAVE_XF86MISC], [xf86misc], [check],
+               [Use the XFree86-Misc extension to disable ungrab keys])
 
-AC_SEARCH_LIBS(XkbGetIndicatorState, X11,
-               [have_xkb=true], [have_xkb=false])
-AM_CONDITIONAL([HAVE_XKB], [test x$have_xkb = xtrue])
+# PAM-less operation is... unfortunate. Let's have users explicitly disable this
+# if they need to use other auth modules, as most likely they should rather
+# install PAM development libraries instead.
+RP_SEARCH_LIBS(pam_authenticate, pam,
+               [HAVE_PAM], [pam], [yes],
+               [Enable support for the PAM library to authenticate the user])
+
+# Querying the keyboard LEDs (and layout name) makes auth_pam_x11 more user
+# friendly.
+RP_SEARCH_LIBS(XkbGetIndicatorState, X11,
+               [HAVE_XKB], [xkb], [check],
+               [Use the X Keyboard extension to show the keyboard LEDs])
 
 pam_service_name=
 enable_pam_check_account_type=no
