@@ -98,6 +98,11 @@ short time after wakeup!
 Options to XSecureLock can be passed by environment variables:
 
 * `XSECURELOCK_AUTH`: specifies the desired authentication module.
+* `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
+  X11 to fully blank the screen; a negative value disables X11 blanking.
+* `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
+  in when blanking (one of standby, suspend, off and on, where "on" means to not
+  invoke DPMS at all).
 * `XSECURELOCK_FONT`: X11 font name to use for auth_pam_x11. You can get a list
   of supported font names by running `xlsfonts`.
 * `XSECURELOCK_GLOBAL_SAVER`: specifies the desired global screen saver module

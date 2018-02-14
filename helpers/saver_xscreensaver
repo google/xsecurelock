@@ -59,4 +59,5 @@ if [[ -z ${random_saver} ]]; then
   exit
 fi
 
-eval "exec ${random_saver}"
+eval "${random_saver}" &
+exec ./saver_blank

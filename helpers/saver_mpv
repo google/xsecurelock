@@ -15,7 +15,7 @@
 # limitations under the License.
 
 video=`find ~/Videos -type f | sort -R | head -n 1`
-exec mpv \
+mpv \
   --no-input-terminal \
   --really-quiet \
   --no-stop-screensaver \
@@ -23,4 +23,5 @@ exec mpv \
   --wid="${XSCREENSAVER_WINDOW}" \
   --no-audio \
   -- \
-  "$video"
+  "$video" &
+exec ./saver_blank
