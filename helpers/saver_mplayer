@@ -15,7 +15,7 @@
 # limitations under the License.
 
 video=`find ~/Videos -type f | sort -R | head -n 1`
-exec mplayer \
+mplayer \
   -noconsolecontrols \
   -really-quiet \
   -nostop-xscreensaver \
@@ -24,4 +24,5 @@ exec mplayer \
   -fixed-vo \
   -nosound \
   -- \
-  "$video"
+  "$video" &
+exec ./saver_blank

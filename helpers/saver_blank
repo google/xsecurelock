@@ -14,14 +14,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Wait 60 seconds before actually turning the screen off. Till then we have a
-# black background managed by xsecurelock's main process anyway.
-sleep 60
+# Default settings of these variables.
+: ${XSECURELOCK_BLANK_TIMEOUT:=600}     # Seconds; -1 disables blanking.
+: ${XSECURELOCK_BLANK_DPMS_STATE:=off}  # Values: standby, suspend, off, on.
 
-# This is run in a setsid'd background process so xsecurelock's SIGTERM doesn't
-# interrupt the xset operation.
-(
-  trap '' TERM
-  exec xset s activate dpms force off
-) &
-exec sleep 3600
+if [ "$XSECURELOCK_BLANK_TIMEOUT" -ge 0 ]; then
+  # Wait 60 seconds before actually turning the screen off. Till then we have a
+  # black background managed by xsecurelock's main process anyway.
+  sleep "$XSECURELOCK_BLANK_TIMEOUT"
+
+  # This function runs the following command in a SIGTERM-protected subshell.
+  # This is used to avoid error spam from xset receiving SIGTERM.
+  protect() {
+    (
+      trap '' TERM
+      exec "$@"
+    )
+  }
+
+  # This is run in a setsid'd background process so xsecurelock's SIGTERM doesn't
+  # interrupt the xset operation.
+  case "$XSECURELOCK_BLANK_DPMS_STATE" in
+    standby|suspend|off)
+      # Blank the screen, and turn it off with DPMS.
+      protect xset s activate dpms force "$XSECURELOCK_BLANK_DPMS_STATE"
+      ;;
+    on)
+      # Requesting the "on" DPMS state actually just disables DPMS use.
+      protect xset s activate
+      ;;
+    *)
+      echo >&2 "xsecurelock: XSECURELOCK_BLANK_DPMS_STATE not in standby/suspend/off/on."
+      ;;
+  esac
+fi
+
+# When actually blanking we usually won't get here as main.c will kill us in
+# response to "xset s activate" - but just in case, sleep "forever". 1 day was
+# chosen as sleep time to ensure savers get eventually restarted (just in case
+# they may leak memory) while making this mechanism hard to notice by the user.
+exec sleep 86400
