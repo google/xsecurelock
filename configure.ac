@@ -71,13 +71,11 @@ RP_SEARCH_LIBS(XkbGetIndicatorState, X11,
                [HAVE_XKB], [xkb], [check],
                [Use the X Keyboard extension to show the keyboard LEDs])
 
-AC_SEARCH_LIBS(XRRGetMonitors, Xrandr,
-               [have_xrandr15=true], [have_xrandr15=false])
-AM_CONDITIONAL([HAVE_XRANDR15], [test x$have_xrandr15 = xtrue])
-
-AC_SEARCH_LIBS(XRRGetScreenResources, Xrandr,
-               [have_xrandr12=true], [have_xrandr12=false])
-AM_CONDITIONAL([HAVE_XRANDR12], [test x$have_xrandr12 = xtrue])
+# XRandR provides information about monitor layouts and is strongly recommended
+# on systems which can use more than one monitor (which includes most laptops).
+RP_SEARCH_LIBS(XRRGetScreenResources, Xrandr,
+               [HAVE_XRANDR], [xrandr], [check],
+               [Use the XRandR extension to query monitor layouts])
 
 pam_service_name=
 enable_pam_check_account_type=no

@@ -21,12 +21,15 @@ limitations under the License.
 #include <stdlib.h>    // for qsort
 #include <string.h>    // for memcmp, memset
 
-#ifdef HAVE_XRANDR12
+#ifdef HAVE_XRANDR
 #include <X11/extensions/Xrandr.h>  // for XRRCrtcInfo, XRROutputInfo, XRRSc...
 #include <X11/extensions/randr.h>   // for RRNotify, RRCrtcChangeNotifyMask
+#if RANDR_MAJOR > 1 || (RANDR_MAJOR == 1 && RANDR_MINOR >= 5)
+#define HAVE_XRANDR15
+#endif
 #endif
 
-#ifdef HAVE_XRANDR12
+#ifdef HAVE_XRANDR
 static Display* initialized_for = NULL;
 static int have_xrandr12;
 #ifdef HAVE_XRANDR15
@@ -81,7 +84,7 @@ static int IntervalsOverlap(int astart, int asize, int bstart, int bsize) {
 }
 
 static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
-                size_t max_monitors, int x, int y, int w, int h) {
+                       size_t max_monitors, int x, int y, int w, int h) {
 #ifdef DEBUG_EVENTS
   fprintf(stderr, "try %d %d %d %d\n", x, y, w, h);
 #endif
@@ -131,7 +134,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
   XWindowAttributes xwa;
   XGetWindowAttributes(dpy, w, &xwa);
 
-#ifdef HAVE_XRANDR12
+#ifdef HAVE_XRANDR
   if (MaybeInitXRandR(dpy)) {
     // Translate to absolute coordinates so we can compare them to XRandR data.
     int wx, wy;
@@ -229,7 +232,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
 }
 
 void SelectMonitorChangeEvents(Display* dpy, Window w) {
-#ifdef HAVE_XRANDR12
+#ifdef HAVE_XRANDR
   if (MaybeInitXRandR(dpy)) {
     XRRSelectInput(dpy, w,
                    RRScreenChangeNotifyMask | RRCrtcChangeNotifyMask |
@@ -239,7 +242,7 @@ void SelectMonitorChangeEvents(Display* dpy, Window w) {
 }
 
 int IsMonitorChangeEvent(Display* dpy, int type) {
-#ifdef HAVE_XRANDR12
+#ifdef HAVE_XRANDR
   if (MaybeInitXRandR(dpy)) {
     switch (type - event_base) {
       case RRScreenChangeNotify:
