@@ -473,11 +473,11 @@ int main(int argc, char **argv) {
   // XUngrabKeyboard on their window.
   Window background_window = XCreateWindow(
       display, parent_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
-      CopyFromParent, CWBackPixel | CWOverrideRedirect | CWSaveUnder,
+      CopyFromParent, CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
       &coverattrs);
   Window saver_window = XCreateWindow(
       display, background_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
-      CopyFromParent, CWBackPixel | CWCursor, &coverattrs);
+      CopyFromParent, CWBackPixel, &coverattrs);
 
   // Let's get notified if we lose visibility, so we can self-raise.
   XSelectInput(display, parent_window,
@@ -634,7 +634,7 @@ int main(int argc, char **argv) {
     }
 
     // If something changed our cursor, change it back.
-    XDefineCursor(display, saver_window, coverattrs.cursor);
+    XUndefineCursor(display, saver_window);
 
 #ifdef REINSTATE_GRABS
     // This really should never be needed...
