@@ -28,7 +28,7 @@ limitations under the License.
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "monitors.h"             // for IsMonitorChangeEvent, Monitor, Sele...
 
-volatile int sigterm = 0;
+volatile sig_atomic_t sigterm = 0;
 
 static void handle_sigterm(int unused_signo) {
   (void)unused_signo;
