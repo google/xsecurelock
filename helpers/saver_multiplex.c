@@ -113,17 +113,36 @@ int main() {
 
   SpawnSavers(parent);
 
-  signal(SIGTERM, handle_sigterm);
-  signal(SIGCHLD, handle_sigchld);
+  // We're using non-blocking X11 event handling and pselect() so we can
+  // reliably catch SIGTERM and exit the loop. Also, SIGCHLD (screen saver
+  // dies) will interrupt the select() as well and let WatchSavers() respawn
+  // that saver.
+  sigset_t added_sigmask, old_sigmask;
+  sigemptyset(&added_sigmask);
+  sigaddset(&added_sigmask, SIGTERM);
+  sigaddset(&old_sigmask, SIGCHLD);
+  sigemptyset(&old_sigmask);
+  if (sigprocmask(SIG_BLOCK, &added_sigmask, &old_sigmask) == 0) {
+    // Only when we could actually block the signals, install the handlers.
+    struct sigaction sa;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sa.sa_handler = handle_sigterm;
+    if (sigaction(SIGTERM, &sa, NULL) != 0) {
+      perror("sigaction(SIGTERM)");
+    }
+    sa.sa_handler = handle_sigchld;
+    if (sigaction(SIGCHLD, &sa, NULL) != 0) {
+      perror("sigaction(SIGCHLD)");
+    }
+  } else {
+    perror("sigprocmask failed; not installing signal handlers");
+  }
   for (;;) {
-    // We're using non-blocking X11 event handling and select() so we can
-    // reliably catch SIGTERM and exit the loop. Also, SIGCHLD (screen saver
-    // dies) will interrupt the select() as well and let WatchSavers() respawn
-    // that saver.
     fd_set in_fds;
     FD_ZERO(&in_fds);
     FD_SET(x11_fd, &in_fds);
-    select(x11_fd + 1, &in_fds, 0, 0, NULL);
+    pselect(x11_fd + 1, &in_fds, 0, 0, NULL, &old_sigmask);
     if (sigterm) {
       break;
     }
@@ -144,6 +163,7 @@ int main() {
       }
     }
   }
+  sigprocmask(SIG_SETMASK, &old_sigmask, NULL);
 
   // Kill all the savers when exiting.
   KillSavers();
