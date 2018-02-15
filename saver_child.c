@@ -57,7 +57,7 @@ void WatchSaverChild(Display* dpy, Window w, const char* executable,
             break;
         }
       } else if (pid == saver_child_pid) {
-        if (WIFEXITED(status)) {
+        if (WIFEXITED(status) || WIFSIGNALED(status)) {
           // Auth child exited.
           if (should_be_running) {
             // To be sure, let's also kill its process group before we restart
@@ -65,7 +65,12 @@ void WatchSaverChild(Display* dpy, Window w, const char* executable,
             kill(-saver_child_pid, SIGTERM);
           }
           saver_child_pid = 0;
-          if (WEXITSTATUS(status) != EXIT_SUCCESS) {
+          if (WIFSIGNALED(status) &&
+              (should_be_running || WTERMSIG(status) != SIGTERM)) {
+            fprintf(stderr, "Saver child killed by signal %d.\n",
+                    WTERMSIG(status));
+          }
+          if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
             fprintf(stderr, "Saver child failed with status %d.\n",
                     WEXITSTATUS(status));
           }
