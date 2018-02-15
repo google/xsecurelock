@@ -110,7 +110,7 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
           break;
       }
     } else if (pid == auth_child_pid) {
-      if (WIFEXITED(status)) {
+      if (WIFEXITED(status) || WIFSIGNALED(status)) {
         // Auth child exited.
         // To be sure, let's also kill its process group.
         kill(-auth_child_pid, SIGTERM);
@@ -119,13 +119,19 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         // Now is the time to remove anything the child may have displayed.
         XClearWindow(dpy, w);
         // If auth child exited with success status, stop the screen saver.
-        if (WEXITSTATUS(status) == EXIT_SUCCESS) {
+        if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS) {
           *auth_running = 0;
           return 1;
         }
         // Otherwise, the auth child failed. That's the intended behavior in
         // case of e.g. a wrong password, so don't log this. Just carry on.
         // This will eventually bring back the saver child.
+        // Only report signals; "normal" exit is not worth logging as it usually
+        // means authentication failure anyway.
+        if (WIFSIGNALED(status)) {
+          fprintf(stderr, "Auth child killed by signal %d.\n",
+                  WTERMSIG(status));
+        }
       }
       // Otherwise, it was suspended or whatever. We need to keep waiting.
     } else if (pid == 0) {
