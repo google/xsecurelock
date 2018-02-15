@@ -221,6 +221,9 @@ void display_string(const char *title, const char *str) {
   region_h = 3 * th;
 #endif
   region_y = -region_h / 2;
+
+  // Make the things just drawn appear on the screen as soon as possible.
+  XFlush(display);
 }
 
 /*! \brief Show a message to the user.
