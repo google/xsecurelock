@@ -120,7 +120,7 @@ int main() {
   sigset_t added_sigmask, old_sigmask;
   sigemptyset(&added_sigmask);
   sigaddset(&added_sigmask, SIGTERM);
-  sigaddset(&old_sigmask, SIGCHLD);
+  sigaddset(&added_sigmask, SIGCHLD);
   sigemptyset(&old_sigmask);
   if (sigprocmask(SIG_BLOCK, &added_sigmask, &old_sigmask) == 0) {
     // Only when we could actually block the signals, install the handlers.
