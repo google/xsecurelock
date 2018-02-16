@@ -10,6 +10,7 @@ Build-Depends: debhelper (>= 8.0.0),
   libc6,
   libx11-dev,
   libxcomposite-dev,
+  libxrandr-dev,
   libxss-dev,
   x11proto-core-dev
 Standards-Version: 3.9.4

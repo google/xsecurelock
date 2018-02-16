@@ -45,7 +45,10 @@ while IFS= read -r saver; do
   [[ -f ${saver%% *} ]] || continue
   # Rest is the command line!
   (( ++random_count ))
-  if (( RANDOM % random_count == 0 )); then
+  # We're using the parent process ID here, which may be a saver_multiplex
+  # instance. This ensures that multiple instances of this always spawn the same
+  # saver on each screen.
+  if (( PPID % random_count == 0 )); then
     random_saver=${saver}
   fi
 done < <(allsavers)

@@ -25,6 +25,7 @@ limitations under the License.
 #include <unistd.h>    // for close, pid_t, ssize_t, dup2, etc
 
 #include "env_settings.h"
+#include "xscreensaver_api.h"
 
 //! The PID of a currently running saver child, or 0 if none is running.
 static pid_t auth_child_pid = 0;
@@ -70,7 +71,7 @@ int WantAuthChild(int force_auth) {
  * \return 1 if buf contains at least one non-control character, and 0
  *   otherwise.
  */
-static int ContainsNonControl(const char* buf) {
+static int ContainsNonControl(const char *buf) {
   while (*buf) {
     // Note: this almost isprint but not quite - isprint returns false on
     // high bytes in UTF-8 locales but we do want to forward anything UTF-8.
@@ -152,6 +153,7 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
       } else if (pid == 0) {
         // Child process.
         setsid();
+        ExportWindowID(w);
         dup2(pc[0], 0);
         close(pc[0]);
         close(pc[1]);

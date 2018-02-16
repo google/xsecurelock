@@ -16,10 +16,9 @@ limitations under the License.
 
 #include "env_settings.h"
 
-#include <errno.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <errno.h>   // for errno, ERANGE
+#include <stdio.h>   // for fprintf, NULL, stderr
+#include <stdlib.h>  // for getenv, strtol, strtoull
 
 unsigned long long GetUnsignedLongLongSetting(const char* name,
                                               unsigned long long def) {
@@ -46,7 +45,7 @@ long GetLongSetting(const char* name, long def) {
   if (value == NULL || value[0] == 0) {
     return def;
   }
-  char *endptr = NULL;
+  char* endptr = NULL;
   errno = 0;
   long number = strtol(value, &endptr, 0);
   if (errno == ERANGE) {
@@ -62,15 +61,15 @@ long GetLongSetting(const char* name, long def) {
 
 int GetIntSetting(const char* name, int def) {
   long lnumber = GetLongSetting(name, def);
-  int number = (int) lnumber;
-  if (lnumber != (long) number) {
+  int number = (int)lnumber;
+  if (lnumber != (long)number) {
     fprintf(stderr, "Ignoring out-of-range value of %s: %d.", name, number);
     return def;
   }
   return number;
 }
 
-const char *GetStringSetting(const char* name, const char* def) {
+const char* GetStringSetting(const char* name, const char* def) {
   const char* value = getenv(name);
   if (value == NULL || value[0] == 0) {
     return def;

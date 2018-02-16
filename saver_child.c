@@ -23,29 +23,37 @@ limitations under the License.
 #include <sys/wait.h>  // for WEXITSTATUS, waitpid, etc
 #include <unistd.h>    // for pid_t, execl, fork, setsid
 
-//! The PID of a currently running saver child, or 0 if none is running.
-static pid_t saver_child_pid = 0;
+#include "xscreensaver_api.h"
 
-void WatchSaverChild(Display* dpy, Window w, const char* executable,
+//! The PIDs of currently running saver children, or 0 if not running.
+static pid_t saver_child_pid[MAX_SAVERS] = {0};
+
+void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
                      int should_be_running) {
-  if (saver_child_pid != 0) {
+  if (index < 0 || index >= MAX_SAVERS) {
+    fprintf(stderr, "Saver index out of range: !(0 <= %d < %d).", index,
+            MAX_SAVERS);
+    return;
+  }
+
+  if (saver_child_pid[index] != 0) {
     if (!should_be_running) {
       // Kill the whole process group.
-      kill(saver_child_pid, SIGTERM);
-      kill(-saver_child_pid, SIGTERM);
+      kill(saver_child_pid[index], SIGTERM);
+      kill(-saver_child_pid[index], SIGTERM);
     }
     do {
       int status;
-      pid_t pid =
-          waitpid(saver_child_pid, &status, should_be_running ? WNOHANG : 0);
+      pid_t pid = waitpid(saver_child_pid[index], &status,
+                          should_be_running ? WNOHANG : 0);
       if (pid < 0) {
         switch (errno) {
           case ECHILD:
             // The process is dead. Fine.
             if (should_be_running) {
-              kill(-saver_child_pid, SIGTERM);
+              kill(-saver_child_pid[index], SIGTERM);
             }
-            saver_child_pid = 0;
+            saver_child_pid[index] = 0;
             XClearWindow(dpy, w);
             break;
           case EINTR:
@@ -56,15 +64,15 @@ void WatchSaverChild(Display* dpy, Window w, const char* executable,
             perror("waitpid");
             break;
         }
-      } else if (pid == saver_child_pid) {
+      } else if (pid == saver_child_pid[index]) {
         if (WIFEXITED(status) || WIFSIGNALED(status)) {
           // Auth child exited.
           if (should_be_running) {
             // To be sure, let's also kill its process group before we restart
             // it (no need to do this if we already did above).
-            kill(-saver_child_pid, SIGTERM);
+            kill(-saver_child_pid[index], SIGTERM);
           }
-          saver_child_pid = 0;
+          saver_child_pid[index] = 0;
           if (WIFSIGNALED(status) &&
               (should_be_running || WTERMSIG(status) != SIGTERM)) {
             fprintf(stderr, "Saver child killed by signal %d.\n",
@@ -83,22 +91,23 @@ void WatchSaverChild(Display* dpy, Window w, const char* executable,
       } else {
         fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
       }
-    } while (!should_be_running && saver_child_pid != 0);
+    } while (!should_be_running && saver_child_pid[index] != 0);
   }
 
-  if (should_be_running && saver_child_pid == 0) {
+  if (should_be_running && saver_child_pid[index] == 0) {
     pid_t pid = fork();
     if (pid == -1) {
       perror("fork");
     } else if (pid == 0) {
       // Child process.
       setsid();
+      ExportWindowID(w);
       execl(executable, executable, NULL);
       perror("execl");
       exit(EXIT_FAILURE);
     } else {
       // Parent process after successful fork.
-      saver_child_pid = pid;
+      saver_child_pid[index] = pid;
     }
   }
 }

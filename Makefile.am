@@ -21,11 +21,13 @@ xsecurelock_SOURCES = \
 	env_settings.c env_settings.h \
 	saver_child.c saver_child.h \
 	mlock_page.h \
-	main.c
+	main.c \
+	xscreensaver_api.c xscreensaver_api.h
 xsecurelock_CPPFLAGS = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
 	-DDOCS_PATH=\"$(docdir)\" \
 	-DAUTH_EXECUTABLE=\"@auth_executable@\" \
+	-DGLOBAL_SAVER_EXECUTABLE=\"@global_saver_executable@\" \
 	-DSAVER_EXECUTABLE=\"@saver_executable@\"
 
 if HAVE_SCRNSAVER
@@ -47,13 +49,29 @@ helpers_SCRIPTS = \
 	helpers/saver_mpv \
 	helpers/saver_xscreensaver
 
-if HAVE_PAM
 helpers_PROGRAMS = \
+	saver_multiplex
+saver_multiplex_SOURCES = \
+	helpers/saver_multiplex.c \
+	env_settings.c env_settings.h \
+	helpers/monitors.c helpers/monitors.h \
+	saver_child.c saver_child.h \
+	xscreensaver_api.c xscreensaver_api.h
+saver_multiplex_CPPFLAGS = \
+	-DSAVER_EXECUTABLE=\"@saver_executable@\"
+if HAVE_XRANDR
+saver_multiplex_CPPFLAGS += -DHAVE_XRANDR
+endif
+
+if HAVE_PAM
+helpers_PROGRAMS += \
 	auth_pam_x11
 auth_pam_x11_SOURCES = \
 	helpers/auth_pam_x11.c \
 	env_settings.c env_settings.h \
-	mlock_page.h
+	helpers/monitors.c helpers/monitors.h \
+	mlock_page.h \
+	xscreensaver_api.c xscreensaver_api.h
 auth_pam_x11_CPPFLAGS = \
 	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
 if PAM_CHECK_ACCOUNT_TYPE
@@ -62,6 +80,9 @@ auth_pam_x11_CPPFLAGS += \
 endif
 if HAVE_XKB
 auth_pam_x11_CPPFLAGS += -DHAVE_XKB
+endif
+if HAVE_XRANDR
+auth_pam_x11_CPPFLAGS += -DHAVE_XRANDR
 endif
 endif
 
