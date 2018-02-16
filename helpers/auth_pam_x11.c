@@ -186,6 +186,14 @@ void display_string(const char *title, const char *str) {
     int cy = monitors[i].y + monitors[i].height / 2;
     int sy = cy + to - th * 2;
 
+    // Clip all following output to the bounds of this monitor.
+    XRectangle rect;
+    rect.x = monitors[i].x;
+    rect.y = monitors[i].y;
+    rect.width = monitors[i].width;
+    rect.height = monitors[i].height;
+    XSetClipRectangles(display, gc, 0, 0, &rect, 1, YXBanded);
+
     // Clear the region last written to.
     if (region_w != 0 && region_h != 0) {
       XClearArea(display, window, cx + region_x, cy + region_y, region_w,
@@ -201,6 +209,9 @@ void display_string(const char *title, const char *str) {
     XDrawString(display, window, gc, cx - tw_indicators / 2, sy + th * 3,
                 indicators, len_indicators);
 #endif
+
+    // Disable clipping again.
+    XSetClipMask(display, gc, None);
   }
 
   // Remember the region we just wrote to, relative to cx and cy.
