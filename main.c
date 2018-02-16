@@ -471,6 +471,11 @@ int main(int argc, char **argv) {
   if (have_composite) {
     composite_window = XCompositeGetOverlayWindow(display, root_window);
     parent_window = composite_window;
+
+    // TODO(divVerent): Find out why we need this on Cinnamon but not
+    // Openbox/Compton, and if this has any ill effects if we don't undo it
+    // later on.
+    XDefineCursor(display, composite_window, coverattrs.cursor);
   }
 #endif
 
