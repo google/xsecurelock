@@ -440,7 +440,7 @@ int main(int argc, char **argv) {
   black.pixel = BlackPixel(display, DefaultScreen(display));
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
-  Pixmap bg = XCreatePixmap(display, root_window, 1, 1, 1);
+  Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
   XSetWindowAttributes coverattrs;
   coverattrs.background_pixel = black.pixel;
   coverattrs.save_under = 1;
