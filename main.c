@@ -559,7 +559,7 @@ int main(int argc, char **argv) {
   int retries;
   for (retries = 10; retries >= 0; --retries) {
     if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
-                     GrabModeAsync, GrabModeAsync, None, None,
+                     GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
                      CurrentTime) == GrabSuccess) {
       break;
     }
@@ -639,7 +639,7 @@ int main(int argc, char **argv) {
 #ifdef REINSTATE_GRABS
     // This really should never be needed...
     if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
-                     GrabModeAsync, GrabModeAsync, None, None,
+                     GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
                      CurrentTime) != GrabSuccess) {
       fprintf(stderr, "Critical: cannot re-grab pointer.\n");
     }
