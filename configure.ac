@@ -29,7 +29,7 @@ AC_DEFUN([RP_SEARCH_LIBS], [
                       [AS_HELP_STRING([--with-$4],
                                       [$6 @<:@default=$5@:>@])],
                                       [with_$4=$withval],
-                                      [with_$4=check])
+                                      [with_$4=$5])
           AS_IF([test "x$with_$4" = xno],
                 [have_$4=false],
                 [AC_SEARCH_LIBS([$1], [$2],
