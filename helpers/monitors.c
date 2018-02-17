@@ -103,7 +103,8 @@ static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
     return;
   }
   // Skip overlapping "monitors" (typically in cloned display setups).
-  for (size_t i = 0; i < *num_monitors; ++i) {
+  size_t i;
+  for (i = 0; i < *num_monitors; ++i) {
     if (IntervalsOverlap(x, w, out_monitors[i].x, out_monitors[i].width) &&
         IntervalsOverlap(y, h, out_monitors[i].y, out_monitors[i].height)) {
 #ifdef DEBUG_EVENTS
@@ -151,7 +152,8 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
       int num_rrmonitors;
       XRRMonitorInfo* rrmonitors = XRRGetMonitors(dpy, w, 1, &num_rrmonitors);
       if (rrmonitors != NULL) {
-        for (int i = 0; i < num_rrmonitors; ++i) {
+        int i;
+        for (i = 0; i < num_rrmonitors; ++i) {
           XRRMonitorInfo* info = &rrmonitors[i];
           int x = CLAMP(info->x, wx, wx + xwa.width) - wx;
           int y = CLAMP(info->y, wy, wy + xwa.height) - wy;
@@ -169,7 +171,8 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
     if (num_monitors == 0) {
       XRRScreenResources* screenres = XRRGetScreenResources(dpy, w);
       if (screenres != NULL) {
-        for (int i = 0; i < screenres->noutput; ++i) {
+        int i;
+        for (i = 0; i < screenres->noutput; ++i) {
           XRROutputInfo* output =
               XRRGetOutputInfo(dpy, screenres, screenres->outputs[i]);
           if (output != NULL && output->connection == RR_Connected) {
