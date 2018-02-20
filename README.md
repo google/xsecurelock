@@ -111,6 +111,9 @@ Options to XSecureLock can be passed by environment variables:
 * `XSECURELOCK_NO_COMPOSITE`: disables covering the composite overlay window.
   This switches to a more traditional way of locking, but may allow desktop
   notifications to be visible on top of the screen lock. Not recommended.
+* `XSECURELOCK_NO_XRANDR`: disables multi monitor support using XRandR.
+* `XSECURELOCK_NO_XRANDR15`: disables multi monitor support using XRandR 1.5 and
+  fall back to XRandR 1.2. Not recommended.
 * `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with that
   name in `/etc/pam.d`.
 * `XSECURELOCK_SAVER`: specifies the desired screen saver module.

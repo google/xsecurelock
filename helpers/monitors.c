@@ -29,6 +29,8 @@ limitations under the License.
 #endif
 #endif
 
+#include "../env_settings.h"  // for GetIntSetting
+
 #ifdef HAVE_XRANDR
 static Display* initialized_for = NULL;
 static int have_xrandr12;
@@ -50,11 +52,15 @@ static int MaybeInitXRandR(Display* dpy) {
         // XRandR before 1.2 can't connect multiple screens to one, so the
         // default root window size tracking is sufficient for that.
         if (major > 1 || (major == 1 && minor >= 2)) {
-          have_xrandr12 = 1;
+          if (!GetIntSetting("XSECURELOCK_NO_XRANDR", 0)) {
+            have_xrandr12 = 1;
+          }
         }
 #ifdef HAVE_XRANDR15
         if (major > 1 || (major == 1 && minor >= 5)) {
-          have_xrandr15 = 1;
+          if (!GetIntSetting("XSECURELOCK_NO_XRANDR15", 0)) {
+            have_xrandr15 = 1;
+          }
         }
 #endif
       }
