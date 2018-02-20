@@ -578,6 +578,8 @@ int authenticate(const char *username, const char *hostname,
       }
       return status2;
     }
+#else
+    (void)status2;
 #endif
   }
 

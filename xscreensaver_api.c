@@ -24,9 +24,9 @@ limitations under the License.
 
 void ExportWindowID(Window w) {
   char window_id_str[32];
-  size_t window_id_len = snprintf(window_id_str, sizeof(window_id_str), "%llu",
-                                  (unsigned long long)w);
-  if (window_id_len <= 0 || window_id_len >= sizeof(window_id_str)) {
+  int window_id_len = snprintf(window_id_str, sizeof(window_id_str), "%llu",
+                               (unsigned long long)w);
+  if (window_id_len <= 0 || (size_t)window_id_len >= sizeof(window_id_str)) {
     fprintf(stderr, "Window ID doesn't fit into buffer.\n");
     return;
   }

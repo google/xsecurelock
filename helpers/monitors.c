@@ -123,6 +123,119 @@ static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
   ++*num_monitors;
 }
 
+#ifdef HAVE_XRANDR
+static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy, int ww,
+                               int wh, Monitor* out_monitors,
+                               size_t* out_num_monitors, size_t max_monitors) {
+  XRRScreenResources* screenres = XRRGetScreenResources(dpy, w);
+  if (screenres == NULL) {
+    return 0;
+  }
+  int i;
+  for (i = 0; i < screenres->noutput; ++i) {
+    XRROutputInfo* output =
+        XRRGetOutputInfo(dpy, screenres, screenres->outputs[i]);
+    if (output == NULL) {
+      continue;
+    }
+    if (output->connection == RR_Connected) {
+      // NOTE: If an output has multiple Crtcs (i.e. if the screen is
+      // cloned), we only look at the first. Let's assume that the center
+      // of that one should always be onscreen anyway (even though they
+      // may not be, as cloned displays can have different panning
+      // settings).
+      RRCrtc crtc =
+          (output->crtc ? output->crtc : output->ncrtc ? output->crtcs[0] : 0);
+      XRRCrtcInfo* info = (crtc ? XRRGetCrtcInfo(dpy, screenres, crtc) : 0);
+      if (info != NULL) {
+        int x = CLAMP(info->x, wx, wx + ww) - wx;
+        int y = CLAMP(info->y, wy, wy + wh) - wy;
+        int w = CLAMP(info->x + (int)info->width, wx + x, wx + ww) - (wx + x);
+        int h = CLAMP(info->y + (int)info->height, wy + y, wy + wh) - (wy + y);
+        AddMonitor(out_monitors, out_num_monitors, max_monitors, x, y, w, h);
+        XRRFreeCrtcInfo(info);
+      }
+      XRRFreeOutputInfo(output);
+    }
+  }
+  XRRFreeScreenResources(screenres);
+  return *out_num_monitors != 0;
+}
+
+#ifdef HAVE_XRANDR15
+static int GetMonitorsXRandR15(Display* dpy, Window w, int wx, int wy, int ww,
+                               int wh, Monitor* out_monitors,
+                               size_t* out_num_monitors, size_t max_monitors) {
+  if (!have_xrandr15) {
+    return 0;
+  }
+  int num_rrmonitors;
+  XRRMonitorInfo* rrmonitors = XRRGetMonitors(dpy, w, 1, &num_rrmonitors);
+  if (rrmonitors == NULL) {
+    return 0;
+  }
+  int i;
+  for (i = 0; i < num_rrmonitors; ++i) {
+    XRRMonitorInfo* info = &rrmonitors[i];
+    int x = CLAMP(info->x, wx, wx + ww) - wx;
+    int y = CLAMP(info->y, wy, wy + wh) - wy;
+    int w = CLAMP(info->x + info->width, wx + x, wx + ww) - (wx + x);
+    int h = CLAMP(info->y + info->height, wy + y, wy + wh) - (wy + y);
+    AddMonitor(out_monitors, out_num_monitors, max_monitors, x, y, w, h);
+  }
+  XRRFreeMonitors(rrmonitors);
+  return *out_num_monitors != 0;
+}
+#endif
+
+static int GetMonitorsXRandR(Display* dpy, Window w,
+                             const XWindowAttributes* xwa,
+                             Monitor* out_monitors, size_t* out_num_monitors,
+                             size_t max_monitors) {
+  if (!MaybeInitXRandR(dpy)) {
+    return 0;
+  }
+
+  // Translate to absolute coordinates so we can compare them to XRandR data.
+  int wx, wy;
+  Window child;
+  if (!XTranslateCoordinates(dpy, w, DefaultRootWindow(dpy), xwa->x, xwa->y,
+                             &wx, &wy, &child)) {
+    fprintf(stderr, "XTranslateCoordinates failed.\n");
+    wx = xwa->x;
+    wy = xwa->y;
+  }
+
+#ifdef HAVE_XRANDR15
+  if (GetMonitorsXRandR15(dpy, w, wx, wy, xwa->width, xwa->height, out_monitors,
+                          out_num_monitors, max_monitors)) {
+    return 1;
+  }
+#endif
+
+  return GetMonitorsXRandR12(dpy, w, wx, wy, xwa->width, xwa->height,
+                             out_monitors, out_num_monitors, max_monitors);
+}
+#endif
+
+static void GetMonitorsGuess(const XWindowAttributes* xwa,
+                             Monitor* out_monitors, size_t* out_num_monitors,
+                             size_t max_monitors) {
+  // XRandR-less dummy fallback.
+  size_t guessed_monitors = CLAMP((size_t)(xwa->width * 9 + xwa->height * 8) /
+                                      (size_t)(xwa->height * 16),  //
+                                  1, max_monitors);
+  size_t i;
+  for (i = 0; i < guessed_monitors; ++i) {
+    int x = xwa->width * i / guessed_monitors;
+    int y = 0;
+    int w = (xwa->width * (i + 1) / guessed_monitors) -
+            (xwa->width * i / guessed_monitors);
+    int h = xwa->height;
+    AddMonitor(out_monitors, out_num_monitors, max_monitors, x, y, w, h);
+  }
+}
+
 size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
                    size_t max_monitors) {
   if (max_monitors < 1) {
@@ -136,91 +249,10 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
   XGetWindowAttributes(dpy, w, &xwa);
 
 #ifdef HAVE_XRANDR
-  if (MaybeInitXRandR(dpy)) {
-    // Translate to absolute coordinates so we can compare them to XRandR data.
-    int wx, wy;
-    Window child;
-    if (!XTranslateCoordinates(dpy, w, DefaultRootWindow(dpy), xwa.x, xwa.y,
-                               &wx, &wy, &child)) {
-      fprintf(stderr, "XTranslateCoordinates failed.\n");
-      wx = xwa.x;
-      wy = xwa.y;
-    }
-
-#ifdef HAVE_XRANDR15
-    if (have_xrandr15) {
-      int num_rrmonitors;
-      XRRMonitorInfo* rrmonitors = XRRGetMonitors(dpy, w, 1, &num_rrmonitors);
-      if (rrmonitors != NULL) {
-        int i;
-        for (i = 0; i < num_rrmonitors; ++i) {
-          XRRMonitorInfo* info = &rrmonitors[i];
-          int x = CLAMP(info->x, wx, wx + xwa.width) - wx;
-          int y = CLAMP(info->y, wy, wy + xwa.height) - wy;
-          int w =
-              CLAMP(info->x + info->width, wx + x, wx + xwa.width) - (wx + x);
-          int h =
-              CLAMP(info->y + info->height, wy + y, wy + xwa.height) - (wy + y);
-          AddMonitor(out_monitors, &num_monitors, max_monitors, x, y, w, h);
-        }
-        XRRFreeMonitors(rrmonitors);
-      }
-    }
+  if (!GetMonitorsXRandR(dpy, w, &xwa, out_monitors, &num_monitors,
+                         max_monitors))
 #endif
-
-    if (num_monitors == 0) {
-      XRRScreenResources* screenres = XRRGetScreenResources(dpy, w);
-      if (screenres != NULL) {
-        int i;
-        for (i = 0; i < screenres->noutput; ++i) {
-          XRROutputInfo* output =
-              XRRGetOutputInfo(dpy, screenres, screenres->outputs[i]);
-          if (output != NULL && output->connection == RR_Connected) {
-            // NOTE: If an output has multiple Crtcs (i.e. if the screen is
-            // cloned), we only look at the first. Let's assume that the center
-            // of that one should always be onscreen anyway (even though they
-            // may not be, as cloned displays can have different panning
-            // settings).
-            RRCrtc crtc = (output->crtc ? output->crtc
-                                        : output->ncrtc ? output->crtcs[0] : 0);
-            XRRCrtcInfo* info =
-                (crtc ? XRRGetCrtcInfo(dpy, screenres, crtc) : 0);
-            if (info != NULL) {
-              int x = CLAMP(info->x, wx, wx + xwa.width) - wx;
-              int y = CLAMP(info->y, wy, wy + xwa.height) - wy;
-              int w =
-                  CLAMP(info->x + (int)info->width, wx + x, wx + xwa.width) -
-                  (wx + x);
-              int h =
-                  CLAMP(info->y + (int)info->height, wy + y, wy + xwa.height) -
-                  (wy + y);
-              AddMonitor(out_monitors, &num_monitors, max_monitors, x, y, w, h);
-              XRRFreeCrtcInfo(info);
-            }
-            XRRFreeOutputInfo(output);
-          }
-        }
-        XRRFreeScreenResources(screenres);
-      }
-    }
-  }
-#endif
-
-  // If we got no monitor info, try to guess based on size.
-  if (num_monitors == 0) {
-    // XRandR-less dummy fallback.
-    size_t guessed_monitors = CLAMP((size_t)(xwa.width * 9 + xwa.height * 8) /
-                                        (size_t)(xwa.height * 16),  //
-                                    1, max_monitors);
-    for (num_monitors = 0; num_monitors < guessed_monitors; ++num_monitors) {
-      int x = xwa.width * num_monitors / guessed_monitors;
-      int y = 0;
-      int w = (xwa.width * (num_monitors + 1) / guessed_monitors) -
-              (xwa.width * num_monitors / guessed_monitors);
-      int h = xwa.height;
-      AddMonitor(out_monitors, &num_monitors, max_monitors, x, y, w, h);
-    }
-  }
+    GetMonitorsGuess(&xwa, out_monitors, &num_monitors, max_monitors);
 
   // Sort the monitors in some deterministic order.
   qsort(out_monitors, num_monitors, sizeof(*out_monitors), CompareMonitors);
