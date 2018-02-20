@@ -156,7 +156,7 @@ int main() {
         Monitor new_monitors[MAX_SAVERS];
         size_t new_num_monitors =
             GetMonitors(display, parent, monitors, MAX_SAVERS);
-        if (new_monitors != monitors ||
+        if (new_num_monitors != num_monitors ||
             memcmp(new_monitors, monitors, sizeof(monitors))) {
           KillSavers();
           num_monitors = new_num_monitors;

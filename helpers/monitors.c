@@ -279,6 +279,9 @@ void SelectMonitorChangeEvents(Display* dpy, Window w) {
                    RRScreenChangeNotifyMask | RRCrtcChangeNotifyMask |
                        RROutputChangeNotifyMask);
   }
+#else
+  (void)dpy;
+  (void)w;
 #endif
 }
 
@@ -294,6 +297,9 @@ int IsMonitorChangeEvent(Display* dpy, int type) {
         return 0;
     }
   }
+#else
+  (void)dpy;
+  (void)type;
 #endif
 
   // XRandR-less dummy fallback.

@@ -449,8 +449,9 @@ int converse_one(const struct pam_message *msg, struct pam_response *resp) {
     case PAM_TEXT_INFO:
       alert(msg->msg, 0);
       return PAM_SUCCESS;
+    default:
+      return PAM_CONV_ERR;
   }
-  return PAM_CONV_ERR;
 }
 
 /*! \brief Perform a PAM conversation.
