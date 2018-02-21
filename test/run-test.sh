@@ -22,7 +22,7 @@ echo "Locked."
 
 # Run the test script.
 set +e
-xdotool - < "$1"
+XSECURELOCK_PID=$pid xdotool - < "$1"
 result=$?
 set -e
 

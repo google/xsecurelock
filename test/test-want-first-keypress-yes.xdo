@@ -1,0 +1,20 @@
+#preexec export XSECURELOCK_WANT_FIRST_KEYPRESS=1
+
+# Assert that xsecurelock is running.
+exec --sync /bin/sh -c 'ps $XSECURELOCK_PID'
+
+# Enter the password with an extra key at the beginning.
+search --maxdepth 0 ''
+type 'xhunter2'
+sleep 2
+
+# Assert that xsecurelock is still running.
+exec --sync /bin/sh -c 'ps $XSECURELOCK_PID'
+
+# Enter the password again, but do not press a key to wake up.
+search --maxdepth 0 ''
+type 'hunter2'
+sleep 2
+
+# Assert that xsecurelock is no longer running.
+exec --sync /bin/sh -c '! ps $XSECURELOCK_PID'
