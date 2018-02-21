@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
       if (IsMonitorChangeEvent(display, ev.type)) {
         Monitor new_monitors[MAX_SAVERS];
         size_t new_num_monitors =
-            GetMonitors(display, parent, monitors, MAX_SAVERS);
+            GetMonitors(display, parent, new_monitors, MAX_SAVERS);
         if (new_num_monitors != num_monitors ||
             memcmp(new_monitors, monitors, sizeof(monitors))) {
           KillSavers();
