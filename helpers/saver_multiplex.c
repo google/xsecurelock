@@ -25,6 +25,7 @@ limitations under the License.
 
 #include "../env_settings.h"      // for GetStringSetting
 #include "../saver_child.h"       // for MAX_SAVERS
+#include "../wm_properties.h"     // for SetWMProperties
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "monitors.h"             // for IsMonitorChangeEvent, Monitor, Sele...
 
@@ -57,7 +58,7 @@ static void WatchSavers(void) {
   }
 }
 
-static void SpawnSavers(Window parent) {
+static void SpawnSavers(Window parent, int argc, char* const* argv) {
   XSetWindowAttributes attrs;
   attrs.background_pixel = BlackPixel(display, DefaultScreen(display));
   size_t i;
@@ -66,6 +67,8 @@ static void SpawnSavers(Window parent) {
         XCreateWindow(display, parent, monitors[i].x, monitors[i].y,
                       monitors[i].width, monitors[i].height, 0, CopyFromParent,
                       InputOutput, CopyFromParent, CWBackPixel, &attrs);
+    SetWMProperties(display, windows[i], "xsecurelock",
+                    "saver_multiplex_screen", argc, argv);
     XMapRaised(display, windows[i]);
   }
   // Need to flush the display so savers sure can access the window.
@@ -87,7 +90,7 @@ static void KillSavers(void) {
  *
  * Spawns spearate saver subprocesses, one on each screen.
  */
-int main() {
+int main(int argc, char** argv) {
   if (GetIntSetting("XSECURELOCK_INSIDE_SAVER_MULTIPLEX", 0)) {
     fprintf(stderr, "starting saver_multiplex inside saver_multiplex?!?\n");
     // If we die, the parent process will revive us, so let's sleep a while to
@@ -114,7 +117,7 @@ int main() {
   SelectMonitorChangeEvents(display, parent);
   num_monitors = GetMonitors(display, parent, monitors, MAX_MONITORS);
 
-  SpawnSavers(parent);
+  SpawnSavers(parent, argc, argv);
 
   // We're using non-blocking X11 event handling and pselect() so we can
   // reliably catch SIGTERM and exit the loop. Also, SIGCHLD (screen saver
@@ -161,7 +164,7 @@ int main() {
           KillSavers();
           num_monitors = new_num_monitors;
           memcpy(monitors, new_monitors, sizeof(monitors));
-          SpawnSavers(parent);
+          SpawnSavers(parent, argc, argv);
         }
       }
     }

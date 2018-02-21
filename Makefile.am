@@ -22,6 +22,7 @@ xsecurelock_SOURCES = \
 	saver_child.c saver_child.h \
 	mlock_page.h \
 	main.c \
+	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 xsecurelock_CPPFLAGS = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
@@ -56,6 +57,7 @@ saver_multiplex_SOURCES = \
 	env_settings.c env_settings.h \
 	helpers/monitors.c helpers/monitors.h \
 	saver_child.c saver_child.h \
+	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 saver_multiplex_CPPFLAGS = \
 	-DSAVER_EXECUTABLE=\"@saver_executable@\"

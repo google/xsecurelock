@@ -54,6 +54,7 @@ limitations under the License.
 #include "env_settings.h"  // for GetIntSetting, GetStringSetting
 #include "mlock_page.h"    // for MLOCK_PAGE
 #include "saver_child.h"   // for WatchSaverChild
+#include "wm_properties.h" // for SetWMProperties
 
 /*! \brief How often (in times per second) to watch child processes.
  *
@@ -484,9 +485,13 @@ int main(int argc, char **argv) {
       display, parent_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent, CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
       &coverattrs);
+  SetWMProperties(display, background_window, "xsecurelock", "background", argc,
+                  argv);
   Window saver_window = XCreateWindow(
       display, background_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent, CWBackPixel, &coverattrs);
+  SetWMProperties(display, background_window, "xsecurelock", "saver", argc,
+                  argv);
 
   // Let's get notified if we lose visibility, so we can self-raise.
   XSelectInput(display, parent_window, StructureNotifyMask | FocusChangeMask);
