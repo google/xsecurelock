@@ -101,6 +101,13 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
     } else if (pid == 0) {
       // Child process.
       setsid();
+
+      // saver_multiplex may call this with blocked signals, but let's not have
+      // the child process inherit that.
+      sigset_t no_blocked_signals;
+      sigemptyset(&no_blocked_signals);
+      sigprocmask(SIG_SETMASK, &no_blocked_signals, NULL);
+
       ExportWindowID(w);
       execl(executable, executable, NULL);
       perror("execl");

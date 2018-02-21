@@ -1,0 +1,37 @@
+#preexec export XSECURELOCK_NO_COMPOSITE=1
+
+sleep 1
+
+# Assert that xsecurelock is running.
+exec --sync /bin/sh -c 'ps $XSECURELOCK_PID'
+
+# Assert that we're at 640x480.
+exec --sync /bin/sh -c 'xwininfo -root | tee /dev/stderr | grep "^ -geometry 640x480+0+0\$"'
+
+# Pause xsecurelock.
+exec --sync /bin/sh -c 'kill -STOP $XSECURELOCK_PID'
+
+# Switch to 800x600.
+exec --sync /bin/sh -c 'xrandr -s 800x600'
+
+# Assert that we're now at 800x600.
+exec --sync /bin/sh -c 'xwininfo -root | tee /dev/stderr | grep "^ -geometry 800x600+0+0\$"'
+
+# Assert that the screen is not black yet (we couldn't resize our window yet).
+exec --sync /bin/sh -c 'import -window root GRAY:- | tr -d "\0" | wc -c | tee /dev/stderr | grep -v "^0\$"'
+
+# Resume xsecurelock.
+exec --sync /bin/sh -c 'kill -CONT $XSECURELOCK_PID'
+
+sleep 1
+
+# Assert that the screen is now all black.
+exec --sync /bin/sh -c 'import -window root GRAY:- | tr -d "\0" | wc -c | tee /dev/stderr | grep "^0\$"'
+
+# Enter the password to close xsecurelock.
+search --maxdepth 0 ''
+type 'hunter2'
+sleep 2
+
+# Assert that xsecurelock is no longer running.
+exec --sync /bin/sh -c '! ps $XSECURELOCK_PID'

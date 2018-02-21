@@ -2,8 +2,6 @@
 
 set -e
 
-xwininfo -root
-
 # Set up an isolated homedir with a fixed password.
 homedir=$(mktemp -d -t xsecurelock-run-test.XXXXXX)
 trap 'rm -rf "$homedir"' EXIT
@@ -14,7 +12,7 @@ eval "$(grep '^#preexec ' "$1" | cut -d ' ' -f 2-)"
 
 # Lock the screen - and wait for the lock to succeed.
 mkfifo "$homedir"/lock.notify
-HOME="$homedir" XSECURELOCK_AUTH=auth_htpasswd \
+HOME="$homedir" XSECURELOCK_AUTH=auth_htpasswd XSECURELOCK_SAVER=saver_blank \
   xsecurelock -- cat "$homedir"/lock.notify & pid=$!
 echo "Waiting for lock..."
 : > "$homedir"/lock.notify

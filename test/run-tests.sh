@@ -1,7 +1,7 @@
 #!/bin/sh
 
 rm -f *.log
-for test in *.xdo; do
+for test in *$1*.xdo; do
   startx \
     /bin/sh "$PWD"/run-test.sh "$test" \
     -- \
