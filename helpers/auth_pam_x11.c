@@ -427,6 +427,9 @@ int prompt(const char *msg, char **response, int echo) {
       }
     }
   }
+
+  fprintf(stderr, "Unreachable code - the loop above should never break.\n");
+  return PAM_CONV_ERR;
 }
 
 /*! \brief Perform a single PAM conversation step.
