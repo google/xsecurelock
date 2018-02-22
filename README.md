@@ -164,7 +164,10 @@ The following screen saver modules are included:
 * `saver_multiplex`: Watches the display configuration and runs another screen
   saver module once on each screen; used internally.
 * `saver_xscreensaver`: Runs an XScreenSaver hack from an existing XScreenSaver
-  setup.
+  setup. NOTE: some screen savers included by this may display arbitrary
+  pictures from your home directory; if you care about this, either run
+  `xscreensaver-demo` and disable screen savers that may do this, or stay away
+  from this one!
 
 ## Writing Your Own Module
 
