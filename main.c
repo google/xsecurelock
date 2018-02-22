@@ -802,6 +802,8 @@ int main(int argc, char **argv) {
           if (WakeUp(display, saver_window, priv.buf)) {
             goto done;
           }
+          // Clear out keypress data immediately.
+          memset(&priv, 0, sizeof(priv));
         } break;
         case KeyRelease:
         case ButtonRelease:
@@ -884,6 +886,9 @@ int main(int argc, char **argv) {
   }
 
 done:
+  // Wipe the password.
+  memset(&priv, 0, sizeof(priv));
+
   // Free our resources, and exit.
   XDestroyWindow(display, saver_window);
   XDestroyWindow(display, background_window);

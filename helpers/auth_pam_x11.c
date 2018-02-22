@@ -310,7 +310,13 @@ int prompt(const char *msg, char **response, int echo) {
 
   int max_blinks = PROMPT_TIMEOUT / BLINK_INTERVAL;
 
-  for (;;) {
+  // Unfortunately we may have to break out of multiple loops at once here but
+  // still do common cleanup work. So we have to track the return value in a
+  // variable.
+  int status = PAM_CONV_ERR;
+  int done = 0;
+
+  while (!done) {
     if (echo) {
       memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);
       priv.displaylen = priv.pwlen;
@@ -339,21 +345,23 @@ int prompt(const char *msg, char **response, int echo) {
     // Blink the cursor.
     ++blinks;
     if (blinks > max_blinks) {
-      return PAM_CONV_ERR;
+      done = 1;
+      break;
     }
 
     struct timeval timeout;
     timeout.tv_sec = BLINK_INTERVAL / 1000000;
     timeout.tv_usec = BLINK_INTERVAL % 1000000;
 
-    for (;;) {
+    while (!done) {
       fd_set set;
       FD_ZERO(&set);
       FD_SET(0, &set);
       int nfds = select(1, &set, NULL, NULL, &timeout);
       if (nfds < 0) {
         perror("select");
-        return PAM_CONV_ERR;
+        done = 1;
+        break;
       }
       if (nfds == 0) {
         // Blink...
@@ -370,7 +378,8 @@ int prompt(const char *msg, char **response, int echo) {
       ssize_t nread = read(0, &priv.inputbuf, 1);
       if (nread <= 0) {
         fprintf(stderr, "EOF on password input - bailing out.\n");
-        return PAM_CONV_ERR;
+        done = 1;
+        break;
       }
       switch (priv.inputbuf) {
         case '\b':
@@ -394,7 +403,8 @@ int prompt(const char *msg, char **response, int echo) {
         }
         case 0:
         case '\033':
-          return PAM_CONV_ERR;
+          done = 1;
+          break;
         case '\r':
         case '\n':
           *response = malloc(priv.pwlen + 1);
@@ -406,21 +416,24 @@ int prompt(const char *msg, char **response, int echo) {
           }
           memcpy(*response, priv.pwbuf, priv.pwlen);
           (*response)[priv.pwlen] = 0;
-          return PAM_SUCCESS;
+          status = PAM_SUCCESS;
+          done = 1;
+          break;
         default:
           if (priv.pwlen < sizeof(priv.pwbuf)) {
             priv.pwbuf[priv.pwlen] = priv.inputbuf;
             ++priv.pwlen;
           } else {
             fprintf(stderr, "Password entered is too long - bailing out.\n");
-            return PAM_CONV_ERR;
+            done = 1;
+            break;
           }
           break;
       }
     }
 
     // Handle X11 events that queued up.
-    while (XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
+    while (!done && XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
       if (IsMonitorChangeEvent(display, priv.ev.type)) {
         num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
         XClearWindow(display, window);
@@ -428,8 +441,13 @@ int prompt(const char *msg, char **response, int echo) {
     }
   }
 
-  fprintf(stderr, "Unreachable code - the loop above should never break.\n");
-  return PAM_CONV_ERR;
+  // priv contains password related data, so better clear it.
+  memset(&priv, 0, sizeof(priv));
+
+  if (!done) {
+    fprintf(stderr, "Unreachable code - the loop above must set done.\n");
+  }
+  return status;
 }
 
 /*! \brief Perform a single PAM conversation step.
