@@ -26,6 +26,7 @@ limitations under the License.
 #include <stdlib.h>                 // for mblen, exit, free, calloc, getenv
 #include <string.h>                 // for memcpy, strlen, memset
 #include <sys/select.h>             // for timeval, select, FD_SET, FD_ZERO
+#include <time.h>                   // for time
 #include <unistd.h>                 // for gethostname, getuid, read, ssize_t
 
 #ifdef HAVE_XKB
@@ -42,6 +43,15 @@ limitations under the License.
 
 //! The maximum time to wait at a prompt for user input in microseconds.
 #define PROMPT_TIMEOUT (5 * 60 * 1000 * 1000)
+
+//! Do not reveal the length of the password.
+#define PARANOID_PASSWORD
+
+//! Length of the "paranoid password display".
+#define PARANOID_PASSWORD_LENGTH 32
+
+//! Minimum distance the cursor shall move on keypress.
+#define PARANOID_PASSWORD_MIN_CHANGE 4
 
 //! The X11 display.
 Display *display;
@@ -288,6 +298,12 @@ int prompt(const char *msg, char **response, int echo) {
     // Display buffer length.
     size_t displaylen;
 
+#ifdef PARANOID_PASSWORD
+    // The display marker changes on every input action to a value from 0 to
+    // PARANOID_PASSWORD-1. It indicates where to display the "cursor".
+    size_t displaymarker;
+#endif
+
     // Character read buffer.
     char inputbuf;
 
@@ -307,6 +323,7 @@ int prompt(const char *msg, char **response, int echo) {
   }
 
   priv.pwlen = 0;
+  priv.displaymarker = rand() % PARANOID_PASSWORD_LENGTH;
 
   int max_blinks = PROMPT_TIMEOUT / BLINK_INTERVAL;
 
@@ -321,6 +338,15 @@ int prompt(const char *msg, char **response, int echo) {
       memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);
       priv.displaylen = priv.pwlen;
     } else {
+#ifdef PARANOID_PASSWORD
+      priv.displaylen = PARANOID_PASSWORD_LENGTH;
+      if (priv.pwlen != 0) {
+        memset(priv.displaybuf, '*', priv.displaylen);
+        priv.displaybuf[priv.displaymarker] = '|';
+      } else {
+        memset(priv.displaybuf, '_', priv.displaylen);
+      }
+#else
       mblen(NULL, 0);
       priv.pos = priv.displaylen = 0;
       while (priv.pos < priv.pwlen) {
@@ -335,6 +361,7 @@ int prompt(const char *msg, char **response, int echo) {
         priv.pos += priv.len;
       }
       memset(priv.displaybuf, '*', priv.displaylen);
+#endif
     }
     // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
     // priv.pwlen + 2 <= sizeof(priv.displaybuf).
@@ -398,6 +425,15 @@ int prompt(const char *msg, char **response, int echo) {
             }
             priv.pos += priv.len;
           }
+#ifdef PARANOID_PASSWORD
+          if (priv.prevpos != priv.pwlen) {
+            priv.displaymarker =
+                (priv.displaymarker + PARANOID_PASSWORD_MIN_CHANGE +
+                 rand() % (PARANOID_PASSWORD_LENGTH -
+                           2 * PARANOID_PASSWORD_MIN_CHANGE + 1)) %
+                PARANOID_PASSWORD_LENGTH;
+          }
+#endif
           priv.pwlen = priv.prevpos;
           break;
         }
@@ -423,6 +459,13 @@ int prompt(const char *msg, char **response, int echo) {
           if (priv.pwlen < sizeof(priv.pwbuf)) {
             priv.pwbuf[priv.pwlen] = priv.inputbuf;
             ++priv.pwlen;
+#ifdef PARANOID_PASSWORD
+            priv.displaymarker =
+                (priv.displaymarker + PARANOID_PASSWORD_MIN_CHANGE +
+                 rand() % (PARANOID_PASSWORD_LENGTH -
+                           2 * PARANOID_PASSWORD_MIN_CHANGE + 1)) %
+                PARANOID_PASSWORD_LENGTH;
+#endif
           } else {
             fprintf(stderr, "Password entered is too long - bailing out.\n");
             done = 1;
@@ -627,6 +670,11 @@ int authenticate(const char *username, const char *hostname,
  */
 int main() {
   setlocale(LC_CTYPE, "");
+
+#ifdef PARANOID_PASSWORD
+  // This is used by displaymarker only (no security relevance of the RNG).
+  srand(time(NULL));
+#endif
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     fprintf(stderr, "could not connect to $DISPLAY\n");
