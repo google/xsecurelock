@@ -261,7 +261,7 @@ void alert(const char *msg, int is_error) {
   struct timeval timeout;
   timeout.tv_sec = 1;
   timeout.tv_usec = 0;
-  fd_set set;
+  fd_set set = {0};
   FD_ZERO(&set);
   FD_SET(0, &set);
   select(1, &set, NULL, NULL, &timeout);
@@ -382,7 +382,7 @@ int prompt(const char *msg, char **response, int echo) {
     timeout.tv_usec = BLINK_INTERVAL % 1000000;
 
     while (!done) {
-      fd_set set;
+      fd_set set = {0};
       FD_ZERO(&set);
       FD_SET(0, &set);
       int nfds = select(1, &set, NULL, NULL, &timeout);
@@ -700,16 +700,19 @@ int main() {
   pwd_buf = malloc((size_t)pwd_bufsize);
   if (!pwd_buf) {
     perror("malloc(pwd_bufsize)");
+    return 1;
   }
   getpwuid_r(getuid(), &pwd_storage, pwd_buf, (size_t)pwd_bufsize, &pwd);
   if (!pwd) {
     perror("getpwuid_r");
+    free(pwd_buf);
     return 1;
   }
 
   window = ReadWindowID();
   if (window == None) {
     fprintf(stderr, "Invalid/no window ID in XSCREENSAVER_WINDOW.\n");
+    free(pwd_buf);
     return 1;
   }
 

@@ -631,7 +631,7 @@ int main(int argc, char **argv) {
       xss_lock_notified = 0;
   for (;;) {
     // Watch children WATCH_CHILDREN_HZ times per second.
-    fd_set in_fds;
+    fd_set in_fds = {0};
     FD_ZERO(&in_fds);
     FD_SET(x11_fd, &in_fds);
     struct timeval tv;
