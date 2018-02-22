@@ -9,8 +9,10 @@ int main() {
     fprintf(stderr, "Could not connect to $DISPLAY.\n");
     return 1;
   }
-  char buf[32];
-  snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", (int)DefaultScreen(display));
+  char buf[32];  // Flawfinder: ignore
+  snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d",  // Flawfinder: ignore
+           (int)DefaultScreen(display));
+  buf[sizeof(buf)-1] = 0;
   Atom atom = XInternAtom(display, buf, False);
   Window w = XGetSelectionOwner(display, atom);
   if (w == None) {
