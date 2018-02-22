@@ -261,7 +261,8 @@ void alert(const char *msg, int is_error) {
   struct timeval timeout;
   timeout.tv_sec = 1;
   timeout.tv_usec = 0;
-  fd_set set = {0};
+  fd_set set;
+  memset(&set, 0, sizeof(set));  // For clang-analyzer.
   FD_ZERO(&set);
   FD_SET(0, &set);
   select(1, &set, NULL, NULL, &timeout);
@@ -382,7 +383,8 @@ int prompt(const char *msg, char **response, int echo) {
     timeout.tv_usec = BLINK_INTERVAL % 1000000;
 
     while (!done) {
-      fd_set set = {0};
+      fd_set set;
+      memset(&set, 0, sizeof(set));  // For clang-analyzer.
       FD_ZERO(&set);
       FD_SET(0, &set);
       int nfds = select(1, &set, NULL, NULL, &timeout);
