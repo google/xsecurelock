@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-: ${XSECURELOCK_XSCREENSAVER_PATH:=/usr/lib/xscreensaver}
+: ${XSECURELOCK_XSCREENSAVER_PATH:=@with_xscreensaver@}
 
 allsavers() {
   if [ -f ~/.xscreensaver ]; then
