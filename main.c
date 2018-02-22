@@ -22,6 +22,7 @@ limitations under the License.
  */
 
 #include <X11/X.h>         // for Window, GrabModeAsync, None
+#include <X11/Xatom.h>     // for XA_ATOM
 #include <X11/Xlib.h>      // for XEvent, XSelectInput, XSetWin...
 #include <X11/Xutil.h>     // for XLookupString
 #include <errno.h>         // for ECHILD, EINTR, errno
@@ -50,11 +51,11 @@ limitations under the License.
 #include <X11/extensions/xf86misc.h>  // for XF86MiscSetGrabKeysState
 #endif
 
-#include "auth_child.h"    // for WantAuthChild, WatchAuthChild
-#include "env_settings.h"  // for GetIntSetting, GetStringSetting
-#include "mlock_page.h"    // for MLOCK_PAGE
-#include "saver_child.h"   // for WatchSaverChild
-#include "wm_properties.h" // for SetWMProperties
+#include "auth_child.h"     // for WantAuthChild, WatchAuthChild
+#include "env_settings.h"   // for GetIntSetting, GetStringSetting
+#include "mlock_page.h"     // for MLOCK_PAGE
+#include "saver_child.h"    // for WatchSaverChild
+#include "wm_properties.h"  // for SetWMProperties
 
 /*! \brief How often (in times per second) to watch child processes.
  *
@@ -487,9 +488,9 @@ int main(int argc, char **argv) {
       &coverattrs);
   SetWMProperties(display, background_window, "xsecurelock", "background", argc,
                   argv);
-  Window saver_window = XCreateWindow(
-      display, background_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
-      CopyFromParent, CWBackPixel, &coverattrs);
+  Window saver_window =
+      XCreateWindow(display, background_window, 0, 0, w, h, 0, CopyFromParent,
+                    InputOutput, CopyFromParent, CWBackPixel, &coverattrs);
   SetWMProperties(display, saver_window, "xsecurelock", "saver", argc, argv);
 
   // Let's get notified if we lose visibility, so we can self-raise.
@@ -504,6 +505,14 @@ int main(int argc, char **argv) {
   coverchanges.stack_mode = Above;
   XConfigureWindow(display, background_window, CWStackMode, &coverchanges);
   XConfigureWindow(display, saver_window, CWStackMode, &coverchanges);
+
+  // We're OverrideRedirect anyway, but setting this hint may help compositors
+  // leave our window alone.
+  Atom state_atom = XInternAtom(display, "_NET_WM_STATE", False);
+  Atom fullscreen_atom =
+      XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
+  XChangeProperty(display, background_window, state_atom, XA_ATOM, 32,
+                  PropModeReplace, (const unsigned char *)&fullscreen_atom, 1);
 
   // Initialize XInput so we can get multibyte key events.
   XIM xim = XOpenIM(display, NULL, NULL, NULL);
