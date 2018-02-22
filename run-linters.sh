@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# FlawFinder.
+if which flawfinder; then
+  flawfinder .
+fi
+
 # CPPCheck.
 if which cppcheck; then
   cppcheck --enable=all --inconclusive --std=posix  .

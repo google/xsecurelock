@@ -22,7 +22,7 @@ limitations under the License.
 
 unsigned long long GetUnsignedLongLongSetting(const char* name,
                                               unsigned long long def) {
-  const char* value = getenv(name);
+  const char* value = getenv(name);  // Flawfinder: ignore
   if (value == NULL || value[0] == 0) {
     return def;
   }
@@ -41,7 +41,7 @@ unsigned long long GetUnsignedLongLongSetting(const char* name,
 }
 
 long GetLongSetting(const char* name, long def) {
-  const char* value = getenv(name);
+  const char* value = getenv(name);  // Flawfinder: ignore
   if (value == NULL || value[0] == 0) {
     return def;
   }
@@ -70,7 +70,7 @@ int GetIntSetting(const char* name, int def) {
 }
 
 const char* GetStringSetting(const char* name, const char* def) {
-  const char* value = getenv(name);
+  const char* value = getenv(name);  // Flawfinder: ignore
   if (value == NULL || value[0] == 0) {
     return def;
   }

@@ -23,9 +23,10 @@ limitations under the License.
 #include "env_settings.h"  // for GetUnsignedLongLongSetting
 
 void ExportWindowID(Window w) {
-  char window_id_str[32];
-  int window_id_len = snprintf(window_id_str, sizeof(window_id_str), "%llu",
-                               (unsigned long long)w);
+  char window_id_str[32];  // Flawfinder: ignore
+  int window_id_len =
+      snprintf(window_id_str, sizeof(window_id_str),  // Flawfinder: ignore
+               "%llu", (unsigned long long)w);
   if (window_id_len <= 0 || (size_t)window_id_len >= sizeof(window_id_str)) {
     fprintf(stderr, "Window ID doesn't fit into buffer.\n");
     return;

@@ -87,7 +87,7 @@ static Monitor monitors[MAX_MONITORS];
  * \return The current modifier mask as a string.
  */
 const char *get_indicators() {
-  static char buf[128];
+  static char buf[128];  // Flawfinder: ignore
   char *p;
 
   XkbDescPtr xkb;
@@ -114,21 +114,21 @@ const char *get_indicators() {
   p = buf;
 
   const char *word = "Keyboard: ";
-  size_t n = strlen(word);
+  size_t n = strlen(word);  // Flawfinder: ignore
   if (n >= sizeof(buf) - (p - buf)) {
     fprintf(stderr, "Not enough space to store intro '%s'.\n", word);
     return "";
   }
-  memcpy(p, word, n);
+  memcpy(p, word, n);  // Flawfinder: ignore
   p += n;
 
   word = XGetAtomName(display, xkb->names->groups[state.group]);
-  n = strlen(word);
+  n = strlen(word);  // Flawfinder: ignore
   if (n >= sizeof(buf) - (p - buf)) {
     fprintf(stderr, "Not enough space to store group name '%s'.\n", word);
     return "";
   }
-  memcpy(p, word, n);
+  memcpy(p, word, n);  // Flawfinder: ignore
   p += n;
 
   int i;
@@ -141,13 +141,13 @@ const char *get_indicators() {
       continue;
     }
     const char *word = XGetAtomName(display, namea);
-    size_t n = strlen(word);
+    size_t n = strlen(word);  // Flawfinder: ignore
     if (n + 2 >= sizeof(buf) - (p - buf)) {
       fprintf(stderr, "Not enough space to store modifier name '%s'.\n", word);
       continue;
     }
-    memcpy(p, ", ", 2);
-    memcpy(p + 2, word, n);
+    memcpy(p, ", ", 2);  // Flawfinder: ignore
+    memcpy(p + 2, word, n);  // Flawfinder: ignore
     p += n + 2;
   }
   *p = 0;
@@ -172,17 +172,18 @@ void display_string(const char *title, const char *str) {
   int th = font->max_bounds.ascent + font->max_bounds.descent + 4;
   int to = font->max_bounds.ascent + 2;  // Text at to has bbox from 0 to th.
 
-  int len_title = strlen(title);
+  int len_title = strlen(title);  // Flawfinder: ignore
   int tw_title = XTextWidth(font, title, len_title);
 
-  int len_str = strlen(str);
+  int len_str = strlen(str);  // Flawfinder: ignore
   int tw_str = XTextWidth(font, str, len_str);
 
-  int tw_cursor = XTextWidth(font, cursor, strlen(cursor));
+  int tw_cursor =
+      XTextWidth(font, cursor, strlen(cursor));  // Flawfinder: ignore
 
 #ifdef HAVE_XKB
   const char *indicators = get_indicators();
-  int len_indicators = strlen(indicators);
+  int len_indicators = strlen(indicators);  // Flawfinder: ignore
   int tw_indicators = XTextWidth(font, indicators, len_indicators);
 #endif
 
@@ -288,13 +289,13 @@ int prompt(const char *msg, char **response, int echo) {
     XEvent ev;
 
     // Input buffer. Not NUL-terminated.
-    char pwbuf[PWBUF_SIZE];
+    char pwbuf[PWBUF_SIZE];  // Flawfinder: ignore
     // Current input length.
     size_t pwlen;
 
     // Display buffer. If echo is 0, this will only contain asterisks, a
     // possible cursor, and be NUL-terminated.
-    char displaybuf[DISPLAYBUF_SIZE];
+    char displaybuf[DISPLAYBUF_SIZE];  // Flawfinder: ignore
     // Display buffer length.
     size_t displaylen;
 
@@ -335,7 +336,7 @@ int prompt(const char *msg, char **response, int echo) {
 
   while (!done) {
     if (echo) {
-      memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);
+      memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);  // Flawfinder: ignore
       priv.displaylen = priv.pwlen;
     } else {
 #ifdef PARANOID_PASSWORD
@@ -402,7 +403,7 @@ int prompt(const char *msg, char **response, int echo) {
       // the prompt timeout.
       blinks = 0;
 
-      ssize_t nread = read(0, &priv.inputbuf, 1);
+      ssize_t nread = read(0, &priv.inputbuf, 1);  // Flawfinder: ignore
       if (nread <= 0) {
         fprintf(stderr, "EOF on password input - bailing out.\n");
         done = 1;
@@ -450,7 +451,7 @@ int prompt(const char *msg, char **response, int echo) {
             // is worse. But let's alert the user of this.
             alert("Password has not been stored securely.", 1);
           }
-          memcpy(*response, priv.pwbuf, priv.pwlen);
+          memcpy(*response, priv.pwbuf, priv.pwlen);  // Flawfinder: ignore
           (*response)[priv.pwlen] = 0;
           status = PAM_SUCCESS;
           done = 1;
@@ -618,7 +619,8 @@ int authenticate(const char *username, const char *hostname,
     fprintf(stderr, "pam_set_item: %s\n", pam_strerror(*pam, status));
     return status;
   }
-  status = pam_set_item(*pam, PAM_TTY, getenv("DISPLAY"));
+  const char *display = getenv("DISPLAY");  // Flawfinder: ignore
+  status = pam_set_item(*pam, PAM_TTY, display);
   if (status != PAM_SUCCESS) {
     fprintf(stderr, "pam_set_item: %s\n", pam_strerror(*pam, status));
     return status;
@@ -673,7 +675,7 @@ int main() {
 
 #ifdef PARANOID_PASSWORD
   // This is used by displaymarker only (no security relevance of the RNG).
-  srand(time(NULL));
+  srand(time(NULL));  // Flawfinder: ignore
 #endif
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
@@ -681,11 +683,12 @@ int main() {
     return 1;
   }
 
-  char hostname[256];
+  char hostname[256];  // Flawfinder: ignore
   if (gethostname(hostname, sizeof(hostname))) {
     perror("gethostname");
     return 1;
   }
+  hostname[sizeof(hostname) - 1] = 0;
 
   struct passwd *pwd = NULL;
   struct passwd pwd_storage;

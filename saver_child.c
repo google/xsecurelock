@@ -110,7 +110,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
       sigprocmask(SIG_SETMASK, &no_blocked_signals, NULL);
 
       ExportWindowID(w);
-      execl(executable, executable, NULL);
+      execl(executable, executable, NULL);  // Flawfinder: ignore
       perror("execl");
       exit(EXIT_FAILURE);
     } else {

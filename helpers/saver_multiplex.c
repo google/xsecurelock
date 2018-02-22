@@ -163,7 +163,8 @@ int main(int argc, char** argv) {
             memcmp(new_monitors, monitors, sizeof(monitors))) {
           KillSavers();
           num_monitors = new_num_monitors;
-          memcpy(monitors, new_monitors, sizeof(monitors));
+          memcpy(monitors, new_monitors,  // Flawfinder: ignore
+                 sizeof(monitors));
           SpawnSavers(parent, argc, argv);
         }
       }

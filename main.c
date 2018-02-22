@@ -175,7 +175,7 @@ int WakeUp(Display *dpy, Window w, const char *stdinbuf) {
  * This is used to prevent X11 errors from terminating XSecureLock.
  */
 int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
-  char buf[128];
+  char buf[128];  // Flawfinder: ignore
   XGetErrorText(display, error->error_code, buf, sizeof(buf));
   buf[sizeof(buf) - 1] = 0;
   fprintf(stderr, "Got non-fatal X11 error: %s.\n", buf);
@@ -280,6 +280,10 @@ int parse_arguments(int argc, char **argv) {
  * \return true if everything is OK, false otherwise.
  */
 int check_settings() {
+  // Flawfinder note: the access() calls here are not security relevant and just
+  // prevent accidentally running with a nonexisting saver or auth executable as
+  // that could make the system un-unlockable.
+
   if (auth_executable == NULL) {
     fprintf(stderr, "Auth module has not been specified in any way.\n");
     return 0;
@@ -292,7 +296,7 @@ int check_settings() {
     fprintf(stderr, "Auth module name may not contain a dot.\n");
     return 0;
   }
-  if (access(auth_executable, X_OK)) {
+  if (access(auth_executable, X_OK)) {  // Flawfinder: ignore
     fprintf(stderr, "Auth module must be executable.\n");
     return 0;
   }
@@ -309,7 +313,7 @@ int check_settings() {
     fprintf(stderr, "Saver module name may not contain a dot.\n");
     return 0;
   }
-  if (access(saver_executable, X_OK)) {
+  if (access(saver_executable, X_OK)) {  // Flawfinder: ignore
     fprintf(stderr, "Saver module must be executable.\n");
     return 0;
   }
@@ -371,7 +375,7 @@ void NotifyOfLock(int x11_fd) {
       perror("fork");
     } else if (pid == 0) {
       // Child process.
-      execvp(notify_command[0], notify_command);
+      execvp(notify_command[0], notify_command);  // Flawfinder: ignore
       perror("execvp");
       exit(EXIT_FAILURE);
     } else {
@@ -598,7 +602,7 @@ int main(int argc, char **argv) {
     // The received X event.
     XEvent ev;
     // The decoded key press.
-    char buf[16];
+    char buf[16];  // Flawfinder: ignore
     // The length of the data in buf.
     int len;
   } priv;
