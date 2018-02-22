@@ -17,8 +17,8 @@ limitations under the License.
 #include <X11/X.h>       // for Window, CopyFromParent, CWBackPixel
 #include <X11/Xlib.h>    // for XEvent, XFlush, XNextEvent, XOpenDi...
 #include <signal.h>      // for signal, SIGTERM
-#include <stdlib.h>      // for setenv
 #include <stdio.h>       // for fprintf, NULL, stderr
+#include <stdlib.h>      // for setenv
 #include <string.h>      // for memcmp, memcpy
 #include <sys/select.h>  // for select, FD_SET, FD_ZERO, fd_set
 #include <unistd.h>      // for sleep
@@ -44,9 +44,9 @@ static void handle_sigchld(int unused_signo) {
 
 #define MAX_MONITORS MAX_SAVERS
 
-static const char *saver_executable;
+static const char* saver_executable;
 
-static Display *display;
+static Display* display;
 static Monitor monitors[MAX_MONITORS];
 static size_t num_monitors;
 static Window windows[MAX_MONITORS];

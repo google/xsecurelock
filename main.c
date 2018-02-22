@@ -21,31 +21,27 @@ limitations under the License.
  *security.
  */
 
-#include <X11/X.h>         // for Window, GrabModeAsync, None
-#include <X11/Xatom.h>     // for XA_ATOM
-#include <X11/Xlib.h>      // for XEvent, XSelectInput, XSetWin...
-#include <X11/Xutil.h>     // for XLookupString
-#include <errno.h>         // for ECHILD, EINTR, errno
-#include <locale.h>        // for NULL, setlocale, LC_CTYPE
-#include <signal.h>        // for sigaction, sigemptyset, SIGPIPE
-#include <stdio.h>         // for fprintf, stderr, perror, printf
-#include <stdlib.h>        // for EXIT_SUCCESS, WEXITSTATUS, exit
-#include <string.h>        // for __s1_len, __s2_len, strncmp
-#include <sys/select.h>    // for timeval, select, FD_SET, FD_ZERO
-#include <sys/wait.h>      // for waitpid, WNOHANG
-#include <time.h>          // for nanosleep, timespec
-#include <unistd.h>        // for access, pid_t, X_OK, chdir
-#include "auth_child.h"    // for WantAuthChild, WatchAuthChild
-#include "env_settings.h"  // for GetIntSetting, GetStringSetting
-#include "mlock_page.h"    // for MLOCK_PAGE
-#include "saver_child.h"   // for WatchSaverChild
+#include <X11/X.h>       // for Window, GrabModeAsync, Curren...
+#include <X11/Xatom.h>   // for XA_ATOM
+#include <X11/Xlib.h>    // for XEvent, False, XSelectInput
+#include <X11/Xutil.h>   // for XLookupString
+#include <errno.h>       // for ECHILD, EINTR, errno
+#include <locale.h>      // for NULL, setlocale, LC_CTYPE
+#include <signal.h>      // for sigaction, sigemptyset, SIGPIPE
+#include <stdio.h>       // for fprintf, stderr, perror, printf
+#include <stdlib.h>      // for EXIT_SUCCESS, exit, EXIT_FAILURE
+#include <string.h>      // for __s1_len, __s2_len, memset
+#include <sys/select.h>  // for timeval, select, FD_SET, FD_ZERO
+#include <sys/wait.h>    // for WEXITSTATUS, waitpid, WIFEXITED
+#include <time.h>        // for nanosleep, timespec
+#include <unistd.h>      // for access, pid_t, X_OK, chdir
 
+#ifdef HAVE_COMPOSITE
+#include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
+#endif
 #ifdef HAVE_SCRNSAVER
 #include <X11/extensions/saver.h>      // for ScreenSaverNotify, ScreenSave...
 #include <X11/extensions/scrnsaver.h>  // for XScreenSaverNotifyEvent, XScr...
-#endif
-#ifdef HAVE_COMPOSITE
-#include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
 #endif
 #ifdef HAVE_XF86MISC
 #include <X11/extensions/xf86misc.h>  // for XF86MiscSetGrabKeysState

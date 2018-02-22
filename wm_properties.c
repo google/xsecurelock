@@ -17,8 +17,10 @@ limitations under the License.
 #ifndef WM_PROPERTIES_H
 #define WM_PROPERTIES_H
 
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
+#include <X11/X.h>      // for Window
+#include <X11/Xlib.h>   // for XFree, Display
+#include <X11/Xutil.h>  // for XClassHint, XAllocClassHint, XSetWMProperties
+#include <stddef.h>     // for NULL
 
 void SetWMProperties(Display* dpy, Window w, const char* res_class,
                      const char* res_name, int argc, char* const* argv) {
