@@ -16,49 +16,85 @@
 
 : ${XSECURELOCK_XSCREENSAVER_PATH:=@with_xscreensaver@}
 
+simple_nl() {
+  while read -r line; do
+    printf "%d\t%s\n" "$i" "$line"
+    i=$((i+1))
+  done
+}
+
 allsavers() {
   if [ -f ~/.xscreensaver ]; then
+    i=0
     printf "%b" "$(
       xrdb -n ~/.xscreensaver 2>/dev/null |\
       grep ^programs: |\
       cut -d : -f 2-
     )" |\
+      simple_nl |\
       sed -e '
-        s/^[[:space:]]*//;                # Strip whitespace.
-        /^-/d;                            # Remove disabled hacks.
-        s/^[^[:space:]]*:[[:space:]]*//;  # Remove visual name.
-        s/^"[^"]*"[[:space:]]*//;         # Remove hack name.
+        s/\t[[:space:]]*/\t/;                # Strip whitespace.
+        /\t-/d;                              # Remove disabled hacks.
+        s/\t[^[:space:]]*:[[:space:]]*/\t/;  # Remove visual name.
+        s/\t"[^"]*"[[:space:]]*/\t/;         # Remove hack name.
       '
   else
     ls "$XSECURELOCK_XSCREENSAVER_PATH" |\
-      sed -e 's/$/ -root/'
-  fi | while read -r saver flags; do
+      sed -e 's/$/ -root/' |\
+      simple_nl
+  fi | while read -r number saver flags; do
     [ -x "$XSECURELOCK_XSCREENSAVER_PATH/$saver" ] || continue
-    printf '%s/%s\n' "$XSECURELOCK_XSCREENSAVER_PATH" "$saver $flags"
+    printf '%d\t%s/%s\n' "$number" "$XSECURELOCK_XSCREENSAVER_PATH" "$saver $flags"
   done
 }
 
-# We're using the parent process ID here, which may be a saver_multiplex
-# instance. This ensures that multiple instances of this always spawn the same
-# saver on each screen.
-random=$PPID
+mode=$(
+  xrdb -n ~/.xscreensaver 2>/dev/null |\
+    grep ^mode: |\
+    cut -f 2
+)
 
-randomsaver() {
+selected=
+if [ x"$mode" = xone ]; then
+  selected=$(
+    xrdb -n ~/.xscreensaver 2>/dev/null |\
+      grep ^selected: |\
+      cut -f 2
+  )
+fi
+
+if [ -z "$selected" ]; then
+  # We're using the parent process ID here, which may be a saver_multiplex
+  # instance. This ensures that multiple instances of this always spawn the same
+  # saver on each screen.
+  selected=$PPID
+fi
+
+selectsaver() {
   savers=$(allsavers)
-  count=$(printf '%s\n' "$savers" | wc -l)
-  printf '%s\n' "$savers" | tail -n +$((random % count + 1)) | head -n 1
+  case "$mode" in
+    one)
+      count=$(printf '%s\n' "$savers" | wc -l)
+      printf '%s\n' "$savers" | grep "^$selected$(printf '\t')"
+      ;;
+    *)
+      count=$(printf '%s\n' "$savers" | wc -l)
+      printf '%s\n' "$savers" | tail -n +$((selected % count + 1))
+      ;;
+  esac | head -n 1 | cut -f 2-
 }
 
 # We can just run savers in a loop, until one sticks; xsecurelock will kill our
 # entire process group anyway when unlocking.
 while :; do
-  saver=$(randomsaver)
+  saver=$(selectsaver)
   if [ -n "$saver" ]; then
     $saver
   fi
   sleep 2
   echo >&2 "Screen saver failed: $saver. Trying another one..."
-  random=$((random + 1))
+  selected=$((selected + 1))
+  mode=random
 done &
 
 exec ./saver_blank
