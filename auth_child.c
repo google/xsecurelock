@@ -134,11 +134,10 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         }
       }
       // Otherwise, it was suspended or whatever. We need to keep waiting.
-    } else if (pid == 0) {
-      // We're still alive.
-    } else {
+    } else if (pid != 0) {
       fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
     }
+    // Otherwise, we're still alive.
   }
 
   if (force_auth && auth_child_pid == 0) {

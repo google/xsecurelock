@@ -41,32 +41,34 @@ static int event_base;
 static int error_base;
 
 static int MaybeInitXRandR(Display* dpy) {
-  if (dpy != initialized_for) {
-    have_xrandr12 = 0;
-#ifdef HAVE_XRANDR15
-    have_xrandr15 = 0;
-#endif
-    if (XRRQueryExtension(dpy, &event_base, &error_base)) {
-      int major, minor;
-      if (XRRQueryVersion(dpy, &major, &minor)) {
-        // XRandR before 1.2 can't connect multiple screens to one, so the
-        // default root window size tracking is sufficient for that.
-        if (major > 1 || (major == 1 && minor >= 2)) {
-          if (!GetIntSetting("XSECURELOCK_NO_XRANDR", 0)) {
-            have_xrandr12 = 1;
-          }
-        }
-#ifdef HAVE_XRANDR15
-        if (major > 1 || (major == 1 && minor >= 5)) {
-          if (!GetIntSetting("XSECURELOCK_NO_XRANDR15", 0)) {
-            have_xrandr15 = 1;
-          }
-        }
-#endif
-      }
-    }
-    initialized_for = dpy;
+  if (dpy == initialized_for) {
+    return have_xrandr12;
   }
+
+  have_xrandr12 = 0;
+#ifdef HAVE_XRANDR15
+  have_xrandr15 = 0;
+#endif
+  if (XRRQueryExtension(dpy, &event_base, &error_base)) {
+    int major, minor;
+    if (XRRQueryVersion(dpy, &major, &minor)) {
+      // XRandR before 1.2 can't connect multiple screens to one, so the
+      // default root window size tracking is sufficient for that.
+      if (major > 1 || (major == 1 && minor >= 2)) {
+        if (!GetIntSetting("XSECURELOCK_NO_XRANDR", 0)) {
+          have_xrandr12 = 1;
+        }
+      }
+#ifdef HAVE_XRANDR15
+      if (major > 1 || (major == 1 && minor >= 5)) {
+        if (!GetIntSetting("XSECURELOCK_NO_XRANDR15", 0)) {
+          have_xrandr15 = 1;
+        }
+      }
+#endif
+    }
+  }
+  initialized_for = dpy;
   return have_xrandr12;
 }
 #endif
@@ -161,8 +163,8 @@ static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy, int ww,
         AddMonitor(out_monitors, out_num_monitors, max_monitors, x, y, w, h);
         XRRFreeCrtcInfo(info);
       }
-      XRRFreeOutputInfo(output);
     }
+    XRRFreeOutputInfo(output);
   }
   XRRFreeScreenResources(screenres);
   return *out_num_monitors != 0;

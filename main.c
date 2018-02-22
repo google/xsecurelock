@@ -344,9 +344,7 @@ void MaybeRaiseWindow(Display *display, Window w) {
     XFree(siblings);
     return;
   }
-  if (w == siblings[nsiblings - 1]) {
-    // Already on top. Good!
-  } else {
+  if (w != siblings[nsiblings - 1]) {
     // Need to bring myself to the top first.
     XRaiseWindow(display, w);
   }
@@ -695,11 +693,10 @@ int main(int argc, char **argv) {
           notify_command_pid = 0;
         }
         // Otherwise it was suspended or whatever. We need to keep waiting.
-      } else if (pid == 0) {
-        // We're still alive.
-      } else {
+      } else if (pid != 0) {
         fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
       }
+      // Otherwise, we're still alive. Re-check next time.
     }
 
     // Handle all events.

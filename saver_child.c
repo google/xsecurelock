@@ -86,11 +86,12 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
           XClearWindow(dpy, w);
         }
         // Otherwise it was suspended or whatever. We need to keep waiting.
-      } else if (pid == 0 && should_be_running) {
-        // We're still alive.
-      } else {
+      } else if (pid != 0) {
         fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
+      } else if (!should_be_running) {
+        fprintf(stderr, "Unexpectedly woke up for PID 0 despite no WNOHANG.\n");
       }
+      // Otherwise, we're still alive.
     } while (!should_be_running && saver_child_pid[index] != 0);
   }
 
