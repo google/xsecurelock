@@ -39,8 +39,8 @@ AC_DEFUN([RP_SEARCH_LIBS], [
                                        [AC_MSG_ERROR([--with-$4 was enabled, but test for $4 failed])])])])
           AM_CONDITIONAL([$3], [test x$have_$4 = xtrue])])
 
-# RP_SEARCH_PROGDIR(prog, path, macro, flag, default, description)
-AC_DEFUN([RP_SEARCH_PROGDIR], [
+# RP_SEARCH_PROG(prog, path, macro, flag, default, description)
+AC_DEFUN([RP_SEARCH_PROG], [
           AC_ARG_WITH([$4],
                       [AS_HELP_STRING([--with-$4],
                                       [$6 @<:@default=$5@:>@])],
@@ -53,8 +53,7 @@ AC_DEFUN([RP_SEARCH_PROGDIR], [
                        [AS_IF([test "x$with_$4" = xcheck],
                               [have_$4=false],
                               [AC_MSG_ERROR([--with-$4 was enabled, but test for $4 failed])])],
-                       [with_$4=${with_$4%/$1};
-                        have_$4=true])])
+                       [have_$4=true])])
           AM_CONDITIONAL([$3], [test x$have_$4 = xtrue])])
 
 # The X11 Screen Saver extension is used to turn off the screen saver when X11
@@ -95,13 +94,27 @@ RP_SEARCH_LIBS(XRRGetScreenResources, Xrandr,
                [HAVE_XRANDR], [xrandr], [check],
                [Use the XRandR extension to query monitor layouts])
 
-RP_SEARCH_PROGDIR(slidescreen, /usr/lib/xscreensaver,
-                  [HAVE_XSCREENSAVER], [xscreensaver], [check],
-                  [Install saver_xscreensaver (specify --with-xscreensaver=/usr/lib/xscreensaver to set the saver plugin directory to use)])
+RP_SEARCH_PROG(htpasswd, [$PATH],
+               [HAVE_HTPASSWD], [htpasswd], [check],
+               [Install auth_htpasswd (specify --with-htpasswd=/usr/bin/htpasswd to set the path to use)])
 
-RP_SEARCH_PROGDIR(pamtester, [$PATH],
-                  [HAVE_PAMTESTER], [pamtester], [check],
-                  [Install auth_pamtester (specify --with-pamtester=/usr/bin to set the path to use)])
+RP_SEARCH_PROG(mplayer, [$PATH],
+               [HAVE_MPLAYER], [mplayer], [check],
+               [Install saver_mplayer (specify --with-mplayer=/usr/bin/mplayer to set the path to use)])
+
+RP_SEARCH_PROG(mpv, [$PATH],
+               [HAVE_MPV], [mpv], [check],
+               [Install saver_mpv (specify --with-mpv=/usr/bin/mpv to set the path to use)])
+
+RP_SEARCH_PROG(pamtester, [$PATH],
+               [HAVE_PAMTESTER], [pamtester], [check],
+               [Install auth_pamtester (specify --with-pamtester=/usr/bin to set the path to use)])
+
+RP_SEARCH_PROG(slidescreen, /usr/lib/xscreensaver,
+               [HAVE_XSCREENSAVER], [xscreensaver], [check],
+               [Install saver_xscreensaver (specify --with-xscreensaver=/usr/lib/xscreensaver to set the saver plugin directory to use)])
+# However, all we really want is the directory name...
+with_xscreensaver=${with_xscreensaver%/slidescreen}
 
 pam_service_name=
 enable_pam_check_account_type=no
@@ -177,13 +190,23 @@ AC_SUBST(pam_service_name)
 AC_SUBST(auth_executable)
 AC_SUBST(global_saver_executable)
 AC_SUBST(saver_executable)
+AC_SUBST(with_htpasswd)
+AC_SUBST(with_mplayer)
+AC_SUBST(with_mpv)
+AC_SUBST(with_pamtester)
 AC_SUBST(with_xscreensaver)
 AM_CONDITIONAL([PAM_CHECK_ACCOUNT_TYPE],
                [test x$enable_pam_check_account_type = xyes])
 
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([helpers/auth_htpasswd],
+                [chmod +x helpers/auth_htpasswd])
 AC_CONFIG_FILES([helpers/auth_pamtester],
                 [chmod +x helpers/auth_pamtester])
+AC_CONFIG_FILES([helpers/saver_mplayer],
+                [chmod +x helpers/saver_mplayer])
+AC_CONFIG_FILES([helpers/saver_mpv],
+                [chmod +x helpers/saver_mpv])
 AC_CONFIG_FILES([helpers/saver_xscreensaver],
                 [chmod +x helpers/saver_xscreensaver])
 

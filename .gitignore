@@ -13,7 +13,10 @@
 /config.status
 /configure
 /depcomp
+/helpers/auth_htpasswd
 /helpers/auth_pamtester
+/helpers/saver_mplayer
+/helpers/saver_mpv
 /helpers/saver_xscreensaver
 /install-sh
 /missing

@@ -43,11 +43,20 @@ endif
 
 helpersdir = $(pkglibexecdir)
 helpers_SCRIPTS = \
-	helpers/auth_htpasswd \
-	helpers/saver_blank \
-	helpers/saver_mplayer \
-	helpers/saver_mpv
+	helpers/saver_blank
 
+if HAVE_HTPASSWD
+helpers_SCRIPTS += \
+	helpers/auth_htpasswd
+endif
+if HAVE_MPLAYER
+helpers_SCRIPTS += \
+	helpers/saver_mplayer
+endif
+if HAVE_MPV
+helpers_SCRIPTS += \
+	helpers/saver_mpv
+endif
 if HAVE_PAMTESTER
 helpers_SCRIPTS += \
 	helpers/auth_pamtester

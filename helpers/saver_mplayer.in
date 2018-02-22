@@ -15,13 +15,14 @@
 # limitations under the License.
 
 video=`find ~/Videos -type f | sort -R | head -n 1`
-mpv \
-  --no-input-terminal \
-  --really-quiet \
-  --no-stop-screensaver \
-  --heartbeat-cmd="" \
-  --wid="${XSCREENSAVER_WINDOW}" \
-  --no-audio \
+@with_mplayer@ \
+  -noconsolecontrols \
+  -really-quiet \
+  -nostop-xscreensaver \
+  -heartbeat-cmd "" \
+  -wid "${XSCREENSAVER_WINDOW}" \
+  -fixed-vo \
+  -nosound \
   -- \
   "$video" &
 exec ./saver_blank
