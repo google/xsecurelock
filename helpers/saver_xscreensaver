@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Copyright 2014 Google Inc. All rights reserved.
 #
@@ -14,46 +14,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-shopt -s extglob
+: ${XSECURELOCK_XSCREENSAVER_PATH:=/usr/lib/xscreensaver}
 
-readonly SAVER_DIR=/usr/lib/xscreensaver
-
-function allsavers() {
-  printf "%b" "$(
-    xrdb -n ~/.xscreensaver 2>/dev/null |\
-    grep ^programs: |\
-    cut -d : -f 2-
-  )"
+allsavers() {
+  if [ -f ~/.xscreensaver ]; then
+    printf "%b" "$(
+      xrdb -n ~/.xscreensaver 2>/dev/null |\
+      grep ^programs: |\
+      cut -d : -f 2-
+    )" |\
+      sed -e '
+        s/^[[:space:]]*//;                # Strip whitespace.
+        /^-/d;                            # Remove disabled hacks.
+        s/^[^[:space:]]*:[[:space:]]*//;  # Remove visual name.
+        s/^"[^"]*"[[:space:]]*//;         # Remove hack name.
+      '
+  else
+    ls "$XSECURELOCK_XSCREENSAVER_PATH" |\
+      sed -e 's/$/ -root/'
+  fi | while read -r saver flags; do
+    [ -x "$XSECURELOCK_XSCREENSAVER_PATH/$saver" ] || continue
+    printf '%s/%s\n' "$XSECURELOCK_XSCREENSAVER_PATH" "$saver $flags"
+  done
 }
 
-random_saver=
-(( random_count = 0 ))
-while IFS= read -r saver; do
-  saver=${saver##*([[:space:]])}
-  # Skip disabled savers.
-  case "${saver}" in
-    -*)
-      continue
-      ;;
-  esac
-  # Strip visual name.
-  saver=${saver##*([^[:space:]:\"]):*([[:space:]])}
-  # Strip hack name.
-  saver=${saver##\"*([^\"])\"*([[:space:]])}
-  # Does it exist?
-  saver=${SAVER_DIR}/${saver}
-  [[ -f ${saver%% *} ]] || continue
-  # Rest is the command line!
-  (( ++random_count ))
-  # We're using the parent process ID here, which may be a saver_multiplex
-  # instance. This ensures that multiple instances of this always spawn the same
-  # saver on each screen.
-  if (( PPID % random_count == 0 )); then
-    random_saver=${saver}
-  fi
-done < <(allsavers)
+# We're using the parent process ID here, which may be a saver_multiplex
+# instance. This ensures that multiple instances of this always spawn the same
+# saver on each screen.
+random=$PPID
 
-if [[ -n ${random_saver} ]]; then
-  eval "${random_saver}" &
-fi
+randomsaver() {
+  savers=$(allsavers)
+  count=$(printf '%s\n' "$savers" | wc -l)
+  printf '%s\n' "$savers" | tail -n +$((random % count + 1)) | head -n 1
+}
+
+# We can just run savers in a loop, until one sticks; xsecurelock will kill our
+# entire process group anyway when unlocking.
+while :; do
+  saver=$(randomsaver)
+  if [ -n "$saver" ]; then
+    $saver
+  fi
+  sleep 2
+  echo >&2 "Screen saver failed: $saver. Trying another one..."
+  random=$((random + 1))
+done &
+
 exec ./saver_blank
