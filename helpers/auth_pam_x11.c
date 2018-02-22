@@ -618,9 +618,20 @@ int main() {
     return 1;
   }
 
-  struct passwd *pwd = getpwuid(getuid());
+  struct passwd *pwd = NULL;
+  struct passwd pwd_storage;
+  char *pwd_buf;
+  long pwd_bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
+  if (pwd_bufsize < 0) {
+    pwd_bufsize = 1 << 20;
+  }
+  pwd_buf = malloc((size_t)pwd_bufsize);
+  if (!pwd_buf) {
+    perror("malloc(pwd_bufsize)");
+  }
+  getpwuid_r(getuid(), &pwd_storage, pwd_buf, (size_t)pwd_bufsize, &pwd);
   if (!pwd) {
-    perror("getpwuid");
+    perror("getpwuid_r");
     return 1;
   }
 
@@ -671,6 +682,10 @@ int main() {
   pam_handle_t *pam;
   int status = authenticate(pwd->pw_name, hostname, &conv, &pam);
   int status2 = pam_end(pam, status);
+
+  // Done with PAM, so we can free the getpwuid_r buffer now.
+  free(pwd_buf);
+
   if (status != PAM_SUCCESS) {
     // The caller already displayed an error.
     return 1;
