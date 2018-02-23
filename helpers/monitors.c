@@ -256,11 +256,15 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
   XWindowAttributes xwa;
   XGetWindowAttributes(dpy, w, &xwa);
 
+  do {
 #ifdef HAVE_XRANDR
-  if (!GetMonitorsXRandR(dpy, w, &xwa, out_monitors, &num_monitors,
-                         max_monitors))
+    if (GetMonitorsXRandR(dpy, w, &xwa, out_monitors, &num_monitors,
+                          max_monitors)) {
+      break;
+    }
 #endif
     GetMonitorsGuess(&xwa, out_monitors, &num_monitors, max_monitors);
+  } while(0);
 
   // Sort the monitors in some deterministic order.
   qsort(out_monitors, num_monitors, sizeof(*out_monitors), CompareMonitors);

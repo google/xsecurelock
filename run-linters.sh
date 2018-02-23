@@ -2,8 +2,19 @@
 
 # clang-tidy.
 if which clang-tidy; then
+  set -- \
+    'bugprone-*' \
+    'cert-*' \
+    'clang-analyzer-*' \
+    'misc-*' \
+    'performance-*' \
+    'readability-*' \
+    '-clang-analyzer-alpha.core.FixedAddr' \
+    '-clang-analyzer-alpha.core.PointerArithm' \
+    '-clang-analyzer-alpha.deadcode.UnreachableCode'
+  checks=$(echo "$*" | tr ' ' ,)
   # Try once without extensions.
-  clang-tidy -checks=cert-*,clang-analyzer-*,misc-* \
+  clang-tidy -checks="$checks" \
     -extra-arg=-DHELPER_PATH=\"\" \
     -extra-arg=-DDOCS_PATH=\"\" \
     -extra-arg=-DAUTH_EXECUTABLE=\"\" \
@@ -12,7 +23,7 @@ if which clang-tidy; then
     -extra-arg=-DPAM_SERVICE_NAME=\"\" \
     *.[ch] */*.[ch]
   # Try again with all extensions.
-  clang-tidy -checks=cert-*,clang-analyzer-*,misc-* \
+  clang-tidy -checks="$checks" \
     -extra-arg=-DHELPER_PATH=\"\" \
     -extra-arg=-DDOCS_PATH=\"\" \
     -extra-arg=-DAUTH_EXECUTABLE=\"\" \

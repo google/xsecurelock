@@ -337,7 +337,9 @@ int prompt(const char *msg, char **response, int echo) {
 
   while (!done) {
     if (echo) {
-      memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);  // Flawfinder: ignore
+      if (priv.pwlen != 0) {
+        memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);  // Flawfinder: ignore
+      }
       priv.displaylen = priv.pwlen;
     } else {
 #ifdef PARANOID_PASSWORD
@@ -453,7 +455,9 @@ int prompt(const char *msg, char **response, int echo) {
             // is worse. But let's alert the user of this.
             alert("Password has not been stored securely.", 1);
           }
-          memcpy(*response, priv.pwbuf, priv.pwlen);  // Flawfinder: ignore
+          if (priv.pwlen != 0) {
+            memcpy(*response, priv.pwbuf, priv.pwlen);  // Flawfinder: ignore
+          }
           (*response)[priv.pwlen] = 0;
           status = PAM_SUCCESS;
           done = 1;
