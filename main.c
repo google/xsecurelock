@@ -838,6 +838,12 @@ int main(int argc, char **argv) {
             background_window_mapped = 0;
           } else if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 0;
+          } else if (priv.ev.xmap.window == parent_window) {
+            // This should never happen, but let's handle it anyway.
+            // Compton might do this when --unredir-if-possible is set and a
+            // fullscreen game launches while the screen is locked.
+            fprintf(stderr, "Someone unmapped our parent. Undoing that.\n");
+            XMapRaised(display, parent_window);
           }
           break;
         case FocusIn:
