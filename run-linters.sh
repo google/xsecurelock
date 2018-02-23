@@ -1,5 +1,31 @@
 #!/bin/bash
 
+# clang-tidy.
+if which clang-tidy; then
+  # Try once without extensions.
+  clang-tidy \
+    -extra-arg=-DHELPER_PATH=\"\" \
+    -extra-arg=-DDOCS_PATH=\"\" \
+    -extra-arg=-DAUTH_EXECUTABLE=\"\" \
+    -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
+    -extra-arg=-DSAVER_EXECUTABLE=\"\" \
+    -extra-arg=-DPAM_SERVICE_NAME=\"\" \
+    *.[ch] */*.[ch]
+  # Try again with all extensions.
+  clang-tidy \
+    -extra-arg=-DHELPER_PATH=\"\" \
+    -extra-arg=-DDOCS_PATH=\"\" \
+    -extra-arg=-DAUTH_EXECUTABLE=\"\" \
+    -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
+    -extra-arg=-DSAVER_EXECUTABLE=\"\" \
+    -extra-arg=-DPAM_SERVICE_NAME=\"\" \
+    -extra-arg=-DHAVE_SCRNSAVER \
+    -extra-arg=-DHAVE_COMPOSITE \
+    -extra-arg=-DHAVE_XRANDR \
+    -extra-arg=-DHAVE_XKB \
+    *.[ch] */*.[ch]
+fi
+
 # FlawFinder.
 if which flawfinder; then
   flawfinder .
