@@ -3,7 +3,7 @@
 # clang-tidy.
 if which clang-tidy; then
   # Try once without extensions.
-  clang-tidy \
+  clang-tidy -checks=cert-*,clang-analyzer-*,misc-* \
     -extra-arg=-DHELPER_PATH=\"\" \
     -extra-arg=-DDOCS_PATH=\"\" \
     -extra-arg=-DAUTH_EXECUTABLE=\"\" \
@@ -12,7 +12,7 @@ if which clang-tidy; then
     -extra-arg=-DPAM_SERVICE_NAME=\"\" \
     *.[ch] */*.[ch]
   # Try again with all extensions.
-  clang-tidy \
+  clang-tidy -checks=cert-*,clang-analyzer-*,misc-* \
     -extra-arg=-DHELPER_PATH=\"\" \
     -extra-arg=-DDOCS_PATH=\"\" \
     -extra-arg=-DAUTH_EXECUTABLE=\"\" \
