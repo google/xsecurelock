@@ -893,13 +893,17 @@ done:
   // Free our resources, and exit.
   XDestroyWindow(display, saver_window);
   XDestroyWindow(display, background_window);
+
 #ifdef HAVE_COMPOSITE
   if (have_composite) {
     XCompositeReleaseOverlayWindow(display, composite_window);
   }
 #endif
+
   XFreeCursor(display, coverattrs.cursor);
   XFreePixmap(display, bg);
+
+  XCloseDisplay(display);
 
   return EXIT_SUCCESS;
 }
