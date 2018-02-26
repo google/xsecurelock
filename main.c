@@ -512,6 +512,24 @@ int main(int argc, char **argv) {
   XChangeProperty(display, background_window, state_atom, XA_ATOM, 32,
                   PropModeReplace, (const unsigned char *)&fullscreen_atom, 1);
 
+  // Bypass compositing, just in case.
+  Atom dont_composite_atom =
+      XInternAtom(display, "_NET_WM_BYPASS_COMPOSITOR", False);
+  long dont_composite = 1;
+  XChangeProperty(display, background_window, dont_composite_atom, XA_CARDINAL,
+                  32, PropModeReplace, (const unsigned char *)&dont_composite,
+                  1);
+#ifdef HAVE_COMPOSITE
+  if (have_composite) {
+    // Also set this property on the Composite Overlay Window, just in case a
+    // compositor were to try compositing it (xcompmgr does, but doesn't know
+    // this property anyway).
+    XChangeProperty(display, composite_window, dont_composite_atom, XA_CARDINAL,
+                    32, PropModeReplace, (const unsigned char *)&dont_composite,
+                    1);
+  }
+#endif
+
   // Initialize XInput so we can get multibyte key events.
   XIM xim = XOpenIM(display, NULL, NULL, NULL);
   if (xim == NULL) {
