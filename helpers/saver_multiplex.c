@@ -24,6 +24,7 @@ limitations under the License.
 #include <unistd.h>      // for sleep
 
 #include "../env_settings.h"      // for GetStringSetting
+#include "../logging.h"           // for Log, LogErrno
 #include "../saver_child.h"       // for MAX_SAVERS
 #include "../wm_properties.h"     // for SetWMProperties
 #include "../xscreensaver_api.h"  // for ReadWindowID
@@ -92,7 +93,7 @@ static void KillSavers(void) {
  */
 int main(int argc, char** argv) {
   if (GetIntSetting("XSECURELOCK_INSIDE_SAVER_MULTIPLEX", 0)) {
-    fprintf(stderr, "starting saver_multiplex inside saver_multiplex?!?\n");
+    Log("Starting saver_multiplex inside saver_multiplex?!?");
     // If we die, the parent process will revive us, so let's sleep a while to
     // conserve battery and avoid log spam in this case.
     sleep(60);
@@ -101,14 +102,14 @@ int main(int argc, char** argv) {
   setenv("XSECURELOCK_INSIDE_SAVER_MULTIPLEX", "1", 1);
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
-    fprintf(stderr, "could not connect to $DISPLAY\n");
+    Log("Could not connect to $DISPLAY");
     return 1;
   }
   int x11_fd = ConnectionNumber(display);
 
   Window parent = ReadWindowID();
   if (parent == None) {
-    fprintf(stderr, "Invalid/no parent ID in XSCREENSAVER_WINDOW.\n");
+    Log("Invalid/no parent ID in XSCREENSAVER_WINDOW");
     return 1;
   }
 
@@ -135,14 +136,14 @@ int main(int argc, char** argv) {
     sa.sa_flags = 0;
     sa.sa_handler = handle_sigterm;
     if (sigaction(SIGTERM, &sa, NULL) != 0) {
-      perror("sigaction(SIGTERM)");
+      LogErrno("sigaction(SIGTERM)");
     }
     sa.sa_handler = handle_sigchld;
     if (sigaction(SIGCHLD, &sa, NULL) != 0) {
-      perror("sigaction(SIGCHLD)");
+      LogErrno("sigaction(SIGCHLD)");
     }
   } else {
-    perror("sigprocmask failed; not installing signal handlers");
+    LogErrno("sigprocmask failed; not installing signal handlers");
   }
   for (;;) {
     fd_set in_fds;

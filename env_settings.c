@@ -20,6 +20,8 @@ limitations under the License.
 #include <stdio.h>   // for fprintf, NULL, stderr
 #include <stdlib.h>  // for getenv, strtol, strtoull
 
+#include "logging.h"
+
 unsigned long long GetUnsignedLongLongSetting(const char* name,
                                               unsigned long long def) {
   const char* value = getenv(name);  // Flawfinder: ignore
@@ -30,11 +32,11 @@ unsigned long long GetUnsignedLongLongSetting(const char* name,
   errno = 0;
   unsigned long long number = strtoull(value, &endptr, 0);
   if (errno == ERANGE) {
-    fprintf(stderr, "Ignoring out-of-range value of %s: %s.", name, value);
+    Log("Ignoring out-of-range value of %s: %s", name, value);
     return def;
   }
   if ((endptr != NULL && *endptr != 0)) {
-    fprintf(stderr, "Ignoring non-numeric value of %s: %s.", name, value);
+    Log("Ignoring non-numeric value of %s: %s", name, value);
     return def;
   }
   return number;
@@ -49,11 +51,11 @@ long GetLongSetting(const char* name, long def) {
   errno = 0;
   long number = strtol(value, &endptr, 0);
   if (errno == ERANGE) {
-    fprintf(stderr, "Ignoring out-of-range value of %s: %s.", name, value);
+    Log("Ignoring out-of-range value of %s: %s", name, value);
     return def;
   }
   if ((endptr != NULL && *endptr != 0)) {
-    fprintf(stderr, "Ignoring non-numeric value of %s: %s.", name, value);
+    Log("Ignoring non-numeric value of %s: %s", name, value);
     return def;
   }
   return number;
@@ -63,7 +65,7 @@ int GetIntSetting(const char* name, int def) {
   long lnumber = GetLongSetting(name, def);
   int number = (int)lnumber;
   if (lnumber != (long)number) {
-    fprintf(stderr, "Ignoring out-of-range value of %s: %d.", name, number);
+    Log("Ignoring out-of-range value of %s: %d", name, number);
     return def;
   }
   return number;

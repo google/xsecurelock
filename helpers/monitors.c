@@ -17,19 +17,19 @@ limitations under the License.
 #include "monitors.h"
 
 #include <X11/Xlib.h>  // for XWindowAttributes, Display, XGetW...
-#include <stdio.h>     // for fprintf, stderr
 #include <stdlib.h>    // for qsort
 #include <string.h>    // for memcmp, memset
 
 #ifdef HAVE_XRANDR
-#include <X11/extensions/Xrandr.h>  // for XRRCrtcInfo, XRROutputInfo, XRRSc...
-#include <X11/extensions/randr.h>   // for RRNotify, RRCrtcChangeNotifyMask
+#include <X11/extensions/Xrandr.h>  // for XRRMonitorInfo, XRRCrtcInfo, XRRO...
+#include <X11/extensions/randr.h>   // for RANDR_MAJOR, RRNotify, RANDR_MINOR
 #if RANDR_MAJOR > 1 || (RANDR_MAJOR == 1 && RANDR_MINOR >= 5)
 #define HAVE_XRANDR15
 #endif
 #endif
 
 #include "../env_settings.h"  // for GetIntSetting
+#include "../logging.h"       // for Log
 
 #ifdef HAVE_XRANDR
 static Display* initialized_for = NULL;
@@ -94,19 +94,19 @@ static int IntervalsOverlap(int astart, int asize, int bstart, int bsize) {
 static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
                        size_t max_monitors, int x, int y, int w, int h) {
 #ifdef DEBUG_EVENTS
-  fprintf(stderr, "try %d %d %d %d\n", x, y, w, h);
+  Log("AddMonitor %d %d %d %d", x, y, w, h);
 #endif
   // Too many monitors? Stop collecting them.
   if (*num_monitors >= max_monitors) {
 #ifdef DEBUG_EVENTS
-    fprintf(stderr, "skip (too many)\n");
+    Log("Skip (too many)");
 #endif
     return;
   }
   // Skip empty "monitors".
   if (w <= 0 || h <= 0) {
 #ifdef DEBUG_EVENTS
-    fprintf(stderr, "skip (zero)\n");
+    Log("Skip (zero)");
 #endif
     return;
   }
@@ -116,13 +116,13 @@ static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
     if (IntervalsOverlap(x, w, out_monitors[i].x, out_monitors[i].width) &&
         IntervalsOverlap(y, h, out_monitors[i].y, out_monitors[i].height)) {
 #ifdef DEBUG_EVENTS
-      fprintf(stderr, "skip (overlap with %d)\n", (int)i);
+      Log("Skip (overlap with %d)", (int)i);
 #endif
       return;
     }
   }
 #ifdef DEBUG_EVENTS
-  fprintf(stderr, "monitor %d = %d %d %d %d\n", (int)*num_monitors, x, y, w, h);
+  Log("Monitor %d = %d %d %d %d", (int)*num_monitors, x, y, w, h);
 #endif
   out_monitors[*num_monitors].x = x;
   out_monitors[*num_monitors].y = y;
@@ -209,7 +209,7 @@ static int GetMonitorsXRandR(Display* dpy, Window w,
   Window child;
   if (!XTranslateCoordinates(dpy, w, DefaultRootWindow(dpy), xwa->x, xwa->y,
                              &wx, &wy, &child)) {
-    fprintf(stderr, "XTranslateCoordinates failed.\n");
+    Log("XTranslateCoordinates failed");
     wx = xwa->x;
     wy = xwa->y;
   }
@@ -264,7 +264,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
     }
 #endif
     GetMonitorsGuess(&xwa, out_monitors, &num_monitors, max_monitors);
-  } while(0);
+  } while (0);
 
   // Sort the monitors in some deterministic order.
   qsort(out_monitors, num_monitors, sizeof(*out_monitors), CompareMonitors);

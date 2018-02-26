@@ -33,11 +33,11 @@ limitations under the License.
  *
  * The area is expanded to fill whole memory pages.
  */
-#define MLOCK_PAGE(ptr, size)                                                  \
-  mlock((void *)((((uintptr_t)(ptr)) / (uintptr_t)PAGESIZE) *                  \
-                 (uintptr_t)PAGESIZE),                                         \
-        (((uintptr_t)(ptr) + (size)-1) / (uintptr_t)PAGESIZE -                 \
-         ((uintptr_t)(ptr)) / (uintptr_t)PAGESIZE + 1) *                       \
+#define MLOCK_PAGE(ptr, size)                                  \
+  mlock((void *)((((uintptr_t)(ptr)) / (uintptr_t)PAGESIZE) *  \
+                 (uintptr_t)PAGESIZE),                         \
+        (((uintptr_t)(ptr) + (size)-1) / (uintptr_t)PAGESIZE - \
+         ((uintptr_t)(ptr)) / (uintptr_t)PAGESIZE + 1) *       \
             (uintptr_t)PAGESIZE)
 #elif _POSIX_MEMLOCK > 0
 #warning mlock() is unavailable. More memory will be locked than necessary.

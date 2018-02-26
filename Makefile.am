@@ -19,9 +19,10 @@ bin_PROGRAMS = xsecurelock
 xsecurelock_SOURCES = \
 	auth_child.c auth_child.h \
 	env_settings.c env_settings.h \
-	saver_child.c saver_child.h \
+	logging.c logging.h \
 	mlock_page.h \
 	main.c \
+	saver_child.c saver_child.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 xsecurelock_CPPFLAGS = \
@@ -69,9 +70,10 @@ endif
 helpers_PROGRAMS = \
 	saver_multiplex
 saver_multiplex_SOURCES = \
-	helpers/saver_multiplex.c \
 	env_settings.c env_settings.h \
 	helpers/monitors.c helpers/monitors.h \
+	helpers/saver_multiplex.c \
+	logging.c logging.h \
 	saver_child.c saver_child.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
@@ -85,9 +87,10 @@ if HAVE_PAM
 helpers_PROGRAMS += \
 	auth_pam_x11
 auth_pam_x11_SOURCES = \
-	helpers/auth_pam_x11.c \
 	env_settings.c env_settings.h \
+	helpers/auth_pam_x11.c \
 	helpers/monitors.c helpers/monitors.h \
+	logging.c logging.h \
 	mlock_page.h \
 	xscreensaver_api.c xscreensaver_api.h
 auth_pam_x11_CPPFLAGS = \

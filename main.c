@@ -22,16 +22,16 @@ limitations under the License.
  */
 
 #include <X11/X.h>       // for Window, GrabModeAsync, Curren...
-#include <X11/Xatom.h>   // for XA_ATOM
+#include <X11/Xatom.h>   // for XA_CARDINAL, XA_ATOM
 #include <X11/Xlib.h>    // for XEvent, False, XSelectInput
 #include <X11/Xutil.h>   // for XLookupString
 #include <errno.h>       // for ECHILD, EINTR, errno
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE
 #include <signal.h>      // for sigaction, sigemptyset, SIGPIPE
-#include <stdio.h>       // for fprintf, stderr, perror, printf
+#include <stdio.h>       // for printf, size_t
 #include <stdlib.h>      // for EXIT_SUCCESS, exit, EXIT_FAILURE
 #include <string.h>      // for __s1_len, __s2_len, memset
-#include <sys/select.h>  // for timeval, select, FD_SET, FD_ZERO
+#include <sys/select.h>  // for timeval, fd_set, select, FD_SET
 #include <sys/wait.h>    // for WEXITSTATUS, waitpid, WIFEXITED
 #include <time.h>        // for nanosleep, timespec
 #include <unistd.h>      // for access, pid_t, X_OK, chdir
@@ -49,6 +49,7 @@ limitations under the License.
 
 #include "auth_child.h"     // for WantAuthChild, WatchAuthChild
 #include "env_settings.h"   // for GetIntSetting, GetStringSetting
+#include "logging.h"        // for Log, LogErrno
 #include "mlock_page.h"     // for MLOCK_PAGE
 #include "saver_child.h"    // for WatchSaverChild
 #include "wm_properties.h"  // for SetWMProperties
@@ -178,7 +179,7 @@ int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
   char buf[128];  // Flawfinder: ignore
   XGetErrorText(display, error->error_code, buf, sizeof(buf));
   buf[sizeof(buf) - 1] = 0;
-  fprintf(stderr, "Got non-fatal X11 error: %s.\n", buf);
+  Log("Got non-fatal X11 error: %s", buf);
   return 0;
 }
 
@@ -245,16 +246,14 @@ int parse_arguments(int argc, char **argv) {
   int i;
   for (i = 1; i < argc; ++i) {
     if (!strncmp(argv[i], "auth_", 5)) {
-      fprintf(stderr,
-              "Setting auth child name from command line is DEPRECATED.\nUse "
-              "the XSECURELOCK_AUTH environment variable instead.\n");
+      Log("Setting auth child name from command line is DEPRECATED. Use "
+          "the XSECURELOCK_AUTH environment variable instead");
       auth_executable = argv[i];
       continue;
     }
     if (!strncmp(argv[i], "saver_", 6)) {
-      fprintf(stderr,
-              "Setting saver child name from command line is DEPRECATED.\nUse "
-              "the XSECURELOCK_SAVER environment variable instead.\n");
+      Log("Setting saver child name from command line is DEPRECATED. Use "
+          "the XSECURELOCK_SAVER environment variable instead");
       saver_executable = argv[i];
       continue;
     }
@@ -263,7 +262,7 @@ int parse_arguments(int argc, char **argv) {
       break;
     }
     // If we get here, the argument is unrecognized. Exit, then.
-    fprintf(stderr, "Unrecognized argument: %s.\n", argv[i]);
+    Log("Unrecognized argument: %s", argv[i]);
     return 0;
   }
   return 1;
@@ -285,36 +284,36 @@ int check_settings() {
   // that could make the system un-unlockable.
 
   if (auth_executable == NULL) {
-    fprintf(stderr, "Auth module has not been specified in any way.\n");
+    Log("Auth module has not been specified in any way");
     return 0;
   }
   if (strncmp(auth_executable, "auth_", 5)) {
-    fprintf(stderr, "Auth module name must start with auth_.\n");
+    Log("Auth module name must start with auth_");
     return 0;
   }
   if (strchr(auth_executable, '.')) {
-    fprintf(stderr, "Auth module name may not contain a dot.\n");
+    Log("Auth module name may not contain a dot");
     return 0;
   }
   if (access(auth_executable, X_OK)) {  // Flawfinder: ignore
-    fprintf(stderr, "Auth module must be executable.\n");
+    Log("Auth module must be executable");
     return 0;
   }
 
   if (saver_executable == NULL) {
-    fprintf(stderr, "Saver module has not been specified in any way.\n");
+    Log("Saver module has not been specified in any way");
     return 0;
   }
   if (strncmp(saver_executable, "saver_", 6)) {
-    fprintf(stderr, "Saver module name must start with saver_.\n");
+    Log("Saver module name must start with saver_");
     return 0;
   }
   if (strchr(saver_executable, '.')) {
-    fprintf(stderr, "Saver module name may not contain a dot.\n");
+    Log("Saver module name may not contain a dot");
     return 0;
   }
   if (access(saver_executable, X_OK)) {  // Flawfinder: ignore
-    fprintf(stderr, "Saver module must be executable.\n");
+    Log("Saver module must be executable");
     return 0;
   }
 
@@ -330,17 +329,17 @@ void MaybeRaiseWindow(Display *display, Window w) {
   Window *children, *siblings;
   unsigned int nchildren, nsiblings;
   if (!XQueryTree(display, w, &root, &parent, &children, &nchildren)) {
-    fprintf(stderr, "XQueryTree failed.\n");
+    Log("XQueryTree failed");
     return;
   }
   XFree(children);
   if (!XQueryTree(display, parent, &root, &grandparent, &siblings,
                   &nsiblings)) {
-    fprintf(stderr, "XQueryTree failed.\n");
+    Log("XQueryTree failed");
     return;
   }
   if (nsiblings == 0) {
-    fprintf(stderr, "My parent window has no children.\n");
+    Log("My parent window has no children");
     XFree(siblings);
     return;
   }
@@ -361,22 +360,21 @@ void MaybeRaiseWindow(Display *display, Window w) {
 void NotifyOfLock(int x11_fd) {
   int fd = GetIntSetting("XSS_SLEEP_LOCK_FD", -1);
   if (fd == x11_fd) {
-    fprintf(stderr,
-            "XSS_SLEEP_LOCK_FD matches DISPLAY - what?!? We're probably "
-            "inhibiting sleep now.\n");
+    Log("XSS_SLEEP_LOCK_FD matches DISPLAY - what?!? We're probably "
+        "inhibiting sleep now");
   } else if (fd != -1) {
     if (close(fd) != 0) {
-      perror("close(XSS_SLEEP_LOCK_FD)");
+      LogErrno("close(XSS_SLEEP_LOCK_FD)");
     }
   }
   if (notify_command != NULL && *notify_command != NULL) {
     pid_t pid = fork();
     if (pid == -1) {
-      perror("fork");
+      LogErrno("fork");
     } else if (pid == 0) {
       // Child process.
       execvp(notify_command[0], notify_command);  // Flawfinder: ignore
-      perror("execvp");
+      LogErrno("execvp");
       exit(EXIT_FAILURE);
     } else {
       // Parent process after successful fork.
@@ -395,7 +393,7 @@ int main(int argc, char **argv) {
   // Change the current directory to HELPER_PATH so we don't need to process
   // path names.
   if (chdir(HELPER_PATH)) {
-    fprintf(stderr, "Could not switch to directory %s.\n", HELPER_PATH);
+    Log("Could not switch to directory %s", HELPER_PATH);
     return 1;
   }
 
@@ -413,15 +411,14 @@ int main(int argc, char **argv) {
   // Connect to X11.
   Display *display = XOpenDisplay(NULL);
   if (display == NULL) {
-    fprintf(stderr, "Could not connect to $DISPLAY.\n");
+    Log("Could not connect to $DISPLAY");
     return 1;
   }
 
   // TODO(divVerent): Support that?
   if (ScreenCount(display) != 1) {
-    fprintf(stderr,
-            "Warning: 'Zaphod' configurations are not supported at this point. "
-            "Only locking the default screen.\n");
+    Log("Warning: 'Zaphod' configurations are not supported at this point. "
+        "Only locking the default screen.\n");
   }
 
   // Who's the root?
@@ -432,7 +429,7 @@ int main(int argc, char **argv) {
   int w = DisplayWidth(display, DefaultScreen(display));
   int h = DisplayHeight(display, DefaultScreen(display));
 #ifdef DEBUG_EVENTS
-  fprintf(stderr, "DisplayWidthHeight %d %d\n", w, h);
+  Log("DisplayWidthHeight %d %d", w, h);
 #endif
 
   // Prepare some nice window attributes for a screen saver window.
@@ -461,10 +458,10 @@ int main(int argc, char **argv) {
                              &composite_minor_version) &&
       (composite_major_version >= 1 || composite_minor_version >= 3);
   if (!have_composite) {
-    fprintf(stderr, "XComposite extension not detected.\n");
+    Log("XComposite extension not detected");
   }
   if (have_composite && no_composite) {
-    fprintf(stderr, "XComposite extension detected but disabled by user.\n");
+    Log("XComposite extension detected but disabled by user");
     have_composite = 0;
   }
   Window composite_window;
@@ -533,7 +530,7 @@ int main(int argc, char **argv) {
   // Initialize XInput so we can get multibyte key events.
   XIM xim = XOpenIM(display, NULL, NULL, NULL);
   if (xim == NULL) {
-    fprintf(stderr, "XOpenIM failed. Assuming Latin-1 encoding.\n");
+    Log("XOpenIM failed. Assuming Latin-1 encoding");
   }
   XIC xic = NULL;
   if (xim != NULL) {
@@ -557,7 +554,7 @@ int main(int argc, char **argv) {
       }
     }
     if (xic == NULL) {
-      fprintf(stderr, "XCreateIC failed. Assuming Latin-1 encoding.\n");
+      Log("XCreateIC failed. Assuming Latin-1 encoding");
     }
   }
 
@@ -576,7 +573,7 @@ int main(int argc, char **argv) {
   // In case keys to disable grabs are available, turn them off for the duration
   // of the lock.
   if (XF86MiscSetGrabKeysState(display, False) != MiscExtGrabStateSuccess) {
-    fprintf(stderr, "Could not set grab keys state.\n");
+    Log("Could not set grab keys state");
     return 1;
   }
 #endif
@@ -593,7 +590,7 @@ int main(int argc, char **argv) {
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
   }
   if (retries < 0) {
-    fprintf(stderr, "Could not grab pointer.\n");
+    Log("Could not grab pointer");
     return 1;
   }
   for (retries = 10; retries >= 0; --retries) {
@@ -604,7 +601,7 @@ int main(int argc, char **argv) {
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
   }
   if (retries < 0) {
-    fprintf(stderr, "Could not grab keyboard.\n");
+    Log("Could not grab keyboard");
     return 1;
   }
 
@@ -625,7 +622,7 @@ int main(int argc, char **argv) {
     int len;
   } priv;
   if (MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
-    perror("mlock");
+    LogErrno("mlock");
     return 1;
   }
 
@@ -669,11 +666,11 @@ int main(int argc, char **argv) {
     if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
                      GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
                      CurrentTime) != GrabSuccess) {
-      fprintf(stderr, "Critical: cannot re-grab pointer.\n");
+      Log("Critical: cannot re-grab pointer");
     }
     if (XGrabKeyboard(display, parent_window, False, GrabModeAsync,
                       GrabModeAsync, CurrentTime) != GrabSuccess) {
-      fprintf(stderr, "Critical: cannot re-grab keyboard.\n");
+      Log("Critical: cannot re-grab keyboard");
     }
 #endif
 
@@ -699,21 +696,21 @@ int main(int argc, char **argv) {
             break;
           default:
             // Assume the child still lives. Shouldn't ever happen.
-            perror("waitpid");
+            LogErrno("waitpid");
             break;
         }
       } else if (pid == notify_command_pid) {
         if (WIFEXITED(status)) {
           // Done notifying.
           if (WEXITSTATUS(status) != EXIT_SUCCESS) {
-            fprintf(stderr, "Notification command failed with status %d.\n",
-                    WEXITSTATUS(status));
+            Log("Notification command failed with status %d",
+                WEXITSTATUS(status));
           }
           notify_command_pid = 0;
         }
         // Otherwise it was suspended or whatever. We need to keep waiting.
       } else if (pid != 0) {
-        fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
+        Log("Unexpectedly woke up for PID %d", (int)pid);
       }
       // Otherwise, we're still alive. Re-check next time.
     }
@@ -727,16 +724,16 @@ int main(int argc, char **argv) {
       switch (priv.ev.type) {
         case ConfigureNotify:
 #ifdef DEBUG_EVENTS
-          fprintf(stderr, "ConfigureNotify %lu %d %d\n",
-                  (unsigned long)priv.ev.xconfigure.window,
-                  priv.ev.xconfigure.width, priv.ev.xconfigure.height);
+          Log("ConfigureNotify %lu %d %d",
+              (unsigned long)priv.ev.xconfigure.window,
+              priv.ev.xconfigure.width, priv.ev.xconfigure.height);
 #endif
           if (priv.ev.xconfigure.window == root_window) {
             // Root window size changed. Adjust the saver_window window too!
             w = priv.ev.xconfigure.width;
             h = priv.ev.xconfigure.height;
 #ifdef DEBUG_EVENTS
-            fprintf(stderr, "DisplayWidthHeight %d %d\n", w, h);
+            Log("DisplayWidthHeight %d %d", w, h);
 #endif
             XMoveResizeWindow(display, background_window, 0, 0, w, h);
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
@@ -752,9 +749,9 @@ int main(int argc, char **argv) {
           break;
         case VisibilityNotify:
 #ifdef DEBUG_EVENTS
-          fprintf(stderr, "VisibilityNotify %lu %d\n",
-                  (unsigned long)priv.ev.xvisibility.window,
-                  priv.ev.xvisibility.state);
+          Log("VisibilityNotify %lu %d",
+              (unsigned long)priv.ev.xvisibility.window,
+              priv.ev.xvisibility.state);
 #endif
           if (priv.ev.xvisibility.state != VisibilityUnobscured) {
             // If something else shows an OverrideRedirect window, we want to
@@ -764,9 +761,8 @@ int main(int argc, char **argv) {
             } else if (priv.ev.xvisibility.window == background_window) {
               XRaiseWindow(display, background_window);
             } else {
-              fprintf(stderr,
-                      "Received unexpected VisibilityNotify for window %d.\n",
-                      (int)priv.ev.xvisibility.window);
+              Log("Received unexpected VisibilityNotify for window %d",
+                  (int)priv.ev.xvisibility.window);
             }
           }
           break;
@@ -803,8 +799,7 @@ int main(int argc, char **argv) {
           }
           if (have_key && (size_t)priv.len >= sizeof(priv.buf)) {
             // Detect possible overruns. This should be unreachable.
-            fprintf(stderr, "Received invalid length from XLookupString: %d\n",
-                    priv.len);
+            Log("Received invalid length from XLookupString: %d", priv.len);
             have_key = 0;
           }
           if (have_key) {
@@ -833,8 +828,7 @@ int main(int argc, char **argv) {
           break;
         case MapNotify:
 #ifdef DEBUG_EVENTS
-          fprintf(stderr, "MapNotify %lu\n",
-                  (unsigned long)priv.ev.xmap.window);
+          Log("MapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
           if (priv.ev.xmap.window == background_window) {
             background_window_mapped = 1;
@@ -849,8 +843,7 @@ int main(int argc, char **argv) {
           break;
         case UnmapNotify:
 #ifdef DEBUG_EVENTS
-          fprintf(stderr, "UnmapNotify %lu\n",
-                  (unsigned long)priv.ev.xmap.window);
+          Log("UnmapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
           if (priv.ev.xmap.window == background_window) {
             background_window_mapped = 0;
@@ -860,36 +853,33 @@ int main(int argc, char **argv) {
             // This should never happen, but let's handle it anyway.
             // Compton might do this when --unredir-if-possible is set and a
             // fullscreen game launches while the screen is locked.
-            fprintf(stderr, "Someone unmapped our parent. Undoing that.\n");
+            Log("Someone unmapped our parent. Undoing that");
             XMapRaised(display, parent_window);
           }
           break;
         case FocusIn:
         case FocusOut:
 #ifdef DEBUG_EVENTS
-          fprintf(stderr, "Focus%d %lu\n", priv.ev.xfocus.mode,
-                  (unsigned long)priv.ev.xfocus.window);
+          Log("Focus%d %lu", priv.ev.xfocus.mode,
+              (unsigned long)priv.ev.xfocus.window);
 #endif
           if (priv.ev.xfocus.window == parent_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
-            fprintf(stderr, "WARNING: lost grab, trying to grab again.\n");
+            Log("WARNING: lost grab, trying to grab again");
             if (XGrabKeyboard(display, parent_window, False, GrabModeAsync,
                               GrabModeAsync, CurrentTime) != GrabSuccess) {
-              fprintf(stderr,
-                      "Critical: lost grab but cannot re-grab keyboard.\n");
+              Log("Critical: lost grab but cannot re-grab keyboard");
             }
             if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
                              GrabModeAsync, GrabModeAsync, None, None,
                              CurrentTime) != GrabSuccess) {
-              fprintf(stderr,
-                      "Critical: lost grab but cannot re-grab pointer.\n");
+              Log("Critical: lost grab but cannot re-grab pointer");
             }
           }
           break;
         default:
 #ifdef DEBUG_EVENTS
-          fprintf(stderr, "Event%d %lu\n", priv.ev.type,
-                  (unsigned long)priv.ev.xany.window);
+          Log("Event%d %lu", priv.ev.type, (unsigned long)priv.ev.xany.window);
 #endif
 #ifdef HAVE_SCRNSAVER
           // Handle screen saver notifications. If the screen is blanked anyway,
@@ -904,7 +894,7 @@ int main(int argc, char **argv) {
             break;
           }
 #endif
-          fprintf(stderr, "Received unexpected event %d.\n", priv.ev.type);
+          Log("Received unexpected event %d", priv.ev.type);
           break;
       }
     }

@@ -17,13 +17,13 @@ limitations under the License.
 #include "saver_child.h"
 
 #include <errno.h>     // for ECHILD, EINTR, errno
-#include <signal.h>    // for kill, SIGTERM
-#include <stdio.h>     // for perror, fprintf, NULL, etc
-#include <stdlib.h>    // for exit, EXIT_FAILURE, etc
-#include <sys/wait.h>  // for WEXITSTATUS, waitpid, etc
+#include <signal.h>    // for kill, SIGTERM, sigemptyset, sigprocmask
+#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, EXIT_SUCCESS
+#include <sys/wait.h>  // for WEXITSTATUS, WIFEXITED, WIFSIGNALED
 #include <unistd.h>    // for pid_t, execl, fork, setsid
 
-#include "xscreensaver_api.h"
+#include "logging.h"           // for Log, LogErrno
+#include "xscreensaver_api.h"  // for ExportWindowID
 
 //! The PIDs of currently running saver children, or 0 if not running.
 static pid_t saver_child_pid[MAX_SAVERS] = {0};
@@ -31,8 +31,7 @@ static pid_t saver_child_pid[MAX_SAVERS] = {0};
 void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
                      int should_be_running) {
   if (index < 0 || index >= MAX_SAVERS) {
-    fprintf(stderr, "Saver index out of range: !(0 <= %d < %d).", index,
-            MAX_SAVERS);
+    Log("Saver index out of range: !(0 <= %d < %d)", index, MAX_SAVERS);
     return;
   }
 
@@ -61,7 +60,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
             break;
           default:
             // Assume the child still lives. Shouldn't ever happen.
-            perror("waitpid");
+            LogErrno("waitpid");
             break;
         }
       } else if (pid == saver_child_pid[index]) {
@@ -75,21 +74,19 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
           saver_child_pid[index] = 0;
           if (WIFSIGNALED(status) &&
               (should_be_running || WTERMSIG(status) != SIGTERM)) {
-            fprintf(stderr, "Saver child killed by signal %d.\n",
-                    WTERMSIG(status));
+            Log("Saver child killed by signal %d", WTERMSIG(status));
           }
           if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
-            fprintf(stderr, "Saver child failed with status %d.\n",
-                    WEXITSTATUS(status));
+            Log("Saver child failed with status %d", WEXITSTATUS(status));
           }
           // Now is the time to remove anything the child may have displayed.
           XClearWindow(dpy, w);
         }
         // Otherwise it was suspended or whatever. We need to keep waiting.
       } else if (pid != 0) {
-        fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
+        Log("Unexpectedly woke up for PID %d", (int)pid);
       } else if (!should_be_running) {
-        fprintf(stderr, "Unexpectedly woke up for PID 0 despite no WNOHANG.\n");
+        Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
       }
       // Otherwise, we're still alive.
     } while (!should_be_running && saver_child_pid[index] != 0);
@@ -98,7 +95,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
   if (should_be_running && saver_child_pid[index] == 0) {
     pid_t pid = fork();
     if (pid == -1) {
-      perror("fork");
+      LogErrno("fork");
     } else if (pid == 0) {
       // Child process.
       setsid();
@@ -111,7 +108,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
 
       ExportWindowID(w);
       execl(executable, executable, NULL);  // Flawfinder: ignore
-      perror("execl");
+      LogErrno("execl");
       exit(EXIT_FAILURE);
     } else {
       // Parent process after successful fork.

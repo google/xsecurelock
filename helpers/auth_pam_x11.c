@@ -22,7 +22,7 @@ limitations under the License.
 #include <pwd.h>                    // for getpwuid, passwd
 #include <security/_pam_types.h>    // for PAM_SUCCESS, pam_strerror, pam_re...
 #include <security/pam_appl.h>      // for pam_end, pam_start, pam_acct_mgmt
-#include <stdio.h>                  // for fprintf, stderr, perror, NULL
+#include <stdio.h>                  // for fprintf, stderr, LogErrno, NULL
 #include <stdlib.h>                 // for mblen, exit, free, calloc, getenv
 #include <string.h>                 // for memcpy, strlen, memset
 #include <sys/select.h>             // for timeval, select, FD_SET, FD_ZERO
@@ -34,6 +34,7 @@ limitations under the License.
 #endif
 
 #include "../env_settings.h"      // for GetStringSetting
+#include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "monitors.h"             // for Monitor, GetMonitors, IsMonitorCh...
@@ -94,19 +95,19 @@ const char *get_indicators() {
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
   if (XkbGetNames(display, XkbIndicatorNamesMask | XkbGroupNamesMask, xkb) !=
       Success) {
-    fprintf(stderr, "XkbGetNames failed\n");
+    Log("XkbGetNames failed");
     XkbFreeClientMap(xkb, 0, True);
     return "";
   }
   XkbStateRec state;
   if (XkbGetState(display, XkbUseCoreKbd, &state) != Success) {
-    fprintf(stderr, "XkbGetState failed\n");
+    Log("XkbGetState failed");
     XkbFreeClientMap(xkb, 0, True);
     return "";
   }
   unsigned int istate;
   if (XkbGetIndicatorState(display, XkbUseCoreKbd, &istate) != Success) {
-    fprintf(stderr, "XkbGetIndicatorState failed\n");
+    Log("XkbGetIndicatorState failed");
     XkbFreeClientMap(xkb, 0, True);
     return "";
   }
@@ -116,7 +117,7 @@ const char *get_indicators() {
   const char *word = "Keyboard: ";
   size_t n = strlen(word);  // Flawfinder: ignore
   if (n >= sizeof(buf) - (p - buf)) {
-    fprintf(stderr, "Not enough space to store intro '%s'.\n", word);
+    Log("Not enough space to store intro '%s'", word);
     return "";
   }
   memcpy(p, word, n);  // Flawfinder: ignore
@@ -125,7 +126,7 @@ const char *get_indicators() {
   word = XGetAtomName(display, xkb->names->groups[state.group]);
   n = strlen(word);  // Flawfinder: ignore
   if (n >= sizeof(buf) - (p - buf)) {
-    fprintf(stderr, "Not enough space to store group name '%s'.\n", word);
+    Log("Not enough space to store group name '%s'", word);
     return "";
   }
   memcpy(p, word, n);  // Flawfinder: ignore
@@ -143,10 +144,10 @@ const char *get_indicators() {
     const char *word = XGetAtomName(display, namea);
     size_t n = strlen(word);  // Flawfinder: ignore
     if (n + 2 >= sizeof(buf) - (p - buf)) {
-      fprintf(stderr, "Not enough space to store modifier name '%s'.\n", word);
+      Log("Not enough space to store modifier name '%s'", word);
       continue;
     }
-    memcpy(p, ", ", 2);  // Flawfinder: ignore
+    memcpy(p, ", ", 2);      // Flawfinder: ignore
     memcpy(p + 2, word, n);  // Flawfinder: ignore
     p += n + 2;
   }
@@ -318,7 +319,7 @@ int prompt(const char *msg, char **response, int echo) {
   int blinks = 0;
 
   if (!echo && MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
-    perror("mlock");
+    LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
     alert("Password will not be stored securely.", 1);
@@ -391,7 +392,7 @@ int prompt(const char *msg, char **response, int echo) {
       FD_SET(0, &set);
       int nfds = select(1, &set, NULL, NULL, &timeout);
       if (nfds < 0) {
-        perror("select");
+        LogErrno("select");
         done = 1;
         break;
       }
@@ -409,7 +410,7 @@ int prompt(const char *msg, char **response, int echo) {
 
       ssize_t nread = read(0, &priv.inputbuf, 1);  // Flawfinder: ignore
       if (nread <= 0) {
-        fprintf(stderr, "EOF on password input - bailing out.\n");
+        Log("EOF on password input - bailing out");
         done = 1;
         break;
       }
@@ -450,7 +451,7 @@ int prompt(const char *msg, char **response, int echo) {
         case '\n':
           *response = malloc(priv.pwlen + 1);
           if (!echo && MLOCK_PAGE(*response, priv.pwlen + 1) < 0) {
-            perror("mlock");
+            LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
             alert("Password has not been stored securely.", 1);
@@ -474,7 +475,7 @@ int prompt(const char *msg, char **response, int echo) {
                 PARANOID_PASSWORD_LENGTH;
 #endif
           } else {
-            fprintf(stderr, "Password entered is too long - bailing out.\n");
+            Log("Password entered is too long - bailing out");
             done = 1;
             break;
           }
@@ -495,7 +496,7 @@ int prompt(const char *msg, char **response, int echo) {
   memset(&priv, 0, sizeof(priv));
 
   if (!done) {
-    fprintf(stderr, "Unreachable code - the loop above must set done.\n");
+    Log("Unreachable code - the loop above must set done");
   }
   return status;
 }
@@ -539,11 +540,10 @@ int converse(int num_msg, const struct pam_message **msg,
   (void)appdata_ptr;
 
   if (conv_error) {
-    fprintf(stderr,
-            "converse() got called again with %d messages (first: %s) after "
-            "having failed before - this is very likely a bug in the PAM "
-            "module having made the call. Bailing out.\n",
-            num_msg, num_msg <= 0 ? "(none)" : msg[0]->msg);
+    Log("converse() got called again with %d messages (first: %s) after "
+        "having failed before - this is very likely a bug in the PAM "
+        "module having made the call. Bailing out",
+        num_msg, num_msg <= 0 ? "(none)" : msg[0]->msg);
     exit(1);
   }
 
@@ -610,32 +610,32 @@ int authenticate(const char *username, const char *hostname,
       GetStringSetting("XSECURELOCK_PAM_SERVICE", PAM_SERVICE_NAME);
   int status = pam_start(service_name, username, conv, pam);
   if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_start: %d\n",
-            status);  // Or can one call pam_strerror on a NULL handle?
+    Log("pam_start: %d",
+        status);  // Or can one call pam_strerror on a NULL handle?
     return status;
   }
 
   status = pam_set_item(*pam, PAM_RHOST, hostname);
   if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(*pam, status));
+    Log("pam_set_item: %s", pam_strerror(*pam, status));
     return status;
   }
   status = pam_set_item(*pam, PAM_RUSER, username);
   if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(*pam, status));
+    Log("pam_set_item: %s", pam_strerror(*pam, status));
     return status;
   }
   const char *display = getenv("DISPLAY");  // Flawfinder: ignore
   status = pam_set_item(*pam, PAM_TTY, display);
   if (status != PAM_SUCCESS) {
-    fprintf(stderr, "pam_set_item: %s\n", pam_strerror(*pam, status));
+    Log("pam_set_item: %s", pam_strerror(*pam, status));
     return status;
   }
 
   status = call_pam_with_retries(pam_authenticate, *pam, 0);
   if (status != PAM_SUCCESS) {
     if (!conv_error) {
-      fprintf(stderr, "pam_authenticate: %s\n", pam_strerror(*pam, status));
+      Log("pam_authenticate: %s", pam_strerror(*pam, status));
     }
     return status;
   }
@@ -647,7 +647,7 @@ int authenticate(const char *username, const char *hostname,
 #ifdef PAM_CHECK_ACCOUNT_TYPE
     if (status2 != PAM_SUCCESS) {
       if (!conv_error) {
-        fprintf(stderr, "pam_chauthtok: %s\n", pam_strerror(*pam, status2));
+        Log("pam_chauthtok: %s", pam_strerror(*pam, status2));
       }
       return status2;
     }
@@ -661,7 +661,7 @@ int authenticate(const char *username, const char *hostname,
     // If this one is true, it must be coming from pam_acct_mgmt, as
     // pam_chauthtok's result already has been checked against PAM_SUCCESS.
     if (!conv_error) {
-      fprintf(stderr, "pam_acct_mgmt: %s\n", pam_strerror(*pam, status2));
+      Log("pam_acct_mgmt: %s", pam_strerror(*pam, status2));
     }
     return status2;
   }
@@ -685,13 +685,13 @@ int main() {
 #endif
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
-    fprintf(stderr, "could not connect to $DISPLAY\n");
+    Log("Could not connect to $DISPLAY");
     return 1;
   }
 
   char hostname[256];  // Flawfinder: ignore
   if (gethostname(hostname, sizeof(hostname))) {
-    perror("gethostname");
+    LogErrno("gethostname");
     return 1;
   }
   hostname[sizeof(hostname) - 1] = 0;
@@ -705,19 +705,19 @@ int main() {
   }
   pwd_buf = malloc((size_t)pwd_bufsize);
   if (!pwd_buf) {
-    perror("malloc(pwd_bufsize)");
+    LogErrno("malloc(pwd_bufsize)");
     return 1;
   }
   getpwuid_r(getuid(), &pwd_storage, pwd_buf, (size_t)pwd_bufsize, &pwd);
   if (!pwd) {
-    perror("getpwuid_r");
+    LogErrno("getpwuid_r");
     free(pwd_buf);
     return 1;
   }
 
   window = ReadWindowID();
   if (window == None) {
-    fprintf(stderr, "Invalid/no window ID in XSCREENSAVER_WINDOW.\n");
+    Log("Invalid/no window ID in XSCREENSAVER_WINDOW");
     free(pwd_buf);
     return 1;
   }
@@ -730,17 +730,16 @@ int main() {
   if (font_name[0] != 0) {
     font = XLoadQueryFont(display, font_name);
     if (font == NULL) {
-      fprintf(stderr,
-              "could not load the specified font %s - trying to fall back to "
-              "fixed\n",
-              font_name);
+      Log("Could not load the specified font %s - trying to fall back to "
+          "fixed",
+          font_name);
     }
   }
   if (font == NULL) {
     font = XLoadQueryFont(display, "fixed");
   }
   if (font == NULL) {
-    fprintf(stderr, "could not load a mind-bogglingly stupid font\n");
+    Log("Could not load a mind-bogglingly stupid font");
     exit(1);
   }
 
@@ -772,7 +771,7 @@ int main() {
     return 1;
   }
   if (status2 != PAM_SUCCESS) {
-    fprintf(stderr, "pam_end: %s\n", pam_strerror(pam, status2));
+    Log("pam_end: %s", pam_strerror(pam, status2));
     return 1;
   }
 

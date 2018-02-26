@@ -18,14 +18,14 @@ limitations under the License.
 
 #include <errno.h>     // for ECHILD, EINTR, errno
 #include <signal.h>    // for kill, SIGTERM
-#include <stdio.h>     // for perror, fprintf, stderr
-#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, etc
+#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, EXIT_SUCCESS
 #include <string.h>    // for strlen
-#include <sys/wait.h>  // for waitpid, WEXITSTATUS, etc
-#include <unistd.h>    // for close, pid_t, ssize_t, dup2, etc
+#include <sys/wait.h>  // for WIFEXITED, WIFSIGNALED, waitpid, WEXIT...
+#include <unistd.h>    // for close, pid_t, ssize_t, dup2, execl, fork
 
-#include "env_settings.h"
-#include "xscreensaver_api.h"
+#include "env_settings.h"      // for GetIntSetting
+#include "logging.h"           // for LogErrno, Log
+#include "xscreensaver_api.h"  // for ExportWindowID
 
 //! The PID of a currently running saver child, or 0 if none is running.
 static pid_t auth_child_pid = 0;
@@ -106,7 +106,7 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
           break;
         default:
           // Assume the child still lives. Shouldn't ever happen.
-          perror("waitpid");
+          LogErrno("waitpid");
           break;
       }
     } else if (pid == auth_child_pid) {
@@ -129,13 +129,12 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         // Only report signals; "normal" exit is not worth logging as it usually
         // means authentication failure anyway.
         if (WIFSIGNALED(status)) {
-          fprintf(stderr, "Auth child killed by signal %d.\n",
-                  WTERMSIG(status));
+          Log("Auth child killed by signal %d", WTERMSIG(status));
         }
       }
       // Otherwise, it was suspended or whatever. We need to keep waiting.
     } else if (pid != 0) {
-      fprintf(stderr, "Unexpectedly woke up for PID %d.\n", (int)pid);
+      Log("Unexpectedly woke up for PID %d", (int)pid);
     }
     // Otherwise, we're still alive.
   }
@@ -144,11 +143,11 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
     // Start auth child.
     int pc[2];
     if (pipe(pc)) {
-      perror("pipe");
+      LogErrno("pipe");
     } else {
       pid_t pid = fork();
       if (pid == -1) {
-        perror("fork");
+        LogErrno("fork");
       } else if (pid == 0) {
         // Child process.
         setsid();
@@ -157,7 +156,7 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         close(pc[0]);
         close(pc[1]);
         execl(executable, executable, NULL);  // Flawfinder: ignore
-        perror("execl");
+        LogErrno("execl");
         exit(EXIT_FAILURE);
       } else {
         // Parent process after successful fork.
@@ -184,12 +183,12 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
       ssize_t to_write = (ssize_t)strlen(stdinbuf);  // Flawfinder: ignore
       ssize_t written = write(auth_child_fd, stdinbuf, to_write);
       if (written < 0) {
-        perror("Failed to send all data to the auth child");
+        LogErrno("Failed to send all data to the auth child");
       } else if (written != to_write) {
-        fprintf(stderr, "Failed to send all data to the auth child.\n");
+        Log("Failed to send all data to the auth child");
       }
     } else {
-      fprintf(stderr, "No auth child. Can't send key events...\n");
+      Log("No auth child. Can't send key events");
     }
   }
 

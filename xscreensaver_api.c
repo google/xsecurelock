@@ -21,6 +21,7 @@ limitations under the License.
 #include <stdlib.h>  // for setenv
 
 #include "env_settings.h"  // for GetUnsignedLongLongSetting
+#include "logging.h"
 
 void ExportWindowID(Window w) {
   char window_id_str[32];  // Flawfinder: ignore
@@ -28,7 +29,7 @@ void ExportWindowID(Window w) {
       snprintf(window_id_str, sizeof(window_id_str),  // Flawfinder: ignore
                "%llu", (unsigned long long)w);
   if (window_id_len <= 0 || (size_t)window_id_len >= sizeof(window_id_str)) {
-    fprintf(stderr, "Window ID doesn't fit into buffer.\n");
+    Log("Window ID doesn't fit into buffer");
     return;
   }
   setenv("XSCREENSAVER_WINDOW", window_id_str, 1);
