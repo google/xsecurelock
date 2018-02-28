@@ -48,14 +48,18 @@ int main() {
     fprintf(stderr, "Could not connect to $DISPLAY.\n");
     return 1;
   }
+
   char buf[64];                                 // Flawfinder: ignore
   snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d",  // Flawfinder: ignore
            (int)DefaultScreen(display));
   buf[sizeof(buf) - 1] = 0;
   Atom atom = XInternAtom(display, buf, False);
   DumpWindow(buf, XGetSelectionOwner(display, atom));
-  DumpWindow("Composite overlay",
-             XCompositeGetOverlayWindow(display, DefaultRootWindow(display)));
+
+  Window cow = XCompositeGetOverlayWindow(display, DefaultRootWindow(display));
+  // Instantly release to prevent black screen with compton --backend glx.
+  XCompositeReleaseOverlayWindow(display, cow);
+  DumpWindow("Composite overlay", cow);
 
   return 0;
 }
