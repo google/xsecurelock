@@ -434,7 +434,7 @@ int main(int argc, char **argv) {
 
   // Prepare some nice window attributes for a screen saver window.
   XColor black;
-  black.pixel = WhitePixel(display, DefaultScreen(display));
+  black.pixel = BlackPixel(display, DefaultScreen(display));
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
   Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
