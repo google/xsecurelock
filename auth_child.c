@@ -155,7 +155,7 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         dup2(pc[0], 0);
         close(pc[0]);
         close(pc[1]);
-        execl(executable, executable, NULL);  // Flawfinder: ignore
+        execl(executable, executable, NULL);
         LogErrno("execl");
         exit(EXIT_FAILURE);
       } else {
@@ -180,7 +180,7 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
   // Send the provided keyboard buffer to stdin.
   if (stdinbuf != NULL && stdinbuf[0] != 0) {
     if (auth_child_pid != 0) {
-      ssize_t to_write = (ssize_t)strlen(stdinbuf);  // Flawfinder: ignore
+      ssize_t to_write = (ssize_t)strlen(stdinbuf);
       ssize_t written = write(auth_child_fd, stdinbuf, to_write);
       if (written < 0) {
         LogErrno("Failed to send all data to the auth child");

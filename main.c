@@ -176,7 +176,7 @@ int WakeUp(Display *dpy, Window w, const char *stdinbuf) {
  * This is used to prevent X11 errors from terminating XSecureLock.
  */
 int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
-  char buf[128];  // Flawfinder: ignore
+  char buf[128];
   XGetErrorText(display, error->error_code, buf, sizeof(buf));
   buf[sizeof(buf) - 1] = 0;
   Log("Got non-fatal X11 error: %s", buf);
@@ -295,7 +295,7 @@ int check_settings() {
     Log("Auth module name may not contain a dot");
     return 0;
   }
-  if (access(auth_executable, X_OK)) {  // Flawfinder: ignore
+  if (access(auth_executable, X_OK)) {
     Log("Auth module must be executable");
     return 0;
   }
@@ -312,7 +312,7 @@ int check_settings() {
     Log("Saver module name may not contain a dot");
     return 0;
   }
-  if (access(saver_executable, X_OK)) {  // Flawfinder: ignore
+  if (access(saver_executable, X_OK)) {
     Log("Saver module must be executable");
     return 0;
   }
@@ -373,7 +373,7 @@ void NotifyOfLock(int x11_fd) {
       LogErrno("fork");
     } else if (pid == 0) {
       // Child process.
-      execvp(notify_command[0], notify_command);  // Flawfinder: ignore
+      execvp(notify_command[0], notify_command);
       LogErrno("execvp");
       exit(EXIT_FAILURE);
     } else {
@@ -617,7 +617,7 @@ int main(int argc, char **argv) {
     // The received X event.
     XEvent ev;
     // The decoded key press.
-    char buf[16];  // Flawfinder: ignore
+    char buf[16];
     // The length of the data in buf.
     int len;
   } priv;

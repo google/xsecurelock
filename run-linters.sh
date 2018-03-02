@@ -37,11 +37,6 @@ if which clang-tidy; then
     *.[ch] */*.[ch]
 fi
 
-# FlawFinder.
-if which flawfinder; then
-  flawfinder .
-fi
-
 # CPPCheck.
 if which cppcheck; then
   cppcheck --enable=all --inconclusive --std=posix  .

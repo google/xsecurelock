@@ -8,7 +8,7 @@ void Log(const char *format, ...) {
   va_list args;
   va_start(args, format);
   fputs("xsecurelock: ", stderr);
-  vfprintf(stderr, format, args);  // Flawfinder: ignore
+  vfprintf(stderr, format, args);
   fputs(".\n", stderr);
   va_end(args);
 }
@@ -18,7 +18,7 @@ void LogErrno(const char *format, ...) {
   va_list args;
   va_start(args, format);
   fputs("xsecurelock: ", stderr);
-  vfprintf(stderr, format, args);  // Flawfinder: ignore
+  vfprintf(stderr, format, args);
   fputs(": ", stderr);
   errno = errno_save;
   perror(NULL);
