@@ -103,8 +103,8 @@ Options to XSecureLock can be passed by environment variables:
 * `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
   in when blanking (one of standby, suspend, off and on, where "on" means to not
   invoke DPMS at all).
-* `XSECURELOCK_FONT`: X11 font name to use for auth_pam_x11. You can get a list
-  of supported font names by running `xlsfonts`.
+* `XSECURELOCK_FONT`: X11 font name to use for `auth_pam_x11`. You can get a
+  list of supported font names by running `xlsfonts`.
 * `XSECURELOCK_GLOBAL_SAVER`: specifies the desired global screen saver module
   (by default this is a multiplexer that runs `XSECURELOCK_SAVER` on each
   screen).
@@ -116,6 +116,7 @@ Options to XSecureLock can be passed by environment variables:
   fall back to XRandR 1.2. Not recommended.
 * `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with that
   name in `/etc/pam.d`.
+* `XSECURELOCK_PARANOID_PASSWORD`: make `auth_pam_x11` hide the password length.
 * `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 * `XSECURELOCK_WANT_FIRST_KEYPRESS`: If set to 1, the key pressed to stop the
   screen saver and spawn the auth child is sent to the auth child (and thus
