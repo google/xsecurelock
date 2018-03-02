@@ -344,12 +344,8 @@ int prompt(const char *msg, char **response, int echo) {
     } else {
 #ifdef PARANOID_PASSWORD
       priv.displaylen = PARANOID_PASSWORD_LENGTH;
-      if (priv.pwlen != 0) {
-        memset(priv.displaybuf, '*', priv.displaylen);
-        priv.displaybuf[priv.displaymarker] = '|';
-      } else {
-        memset(priv.displaybuf, '_', priv.displaylen);
-      }
+      memset(priv.displaybuf, '_', priv.displaylen);
+      priv.displaybuf[priv.pwlen ? priv.displaymarker : 0] = (blinks % 2) ? '|' : '-';
 #else
       mblen(NULL, 0);
       priv.pos = priv.displaylen = 0;
@@ -367,10 +363,14 @@ int prompt(const char *msg, char **response, int echo) {
       memset(priv.displaybuf, '*', priv.displaylen);
 #endif
     }
+#ifdef PARANOID_PASSWORD
+    priv.displaybuf[priv.displaylen] = '\0';
+#else
     // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
     // priv.pwlen + 2 <= sizeof(priv.displaybuf).
     priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
-    priv.displaybuf[priv.displaylen + 1] = 0;
+    priv.displaybuf[priv.displaylen + 1] = '\0';
+#endif
     display_string(msg, priv.displaybuf);
 
     // Blink the cursor.
