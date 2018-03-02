@@ -187,9 +187,25 @@ void display_string(const char *title, const char *str) {
   int tw_indicators = XTextWidth(font, indicators, len_indicators);
 #endif
 
-  if (region_w == 0 || region_h == 0) {
-    XClearWindow(display, window);
+  // Compute the region we will be using, relative to cx and cy.
+  if (region_w < tw_title + tw_cursor) {
+    region_w = tw_title + tw_cursor;
   }
+  if (region_w < tw_str + tw_cursor) {
+    region_w = tw_str + tw_cursor;
+  }
+#ifdef HAVE_XKB
+  if (region_w < tw_indicators + tw_cursor) {
+    region_w = tw_indicators + tw_cursor;
+  }
+#endif
+  region_x = -region_w / 2;
+#ifdef HAVE_XKB
+  region_h = 4 * th;
+#else
+  region_h = 3 * th;
+#endif
+  region_y = -region_h / 2;
 
   int i;
   for (i = 0; i < num_monitors; ++i) {
@@ -224,25 +240,6 @@ void display_string(const char *title, const char *str) {
     // Disable clipping again.
     XSetClipMask(display, gc, None);
   }
-
-  // Remember the region we just wrote to, relative to cx and cy.
-  region_w = tw_title;
-  if (tw_str > region_w) {
-    region_w = tw_str;
-  }
-#ifdef HAVE_XKB
-  if (tw_indicators > region_w) {
-    region_w = tw_indicators;
-  }
-#endif
-  region_w += tw_cursor;
-  region_x = -region_w / 2;
-#ifdef HAVE_XKB
-  region_h = 4 * th;
-#else
-  region_h = 3 * th;
-#endif
-  region_y = -region_h / 2;
 
   // Make the things just drawn appear on the screen as soon as possible.
   XFlush(display);
