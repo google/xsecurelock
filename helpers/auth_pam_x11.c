@@ -437,8 +437,8 @@ int prompt(const char *msg, char **response, int echo) {
             priv.displaymarker =
                 (priv.displaymarker + PARANOID_PASSWORD_MIN_CHANGE +
                  rand() % (PARANOID_PASSWORD_LENGTH -
-                           2 * PARANOID_PASSWORD_MIN_CHANGE + 1)) %
-                PARANOID_PASSWORD_LENGTH;
+                           2 * PARANOID_PASSWORD_MIN_CHANGE)) %
+                (PARANOID_PASSWORD_LENGTH - 1) + 1;
           }
 #endif
           priv.pwlen = priv.prevpos;
@@ -472,8 +472,8 @@ int prompt(const char *msg, char **response, int echo) {
             priv.displaymarker =
                 (priv.displaymarker + PARANOID_PASSWORD_MIN_CHANGE +
                  rand() % (PARANOID_PASSWORD_LENGTH -
-                           2 * PARANOID_PASSWORD_MIN_CHANGE + 1)) %
-                PARANOID_PASSWORD_LENGTH;
+                           2 * PARANOID_PASSWORD_MIN_CHANGE)) %
+                (PARANOID_PASSWORD_LENGTH - 1) + 1;
 #endif
           } else {
             Log("Password entered is too long - bailing out");
