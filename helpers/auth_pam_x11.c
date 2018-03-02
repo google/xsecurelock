@@ -341,11 +341,17 @@ int prompt(const char *msg, char **response, int echo) {
         memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);
       }
       priv.displaylen = priv.pwlen;
+      // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
+      // priv.pwlen + 2 <= sizeof(priv.displaybuf).
+      priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
+      priv.displaybuf[priv.displaylen + 1] = '\0';
     } else {
 #ifdef PARANOID_PASSWORD
       priv.displaylen = PARANOID_PASSWORD_LENGTH;
       memset(priv.displaybuf, '_', priv.displaylen);
-      priv.displaybuf[priv.pwlen ? priv.displaymarker : 0] = (blinks % 2) ? '|' : '-';
+      priv.displaybuf[priv.pwlen ? priv.displaymarker : 0] =
+          (blinks % 2) ? '|' : '-';
+      priv.displaybuf[priv.displaylen] = '\0';
 #else
       mblen(NULL, 0);
       priv.pos = priv.displaylen = 0;
@@ -361,16 +367,12 @@ int prompt(const char *msg, char **response, int echo) {
         priv.pos += priv.len;
       }
       memset(priv.displaybuf, '*', priv.displaylen);
+      // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
+      // priv.pwlen + 2 <= sizeof(priv.displaybuf).
+      priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
+      priv.displaybuf[priv.displaylen + 1] = '\0';
 #endif
     }
-#ifdef PARANOID_PASSWORD
-    priv.displaybuf[priv.displaylen] = '\0';
-#else
-    // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
-    // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-    priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
-    priv.displaybuf[priv.displaylen + 1] = '\0';
-#endif
     display_string(msg, priv.displaybuf);
 
     // Blink the cursor.
