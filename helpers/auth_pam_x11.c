@@ -435,7 +435,7 @@ int prompt(const char *msg, char **response, int echo) {
 #ifdef PARANOID_PASSWORD
           if (priv.prevpos != priv.pwlen) {
             priv.displaymarker =
-                (priv.displaymarker + PARANOID_PASSWORD_MIN_CHANGE +
+                (priv.displaymarker - 1 + PARANOID_PASSWORD_MIN_CHANGE +
                  rand() % (PARANOID_PASSWORD_LENGTH -
                            2 * PARANOID_PASSWORD_MIN_CHANGE)) %
                 (PARANOID_PASSWORD_LENGTH - 1) + 1;
@@ -470,7 +470,7 @@ int prompt(const char *msg, char **response, int echo) {
             ++priv.pwlen;
 #ifdef PARANOID_PASSWORD
             priv.displaymarker =
-                (priv.displaymarker + PARANOID_PASSWORD_MIN_CHANGE +
+                (priv.displaymarker - 1 + PARANOID_PASSWORD_MIN_CHANGE +
                  rand() % (PARANOID_PASSWORD_LENGTH -
                            2 * PARANOID_PASSWORD_MIN_CHANGE)) %
                 (PARANOID_PASSWORD_LENGTH - 1) + 1;
