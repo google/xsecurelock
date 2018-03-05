@@ -409,8 +409,8 @@ int prompt(const char *msg, char **response, int echo) {
         break;
       }
       switch (priv.inputbuf) {
-        case '\b':
-        case '\177': {
+        case '\b':      // Backspace.
+        case '\177': {  // Delete (note: i3lock does not handle this one).
           // Backwards skip with multibyte support.
           mblen(NULL, 0);
           priv.pos = priv.prevpos = 0;
@@ -436,12 +436,23 @@ int prompt(const char *msg, char **response, int echo) {
           priv.pwlen = priv.prevpos;
           break;
         }
-        case 0:
-        case '\033':
+        case '\025':  // Ctrl-U.
+          // Delete the entire input line.
+          // TODO(divVerent): https://github.com/google/xsecurelock/issues/25
+          // is asking for automatic clearing on Ctrl-A. This seems a bit more
+          // tricky as usual UI behavior of Ctrl-A is more complex than just
+          // clearing - however we may consider just erasing the input line on
+          // that too.
+          // i3lock: supports Ctrl-U but not Ctrl-A.
+          // xscreensaver: supports Ctrl-U and Ctrl-X but not Ctrl-A.
+          priv.pwlen = 0;
+          break;
+        case 0:       // Shouldn't happen.
+        case '\033':  // Escape.
           done = 1;
           break;
-        case '\r':
-        case '\n':
+        case '\r':  // Return.
+        case '\n':  // Return.
           *response = malloc(priv.pwlen + 1);
           if (!echo && MLOCK_PAGE(*response, priv.pwlen + 1) < 0) {
             LogErrno("mlock");
