@@ -55,20 +55,25 @@ mode=$(
 )
 
 selected=
-if [ x"$mode" = xone ]; then
-  selected=$(
-    xrdb -n ~/.xscreensaver 2>/dev/null |\
-      grep ^selected: |\
-      cut -f 2
-  )
-fi
-
-if [ -z "$selected" ]; then
-  # We're using the parent process ID here, which may be a saver_multiplex
-  # instance. This ensures that multiple instances of this always spawn the same
-  # saver on each screen.
-  selected=$PPID
-fi
+case "$mode" in
+  one)
+    selected=$(
+      xrdb -n ~/.xscreensaver 2>/dev/null |\
+        grep ^selected: |\
+        cut -f 2
+    )
+    ;;
+  random)  # NOT random-same.
+    # Try bash's $RANDOM, but if it's not there, just use the PID.
+    selected=${RANDOM:-$$}
+    ;;
+  *)
+    # We're using the parent process ID here, which may be a saver_multiplex
+    # instance. This ensures that multiple instances of this always spawn the
+    # same saver on each screen.
+    selected=$PPID
+    ;;
+esac
 
 selectsaver() {
   savers=$(allsavers)
