@@ -468,6 +468,12 @@ int prompt(const char *msg, char **response, int echo) {
           done = 1;
           break;
         default:
+          if (priv.inputbuf >= '\000' && priv.inputbuf <= '\037') {
+            // Other control character. We ignore them (and specifically do not
+            // update the cursor on them) to "discourage" their use in
+            // passwords, as most login screens do not support them anyway.
+            break;
+          }
           if (priv.pwlen < sizeof(priv.pwbuf)) {
             priv.pwbuf[priv.pwlen] = priv.inputbuf;
             ++priv.pwlen;
