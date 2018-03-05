@@ -46,6 +46,10 @@ limitations under the License.
 #ifdef HAVE_XF86MISC
 #include <X11/extensions/xf86misc.h>  // for XF86MiscSetGrabKeysState
 #endif
+#ifdef HAVE_XFIXES
+#include <X11/extensions/Xfixes.h>      // for XFixesSetWindowShapeRegion
+#include <X11/extensions/shapeconst.h>  // for ShapeBounding
+#endif
 
 #include "auth_child.h"     // for WantAuthChild, WatchAuthChild
 #include "env_settings.h"   // for GetIntSetting, GetStringSetting
@@ -467,6 +471,13 @@ int main(int argc, char **argv) {
   Window composite_window;
   if (have_composite) {
     composite_window = XCompositeGetOverlayWindow(display, root_window);
+    // Some compositers may unmap or shape the overlay window - undo that, just
+    // in case.
+    XMapRaised(display, composite_window);
+#ifdef HAVE_XFIXES
+    XFixesSetWindowShapeRegion(display, composite_window, ShapeBounding,  //
+                               0, 0, 0);
+#endif
     parent_window = composite_window;
   }
 #endif

@@ -14,8 +14,38 @@
 
 AM_CFLAGS = -Wall -Wextra -D_POSIX_C_SOURCE=200112L
 
-bin_PROGRAMS = xsecurelock
+macros = \
+	-DHELPER_PATH=\"$(pkglibexecdir)\" \
+	-DDOCS_PATH=\"$(docdir)\" \
+	-DAUTH_EXECUTABLE=\"@auth_executable@\" \
+	-DGLOBAL_SAVER_EXECUTABLE=\"@global_saver_executable@\" \
+	-DSAVER_EXECUTABLE=\"@saver_executable@\" \
+	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
+if PAM_CHECK_ACCOUNT_TYPE
+macros += \
+	-DPAM_CHECK_ACCOUNT_TYPE
+endif
+if HAVE_SCRNSAVER
+macros += -DHAVE_SCRNSAVER
+endif
+if HAVE_COMPOSITE
+macros += -DHAVE_COMPOSITE
+endif
+if HAVE_XF86MISC
+macros += -DHAVE_XF86MISC
+endif
+if HAVE_XFIXES
+macros += -DHAVE_XFIXES
+endif
+if HAVE_XRANDR
+macros += -DHAVE_XRANDR
+endif
+if HAVE_XKB
+macros += -DHAVE_XKB
+endif
 
+bin_PROGRAMS = \
+	xsecurelock
 xsecurelock_SOURCES = \
 	auth_child.c auth_child.h \
 	env_settings.c env_settings.h \
@@ -25,27 +55,11 @@ xsecurelock_SOURCES = \
 	saver_child.c saver_child.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
-xsecurelock_CPPFLAGS = \
-	-DHELPER_PATH=\"$(pkglibexecdir)\" \
-	-DDOCS_PATH=\"$(docdir)\" \
-	-DAUTH_EXECUTABLE=\"@auth_executable@\" \
-	-DGLOBAL_SAVER_EXECUTABLE=\"@global_saver_executable@\" \
-	-DSAVER_EXECUTABLE=\"@saver_executable@\"
-
-if HAVE_SCRNSAVER
-xsecurelock_CPPFLAGS += -DHAVE_SCRNSAVER
-endif
-if HAVE_COMPOSITE
-xsecurelock_CPPFLAGS += -DHAVE_COMPOSITE
-endif
-if HAVE_XF86MISC
-xsecurelock_CPPFLAGS += -DHAVE_XF86MISC
-endif
+xsecurelock_CPPFLAGS = $(macros)
 
 helpersdir = $(pkglibexecdir)
 helpers_SCRIPTS = \
 	helpers/saver_blank
-
 if HAVE_HTPASSWD
 helpers_SCRIPTS += \
 	helpers/auth_htpasswd
@@ -77,11 +91,7 @@ saver_multiplex_SOURCES = \
 	saver_child.c saver_child.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
-saver_multiplex_CPPFLAGS = \
-	-DSAVER_EXECUTABLE=\"@saver_executable@\"
-if HAVE_XRANDR
-saver_multiplex_CPPFLAGS += -DHAVE_XRANDR
-endif
+saver_multiplex_CPPFLAGS = $(macros)
 
 if HAVE_PAM
 helpers_PROGRAMS += \
@@ -93,18 +103,7 @@ auth_pam_x11_SOURCES = \
 	logging.c logging.h \
 	mlock_page.h \
 	xscreensaver_api.c xscreensaver_api.h
-auth_pam_x11_CPPFLAGS = \
-	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
-if PAM_CHECK_ACCOUNT_TYPE
-auth_pam_x11_CPPFLAGS += \
-	-DPAM_CHECK_ACCOUNT_TYPE
-endif
-if HAVE_XKB
-auth_pam_x11_CPPFLAGS += -DHAVE_XKB
-endif
-if HAVE_XRANDR
-auth_pam_x11_CPPFLAGS += -DHAVE_XRANDR
-endif
+auth_pam_x11_CPPFLAGS = $(macros)
 endif
 
 docsdir = $(docdir)

@@ -94,6 +94,12 @@ RP_SEARCH_LIBS(XRRGetScreenResources, Xrandr,
                [HAVE_XRANDR], [xrandr], [check],
                [Use the XRandR extension to query monitor layouts])
 
+# The XFixes extension is used to work around possible weird leftover state from
+# compositors.
+RP_SEARCH_LIBS(XFixesSetWindowShapeRegion, Xfixes,
+               [HAVE_XFIXES], [xfixes], [check],
+               [Use the XFixes extension to work around some compositors])
+
 RP_SEARCH_PROG(htpasswd, [$PATH],
                [HAVE_HTPASSWD], [htpasswd], [check],
                [Install auth_htpasswd (specify --with-htpasswd=/usr/bin/htpasswd to set the path to use)])
