@@ -67,13 +67,14 @@ case "$mode" in
     # Try bash's $RANDOM, but if it's not there, just use the PID.
     selected=${RANDOM:-$$}
     ;;
-  *)
-    # We're using the parent process ID here, which may be a saver_multiplex
-    # instance. This ensures that multiple instances of this always spawn the
-    # same saver on each screen.
-    selected=$PPID
-    ;;
 esac
+
+if [ -z "$selected" ]; then
+  # We're using the parent process ID here, which may be a saver_multiplex
+  # instance. This ensures that multiple instances of this always spawn the same
+  # saver on each screen.
+  selected=$PPID
+fi
 
 selectsaver() {
   savers=$(allsavers)
