@@ -45,14 +45,14 @@ limitations under the License.
 //! The maximum time to wait at a prompt for user input in microseconds.
 #define PROMPT_TIMEOUT (5 * 60 * 1000 * 1000)
 
-//! Do not reveal the length of the password.
-#define PARANOID_PASSWORD
-
 //! Length of the "paranoid password display".
 #define PARANOID_PASSWORD_LENGTH 32
 
 //! Minimum distance the cursor shall move on keypress.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
+
+//! Whether password display should hide the length.
+int paranoid_password = 1;
 
 //! The X11 display.
 Display *display;
@@ -88,7 +88,7 @@ static Monitor monitors[MAX_MONITORS];
  * \return The current modifier mask as a string.
  */
 const char *get_indicators() {
-  static char buf[128];  // Flawfinder: ignore
+  static char buf[128];
   char *p;
 
   XkbDescPtr xkb;
@@ -115,21 +115,21 @@ const char *get_indicators() {
   p = buf;
 
   const char *word = "Keyboard: ";
-  size_t n = strlen(word);  // Flawfinder: ignore
+  size_t n = strlen(word);
   if (n >= sizeof(buf) - (p - buf)) {
     Log("Not enough space to store intro '%s'", word);
     return "";
   }
-  memcpy(p, word, n);  // Flawfinder: ignore
+  memcpy(p, word, n);
   p += n;
 
   word = XGetAtomName(display, xkb->names->groups[state.group]);
-  n = strlen(word);  // Flawfinder: ignore
+  n = strlen(word);
   if (n >= sizeof(buf) - (p - buf)) {
     Log("Not enough space to store group name '%s'", word);
     return "";
   }
-  memcpy(p, word, n);  // Flawfinder: ignore
+  memcpy(p, word, n);
   p += n;
 
   int i;
@@ -142,13 +142,13 @@ const char *get_indicators() {
       continue;
     }
     const char *word = XGetAtomName(display, namea);
-    size_t n = strlen(word);  // Flawfinder: ignore
+    size_t n = strlen(word);
     if (n + 2 >= sizeof(buf) - (p - buf)) {
       Log("Not enough space to store modifier name '%s'", word);
       continue;
     }
-    memcpy(p, ", ", 2);      // Flawfinder: ignore
-    memcpy(p + 2, word, n);  // Flawfinder: ignore
+    memcpy(p, ", ", 2);
+    memcpy(p + 2, word, n);
     p += n + 2;
   }
   *p = 0;
@@ -173,24 +173,39 @@ void display_string(const char *title, const char *str) {
   int th = font->max_bounds.ascent + font->max_bounds.descent + 4;
   int to = font->max_bounds.ascent + 2;  // Text at to has bbox from 0 to th.
 
-  int len_title = strlen(title);  // Flawfinder: ignore
+  int len_title = strlen(title);
   int tw_title = XTextWidth(font, title, len_title);
 
-  int len_str = strlen(str);  // Flawfinder: ignore
+  int len_str = strlen(str);
   int tw_str = XTextWidth(font, str, len_str);
 
-  int tw_cursor =
-      XTextWidth(font, cursor, strlen(cursor));  // Flawfinder: ignore
+  int tw_cursor = XTextWidth(font, cursor, strlen(cursor));
 
 #ifdef HAVE_XKB
   const char *indicators = get_indicators();
-  int len_indicators = strlen(indicators);  // Flawfinder: ignore
+  int len_indicators = strlen(indicators);
   int tw_indicators = XTextWidth(font, indicators, len_indicators);
 #endif
 
-  if (region_w == 0 || region_h == 0) {
-    XClearWindow(display, window);
+  // Compute the region we will be using, relative to cx and cy.
+  if (region_w < tw_title + tw_cursor) {
+    region_w = tw_title + tw_cursor;
   }
+  if (region_w < tw_str + tw_cursor) {
+    region_w = tw_str + tw_cursor;
+  }
+#ifdef HAVE_XKB
+  if (region_w < tw_indicators + tw_cursor) {
+    region_w = tw_indicators + tw_cursor;
+  }
+#endif
+  region_x = -region_w / 2;
+#ifdef HAVE_XKB
+  region_h = 4 * th;
+#else
+  region_h = 3 * th;
+#endif
+  region_y = -region_h / 2;
 
   int i;
   for (i = 0; i < num_monitors; ++i) {
@@ -225,25 +240,6 @@ void display_string(const char *title, const char *str) {
     // Disable clipping again.
     XSetClipMask(display, gc, None);
   }
-
-  // Remember the region we just wrote to, relative to cx and cy.
-  region_w = tw_title;
-  if (tw_str > region_w) {
-    region_w = tw_str;
-  }
-#ifdef HAVE_XKB
-  if (tw_indicators > region_w) {
-    region_w = tw_indicators;
-  }
-#endif
-  region_w += tw_cursor;
-  region_x = -region_w / 2;
-#ifdef HAVE_XKB
-  region_h = 4 * th;
-#else
-  region_h = 3 * th;
-#endif
-  region_y = -region_h / 2;
 
   // Make the things just drawn appear on the screen as soon as possible.
   XFlush(display);
@@ -291,21 +287,19 @@ int prompt(const char *msg, char **response, int echo) {
     XEvent ev;
 
     // Input buffer. Not NUL-terminated.
-    char pwbuf[PWBUF_SIZE];  // Flawfinder: ignore
+    char pwbuf[PWBUF_SIZE];
     // Current input length.
     size_t pwlen;
 
     // Display buffer. If echo is 0, this will only contain asterisks, a
     // possible cursor, and be NUL-terminated.
-    char displaybuf[DISPLAYBUF_SIZE];  // Flawfinder: ignore
+    char displaybuf[DISPLAYBUF_SIZE];
     // Display buffer length.
     size_t displaylen;
 
-#ifdef PARANOID_PASSWORD
     // The display marker changes on every input action to a value from 0 to
     // PARANOID_PASSWORD-1. It indicates where to display the "cursor".
     size_t displaymarker;
-#endif
 
     // Character read buffer.
     char inputbuf;
@@ -339,19 +333,20 @@ int prompt(const char *msg, char **response, int echo) {
   while (!done) {
     if (echo) {
       if (priv.pwlen != 0) {
-        memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);  // Flawfinder: ignore
+        memcpy(priv.displaybuf, priv.pwbuf, priv.pwlen);
       }
       priv.displaylen = priv.pwlen;
-    } else {
-#ifdef PARANOID_PASSWORD
+      // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
+      // priv.pwlen + 2 <= sizeof(priv.displaybuf).
+      priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
+      priv.displaybuf[priv.displaylen + 1] = '\0';
+    } else if (paranoid_password) {
       priv.displaylen = PARANOID_PASSWORD_LENGTH;
-      if (priv.pwlen != 0) {
-        memset(priv.displaybuf, '*', priv.displaylen);
-        priv.displaybuf[priv.displaymarker] = '|';
-      } else {
-        memset(priv.displaybuf, '_', priv.displaylen);
-      }
-#else
+      memset(priv.displaybuf, '_', priv.displaylen);
+      priv.displaybuf[priv.pwlen ? priv.displaymarker : 0] =
+          (blinks % 2) ? '|' : '-';
+      priv.displaybuf[priv.displaylen] = '\0';
+    } else {
       mblen(NULL, 0);
       priv.pos = priv.displaylen = 0;
       while (priv.pos < priv.pwlen) {
@@ -366,12 +361,11 @@ int prompt(const char *msg, char **response, int echo) {
         priv.pos += priv.len;
       }
       memset(priv.displaybuf, '*', priv.displaylen);
-#endif
+      // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
+      // priv.pwlen + 2 <= sizeof(priv.displaybuf).
+      priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
+      priv.displaybuf[priv.displaylen + 1] = '\0';
     }
-    // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
-    // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-    priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
-    priv.displaybuf[priv.displaylen + 1] = 0;
     display_string(msg, priv.displaybuf);
 
     // Blink the cursor.
@@ -408,7 +402,7 @@ int prompt(const char *msg, char **response, int echo) {
       // the prompt timeout.
       blinks = 0;
 
-      ssize_t nread = read(0, &priv.inputbuf, 1);  // Flawfinder: ignore
+      ssize_t nread = read(0, &priv.inputbuf, 1);
       if (nread <= 0) {
         Log("EOF on password input - bailing out");
         done = 1;
@@ -431,15 +425,14 @@ int prompt(const char *msg, char **response, int echo) {
             }
             priv.pos += priv.len;
           }
-#ifdef PARANOID_PASSWORD
           if (priv.prevpos != priv.pwlen) {
             priv.displaymarker =
-                (priv.displaymarker + PARANOID_PASSWORD_MIN_CHANGE +
+                (priv.displaymarker - 1 + PARANOID_PASSWORD_MIN_CHANGE +
                  rand() % (PARANOID_PASSWORD_LENGTH -
-                           2 * PARANOID_PASSWORD_MIN_CHANGE + 1)) %
-                PARANOID_PASSWORD_LENGTH;
+                           2 * PARANOID_PASSWORD_MIN_CHANGE)) %
+                    (PARANOID_PASSWORD_LENGTH - 1) +
+                1;
           }
-#endif
           priv.pwlen = priv.prevpos;
           break;
         }
@@ -457,7 +450,7 @@ int prompt(const char *msg, char **response, int echo) {
             alert("Password has not been stored securely.", 1);
           }
           if (priv.pwlen != 0) {
-            memcpy(*response, priv.pwbuf, priv.pwlen);  // Flawfinder: ignore
+            memcpy(*response, priv.pwbuf, priv.pwlen);
           }
           (*response)[priv.pwlen] = 0;
           status = PAM_SUCCESS;
@@ -467,13 +460,12 @@ int prompt(const char *msg, char **response, int echo) {
           if (priv.pwlen < sizeof(priv.pwbuf)) {
             priv.pwbuf[priv.pwlen] = priv.inputbuf;
             ++priv.pwlen;
-#ifdef PARANOID_PASSWORD
             priv.displaymarker =
-                (priv.displaymarker + PARANOID_PASSWORD_MIN_CHANGE +
+                (priv.displaymarker - 1 + PARANOID_PASSWORD_MIN_CHANGE +
                  rand() % (PARANOID_PASSWORD_LENGTH -
-                           2 * PARANOID_PASSWORD_MIN_CHANGE + 1)) %
-                PARANOID_PASSWORD_LENGTH;
-#endif
+                           2 * PARANOID_PASSWORD_MIN_CHANGE)) %
+                    (PARANOID_PASSWORD_LENGTH - 1) +
+                1;
           } else {
             Log("Password entered is too long - bailing out");
             done = 1;
@@ -625,7 +617,7 @@ int authenticate(const char *username, const char *hostname,
     Log("pam_set_item: %s", pam_strerror(*pam, status));
     return status;
   }
-  const char *display = getenv("DISPLAY");  // Flawfinder: ignore
+  const char *display = getenv("DISPLAY");
   status = pam_set_item(*pam, PAM_TTY, display);
   if (status != PAM_SUCCESS) {
     Log("pam_set_item: %s", pam_strerror(*pam, status));
@@ -679,17 +671,18 @@ int authenticate(const char *username, const char *hostname,
 int main() {
   setlocale(LC_CTYPE, "");
 
-#ifdef PARANOID_PASSWORD
   // This is used by displaymarker only (no security relevance of the RNG).
-  srand(time(NULL));  // Flawfinder: ignore
-#endif
+  srand(time(NULL));
+
+  paranoid_password =
+      GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", paranoid_password);
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     Log("Could not connect to $DISPLAY");
     return 1;
   }
 
-  char hostname[256];  // Flawfinder: ignore
+  char hostname[256];
   if (gethostname(hostname, sizeof(hostname))) {
     LogErrno("gethostname");
     return 1;

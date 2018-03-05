@@ -23,8 +23,7 @@ limitations under the License.
  *
  * \param format A printf format string, followed by its arguments.
  */
-void Log(const char *format, ...)
-    __attribute__((format(printf, 1, 2)));  // Flawfinder: ignore
+void Log(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
 /*! \brief Prints the given string to the error log (stderr).
  *
@@ -33,7 +32,6 @@ void Log(const char *format, ...)
  *
  * \param format A printf format string, followed by its arguments.
  */
-void LogErrno(const char *format, ...)
-    __attribute__((format(printf, 1, 2)));  // Flawfinder: ignore
+void LogErrno(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
 #endif
