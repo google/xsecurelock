@@ -12,6 +12,7 @@ override_dh_auto_configure:
 		--with-xcomposite \
 		--with-xkb \
 		--with-xrandr \
+		--with-xfixes \
 		--with-xss
 
 override_dh_autoreconf:
