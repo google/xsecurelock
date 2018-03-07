@@ -204,8 +204,45 @@ exploits, the following measures are taken:
   e.g. an overlong password entry.
 * The only exit conditions of the program is the Authentication Module returning
   with exit status zero, on which xsecurelock itself will return with status
-  zero; therefore especially paranoid users might want to run it as
+  zero; therefore especially security-conscious users might want to run it as
   `sh -c "xsecurelock ... || kill -9 -1"` :)
+
+# Known Security Issues
+
+* Locking the screen will fail while other applications already have a keyboard
+  or pointer grab open (for example while running a fullscreen game, or after
+  opening a context menu). This will be noticeable as the screen will not turn
+  black and should thus usually not be an issue - however when relying on
+  automatic locking via `xss-lock`, this could leave a workstation open for
+  days. Above `... || kill -9 -1` workaround would mitigate this issue too by
+  simply killing the entire session if locking it fails.
+* As XSecureLock relies on an event notification after a screen configuration
+  change, window content may be visible for a short time after attaching a
+  monitor. No usual interaction with applications should be possible though.
+  On desktop systems where monitors are usually not hotplugged, I'd recommend
+  [http://tech.draiser.net/2015/07/14/ignoring-hotplug-monitor-events-on-arch-linux/](turning
+  off automatic screen reconfiguration).
+* XSecureLock relies on a keyboard and pointer grab in order to prevent other
+  applications from receiving keyboard events (and thus an unauthorized user
+  from controlling the machine). However, there are various other ways for
+  applications - in particular games - to receive input:
+  * Polling current keyboard status (`XQueryKeymap`).
+  * Polling current mouse position (`XQueryPointer`).
+  * Receiving input out-of-band (`/dev/input`), including other input devices
+    than keyboard and mouse, such as gamepads or joysticks.
+
+Most these issues are inherent with X11 and can only really be fixed by
+migrating to an alternative such as Wayland; some of the issues (in particular
+the gamepad input issue) will probably persist even with Wayland.
+
+# Known Compatibility Issues
+
+* There is an open issue with the NVidia graphics driver in conjunction with
+  some compositors. Workarounds include switching to the `nouveau` graphics
+  driver, using a compositor that uses the Composite Overlay Window (e.g.
+  `compton` with the flag `--paint-on-overlay`) or passing
+  `XSECURELOCK_NO_COMPOSITE=1` to XSecureLock (which however may make
+  notifications appear on top of the screen lock).
 
 # License
 
