@@ -123,14 +123,19 @@ const char *get_indicators() {
   memcpy(p, word, n);
   p += n;
 
-  word = XGetAtomName(display, xkb->names->groups[state.group]);
-  n = strlen(word);
-  if (n >= sizeof(buf) - (p - buf)) {
-    Log("Not enough space to store group name '%s'", word);
-    return "";
+  int have_output = 0;
+  Atom groupa = xkb->names->groups[state.group];
+  if (groupa != None) {
+    const char *group = XGetAtomName(display, groupa);
+    n = strlen(group);
+    if (n >= sizeof(buf) - (p - buf)) {
+      Log("Not enough space to store group name '%s'", group);
+      return "";
+    }
+    memcpy(p, group, n);
+    p += n;
+    have_output = 1;
   }
-  memcpy(p, word, n);
-  p += n;
 
   int i;
   for (i = 0; i < XkbNumIndicators; i++) {
@@ -141,18 +146,26 @@ const char *get_indicators() {
     if (namea == None) {
       continue;
     }
-    const char *word = XGetAtomName(display, namea);
-    size_t n = strlen(word);
-    if (n + 2 >= sizeof(buf) - (p - buf)) {
-      Log("Not enough space to store modifier name '%s'", word);
-      continue;
+    if (have_output) {
+      if (2 >= sizeof(buf) - (p - buf)) {
+        Log("Not enough space to store another modifier name");
+        break;
+      }
+      memcpy(p, ", ", 2);
+      p += 2;
     }
-    memcpy(p, ", ", 2);
-    memcpy(p + 2, word, n);
-    p += n + 2;
+    const char *name = XGetAtomName(display, namea);
+    size_t n = strlen(name);
+    if (n >= sizeof(buf) - (p - buf)) {
+      Log("Not enough space to store modifier name '%s'", name);
+      break;
+    }
+    memcpy(p, name, n);
+    p += n;
+    have_output = 1;
   }
   *p = 0;
-  return buf;
+  return have_output ? buf : "";
 }
 #endif
 
