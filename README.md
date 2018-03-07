@@ -220,8 +220,8 @@ exploits, the following measures are taken:
   change, window content may be visible for a short time after attaching a
   monitor. No usual interaction with applications should be possible though.
   On desktop systems where monitors are usually not hotplugged, I'd recommend
-  [http://tech.draiser.net/2015/07/14/ignoring-hotplug-monitor-events-on-arch-linux/](turning
-  off automatic screen reconfiguration).
+  [turning off automatic screen
+  reconfiguration](http://tech.draiser.net/2015/07/14/ignoring-hotplug-monitor-events-on-arch-linux/).
 * XSecureLock relies on a keyboard and pointer grab in order to prevent other
   applications from receiving keyboard events (and thus an unauthorized user
   from controlling the machine). However, there are various other ways for
