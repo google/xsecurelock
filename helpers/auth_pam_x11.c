@@ -93,8 +93,10 @@ const char *get_indicators() {
 
   XkbDescPtr xkb;
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
-  if (XkbGetNames(display, XkbIndicatorNamesMask | XkbGroupNamesMask, xkb) !=
-      Success) {
+  if (XkbGetNames(
+          display,
+          XkbIndicatorNamesMask | XkbGroupNamesMask | XkbSymbolsNameMask,
+          xkb) != Success) {
     Log("XkbGetNames failed");
     XkbFreeClientMap(xkb, 0, True);
     return "";
@@ -124,15 +126,18 @@ const char *get_indicators() {
   p += n;
 
   int have_output = 0;
-  Atom groupa = xkb->names->groups[state.group];
-  if (groupa != None) {
-    const char *group = XGetAtomName(display, groupa);
-    n = strlen(group);
+  Atom layouta = xkb->names->groups[state.group];  // Human-readable.
+  if (layouta == None) {
+    layouta = xkb->names->symbols;  // Machine-readable fallback.
+  }
+  if (layouta != None) {
+    const char *layout = XGetAtomName(display, layouta);
+    n = strlen(layout);
     if (n >= sizeof(buf) - (p - buf)) {
-      Log("Not enough space to store group name '%s'", group);
+      Log("Not enough space to store layout name '%s'", layout);
       return "";
     }
-    memcpy(p, group, n);
+    memcpy(p, layout, n);
     p += n;
     have_output = 1;
   }
