@@ -86,6 +86,23 @@ The option `-l` is critical as it makes sure not to allow machine suspend before
 the screen saver is active - otherwise previous screen content may show up for a
 short time after wakeup!
 
+WARNING: Never rely on automatic locking for security, for the following
+reasons:
+
+-   An attacker can, of course, use your computer after you leave it alone and
+    before it locks or you return.may
+
+-   Automatic locking is unreliable by design - for example, it could simply be
+    misconfigured, or a pointer grab (due to open context menu) could prevent
+    the screen lock from ever activating. Media players also often suspend
+    screen saver activation for usability reasons.
+
+Automatic locking should merely be seen as a fallback for the case of the user
+forgetting to lock explicitly, and not as a security feature. If you really want
+to use this as a security feature, make sure to kill the session whenever
+attempts to lock fail (in which case `xsecurelock` will return a non-zero exit
+status).
+
 ## Alternatives
 
 ### xautolock
