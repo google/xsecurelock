@@ -86,6 +86,51 @@ The option `-l` is critical as it makes sure not to allow machine suspend before
 the screen saver is active - otherwise previous screen content may show up for a
 short time after wakeup!
 
+## Alternatives
+
+### xautolock
+
+`xautolock` can be used instead of `xss-lock` as long as you do not care for
+suspend events (like on laptops):
+
+```
+xautolock -time 10 -notify 5 -notifier '/usr/lib/xsecurelock/until_nonidle /usr/lib/xsecurelock/dimmer' -locker xsecurelock
+```
+
+### Possible other tools
+
+Ideally, an environment integrating `xsecurelock` should provide the following
+facilities:
+
+1.  Wait for one of the following events:
+    1.  When idle for a sufficient amount of time:
+        1.  Run `dimmer`.
+        2.  When no longer idle while dimmed, kill `dimmer` and go back to the
+            start.
+        3.  When `dimmer` exits, run `xsecurelock`.
+        4.  When `xsecurelock` exits, go back to step 1.
+    2.  When locking was requested, run `xsecurelock`.
+    3.  When suspending, run `xsecurelock` while passing along
+        `XSS_SLEEP_LOCK_FD`.
+2.  Repeat.
+
+This is, of course precisely what `xss-lock` does, and - apart from the suspend
+handling - what `xautolock` does.
+
+As an alternative, we also support this way of integrating:
+
+1.  Wait for one of the following events:
+    1.  When idle for a sufficient amount of time:
+        1. Run `until_nonidle dimmer || xsecurelock`.
+        2. Reset your idle timer (optional when your idle timer is either the
+           X11 Screen Saver extension's idle timer or the X Synchronization
+           extension's `"IDLETIME"` timer, as this command can never exit
+           without those being reset).
+    2.  When locking was requested, run `xsecurelock`.
+    3.  When suspending, run `xsecurelock` while passing along
+        `XSS_SLEEP_LOCK_FD`.
+2.  Repeat.
+
 # Options
 
 Options to XSecureLock can be passed by environment variables:

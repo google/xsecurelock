@@ -102,6 +102,15 @@ dimmer_SOURCES = \
 	wm_properties.c wm_properties.h
 dimmer_CPPFLAGS = $(macros)
 
+if HAVE_SCRNSAVER
+helpers_PROGRAMS += \
+	until_nonidle
+until_nonidle_SOURCES = \
+	helpers/until_nonidle.c \
+	logging.c logging.h \
+until_nonidle_CPPFLAGS = $(macros)
+endif
+
 if HAVE_PAM
 helpers_PROGRAMS += \
 	auth_pam_x11

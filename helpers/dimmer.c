@@ -1,5 +1,5 @@
 /*
-Copyright 2014 Google Inc. All rights reserved.
+Copyright 2018 Google Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,10 +39,6 @@ limitations under the License.
 int main(int argc, char** argv) {
   int dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
   int wait_time_ms = GetIntSetting("XSECURELOCK_WAIT_TIME_MS", 5000);
-
-  // TODO(divVerent): Add a way for the dimmer to (optimally) exit itself on
-  // events, so one can also use it without xss-lock
-  // (e.g. by running "dimmer ... && xss-lock" on a idle time callback).
 
   Display* display = XOpenDisplay(NULL);
   if (display == NULL) {
