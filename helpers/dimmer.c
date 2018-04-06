@@ -104,11 +104,11 @@ int main(int argc, char** argv) {
 
   // Precalculate the sleep time per step.
   unsigned long long sleep_time_ns =
-      (dim_time_ms * 1000000ULL) / (PATTERN_SIZE * PATTERN_SIZE - 1);
+      (dim_time_ms * 1000000ULL) / (PATTERN_SIZE * PATTERN_SIZE - 2);
   struct timespec sleep_ts;
   sleep_ts.tv_sec = sleep_time_ns / 1000000000;
   sleep_ts.tv_nsec = sleep_time_ns % 1000000000;
-  for (int i = 0; i < PATTERN_SIZE * PATTERN_SIZE; ++i) {
+  for (int i = 0; i < PATTERN_SIZE * PATTERN_SIZE - 1; ++i) {
     // Sleep a while (except for the first iteration).
     if (i != 0) {
       nanosleep(&sleep_ts, NULL);
