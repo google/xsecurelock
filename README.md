@@ -79,14 +79,7 @@ To automatically lock the screen after some time of inactivity, use
 
 ```
 xset s 300 5
-xss-lock -n 'xmessage -nearmouse "Locking screen..."' -l -- xsecurelock
-```
-
-or on a laptop:
-
-```
-xset s 300 5
-xss-lock -n /path/to/dim-screen.sh -l -- xsecurelock
+xss-lock -n /usr/lib/xsecurelock/dimmer -l -- xsecurelock
 ```
 
 The option `-l` is critical as it makes sure not to allow machine suspend before
@@ -103,6 +96,8 @@ Options to XSecureLock can be passed by environment variables:
 * `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
   in when blanking (one of standby, suspend, off and on, where "on" means to not
   invoke DPMS at all).
+* `XSECURELOCK_DIM_TIME_MS`: Milliseconds to dim for when above xss-lock command
+  line is used.
 * `XSECURELOCK_FONT`: X11 font name to use for `auth_pam_x11`. You can get a
   list of supported font names by running `xlsfonts`.
 * `XSECURELOCK_GLOBAL_SAVER`: specifies the desired global screen saver module
@@ -121,6 +116,9 @@ Options to XSecureLock can be passed by environment variables:
 * `XSECURELOCK_WANT_FIRST_KEYPRESS`: If set to 1, the key pressed to stop the
   screen saver and spawn the auth child is sent to the auth child (and thus
   becomes part of the password entry).
+* `XSECURELOCK_WAIT_TIME_MS`: Milliseconds to wait after dimming (and before
+  locking) when above xss-lock command line is used. Should be at least as large
+  as the period time set using "xset s".
 
 Additionally, command line arguments following a "--" argument will be executed
 via `execvp` once locking is successful; this can be used to notify a calling
