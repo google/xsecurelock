@@ -108,7 +108,7 @@ facilities:
         2.  When no longer idle while dimmed, kill `dimmer` and go back to the
             start.
         3.  When `dimmer` exits, run `xsecurelock` and wait for it.
-    2.  When locking was requested, run `xsecurelock`.
+    2.  When locking was requested, run `xsecurelock` and wait for it.
     3.  When suspending, run `xsecurelock` while passing along
         `XSS_SLEEP_LOCK_FD` and wait for it.
 2.  Repeat.
