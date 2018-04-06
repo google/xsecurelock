@@ -147,6 +147,11 @@ As an alternative, we also support this way of integrating:
         `XSS_SLEEP_LOCK_FD` and wait for it.
 2.  Repeat.
 
+NOTE: When using `until_nonidle` with other dimming tools than the included
+`dimmer`, please set `XSECURELOCK_DIM_TIME_MS` and `XSECURELOCK_WAIT_TIME_MS` to
+match the time your dimming tool takes for dimming, and how long you want to
+wait in dimmed state before locking.
+
 # Options
 
 Options to XSecureLock can be passed by environment variables:
@@ -158,7 +163,8 @@ Options to XSecureLock can be passed by environment variables:
     in when blanking (one of standby, suspend, off and on, where "on" means to
     not invoke DPMS at all).
 *   `XSECURELOCK_DIM_TIME_MS`: Milliseconds to dim for when above xss-lock
-    command line is used.
+    command line with `dimmer` is used; also used by `wait_nonidle` to know when
+    to assume dimming and waiting has finished and exit.
 *   `XSECURELOCK_FONT`: X11 font name to use for `auth_pam_x11`. You can get a
     list of supported font names by running `xlsfonts`.
 *   `XSECURELOCK_GLOBAL_SAVER`: specifies the desired global screen saver module
@@ -180,7 +186,8 @@ Options to XSecureLock can be passed by environment variables:
     becomes part of the password entry).
 *   `XSECURELOCK_WAIT_TIME_MS`: Milliseconds to wait after dimming (and before
     locking) when above xss-lock command line is used. Should be at least as
-    large as the period time set using "xset s".
+    large as the period time set using "xset s". Also used by `wait_nonidle` to
+    know when to assume dimming and waiting has finished and exit.
 
 Additionally, command line arguments following a "--" argument will be executed
 via `execvp` once locking is successful; this can be used to notify a calling

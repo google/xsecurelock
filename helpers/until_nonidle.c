@@ -39,10 +39,12 @@ limitations under the License.
 #include <signal.h>
 #include <errno.h>
 #include <sys/signal.h>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
+#include "../env_settings.h"
 #include "../logging.h"
 
 XScreenSaverInfo* saver_info;
@@ -62,6 +64,9 @@ int main(int argc, char** argv) {
     Log("Returns 0 when no longer idle, and 1 when still idle");
     return 1;
   }
+
+  int dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
+  int wait_time_ms = GetIntSetting("XSECURELOCK_WAIT_TIME_MS", 5000);
 
   Display* display = XOpenDisplay(NULL);
   if (display == NULL) {
@@ -97,27 +102,38 @@ int main(int argc, char** argv) {
   }
 
   // Parent process.
+  struct timeval start_time;
+  gettimeofday(&start_time, NULL);
   int still_idle = 1;
   while (childpid != 0) {
-    nanosleep(&(const struct timespec){0, 10000000L}, NULL);
+    nanosleep(&(const struct timespec){0, 10000000L}, NULL);  // 10ms.
 
     unsigned long cur_idle = GetIdleTime(display, root_window);
     still_idle = cur_idle >= prev_idle;
     prev_idle = cur_idle;
 
-    if (!still_idle) {
+    // Also exit when both dim and wait time expire. This allows using
+    // xss-lock's dim-screen.sh without changes.
+    struct timeval current_time;
+    gettimeofday(&current_time, NULL);
+    int active_ms = (current_time.tv_sec - start_time.tv_sec) * 1000 +
+                    (current_time.tv_usec - start_time.tv_usec) / 1000;
+    int should_be_running =
+        still_idle && (active_ms <= dim_time_ms + wait_time_ms);
+
+    if (!should_be_running) {
       // Kill the whole process group.
       kill(childpid, SIGTERM);
       kill(-childpid, SIGTERM);
     }
     do {
       int status;
-      pid_t pid = waitpid(childpid, &status, still_idle ? WNOHANG : 0);
+      pid_t pid = waitpid(childpid, &status, should_be_running ? WNOHANG : 0);
       if (pid < 0) {
         switch (errno) {
           case ECHILD:
             // The process is dead. Fine.
-            if (still_idle) {
+            if (should_be_running) {
               kill(-childpid, SIGTERM);
             }
             childpid = 0;
@@ -133,14 +149,14 @@ int main(int argc, char** argv) {
       } else if (pid == childpid) {
         if (WIFEXITED(status) || WIFSIGNALED(status)) {
           // Auth child exited.
-          if (still_idle) {
+          if (should_be_running) {
             // To be sure, let's also kill its process group before we finish
             // (no need to do this if we already did above).
             kill(-childpid, SIGTERM);
           }
           childpid = 0;
           if (WIFSIGNALED(status) &&
-              (still_idle || WTERMSIG(status) != SIGTERM)) {
+              (should_be_running || WTERMSIG(status) != SIGTERM)) {
             Log("Dimmer child killed by signal %d", WTERMSIG(status));
           }
           if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
@@ -150,11 +166,11 @@ int main(int argc, char** argv) {
         // Otherwise it was suspended or whatever. We need to keep waiting.
       } else if (pid != 0) {
         Log("Unexpectedly woke up for PID %d", (int)pid);
-      } else if (!still_idle) {
+      } else if (!should_be_running) {
         Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
       }
       // Otherwise, we're still alive.
-    } while (!still_idle && childpid != 0);
+    } while (!should_be_running && childpid != 0);
   }
 
   // This is the point where we can exit.

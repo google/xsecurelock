@@ -106,6 +106,7 @@ if HAVE_SCRNSAVER
 helpers_PROGRAMS += \
 	until_nonidle
 until_nonidle_SOURCES = \
+	env_settings.c env_settings.h \
 	helpers/until_nonidle.c \
 	logging.c logging.h \
 until_nonidle_CPPFLAGS = $(macros)
