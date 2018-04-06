@@ -90,7 +90,7 @@ WARNING: Never rely on automatic locking for security, for the following
 reasons:
 
 -   An attacker can, of course, use your computer after you leave it alone and
-    before it locks or you return.may
+    before it locks or you return.
 
 -   Automatic locking is unreliable by design - for example, it could simply be
     misconfigured, or a pointer grab (due to open context menu) could prevent
