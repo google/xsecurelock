@@ -107,11 +107,10 @@ facilities:
         1.  Run `dimmer`.
         2.  When no longer idle while dimmed, kill `dimmer` and go back to the
             start.
-        3.  When `dimmer` exits, run `xsecurelock`.
-        4.  When `xsecurelock` exits, go back to step 1.
+        3.  When `dimmer` exits, run `xsecurelock` and wait for it.
     2.  When locking was requested, run `xsecurelock`.
     3.  When suspending, run `xsecurelock` while passing along
-        `XSS_SLEEP_LOCK_FD`.
+        `XSS_SLEEP_LOCK_FD` and wait for it.
 2.  Repeat.
 
 This is, of course precisely what `xss-lock` does, and - apart from the suspend
@@ -121,14 +120,14 @@ As an alternative, we also support this way of integrating:
 
 1.  Wait for one of the following events:
     1.  When idle for a sufficient amount of time:
-        1. Run `until_nonidle dimmer || xsecurelock`.
+        1. Run `until_nonidle dimmer || xsecurelock` and wait for it.
         2. Reset your idle timer (optional when your idle timer is either the
            X11 Screen Saver extension's idle timer or the X Synchronization
            extension's `"IDLETIME"` timer, as this command can never exit
            without those being reset).
-    2.  When locking was requested, run `xsecurelock`.
+    2.  When locking was requested, run `xsecurelock` and wait for it.
     3.  When suspending, run `xsecurelock` while passing along
-        `XSS_SLEEP_LOCK_FD`.
+        `XSS_SLEEP_LOCK_FD` and wait for it.
 2.  Repeat.
 
 # Options
