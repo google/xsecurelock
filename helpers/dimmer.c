@@ -114,6 +114,7 @@ int main(int argc, char** argv) {
     int y = coords[2 * i + 1];
     XDrawPoint(display, pattern, pattern_gc, x, y);
     // Draw the pattern on the window.
+    XChangeGC(display, dim_gc, GCStipple, &gc_values);
     XFillRectangle(display, dim_window, dim_gc, 0, 0, w, h);
     // In the first iteration, map our window.
     if (i == 0) {
