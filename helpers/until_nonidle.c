@@ -40,27 +40,27 @@ limitations under the License.
 #include <time.h>
 #include <unistd.h>
 
-#ifdef HAVE_SCRNSAVER
+#ifdef HAVE_XSCREENSAVER_EXT
 #include <X11/extensions/saver.h>
 #include <X11/extensions/scrnsaver.h>
 #endif
 
-#ifdef HAVE_SYNC
+#ifdef HAVE_XSYNC_EXT
 #include <X11/extensions/sync.h>
 #endif
 
 #include "../env_settings.h"
 #include "../logging.h"
 
-#ifdef HAVE_SCRNSAVER
-int have_scrnsaver;
+#ifdef HAVE_XSCREENSAVER_EXT
+int have_xscreensaver_ext;
 XScreenSaverInfo *saver_info;
 #endif
 
-#ifdef HAVE_SYNC
-int have_sync;
-int num_sync_counters;
-XSyncSystemCounter *sync_counters;
+#ifdef HAVE_XSYNC_EXT
+int have_xsync_ext;
+int num_xsync_counters;
+XSyncSystemCounter *xsync_counters;
 #endif
 
 #define MAX_TIMERS 16
@@ -70,20 +70,20 @@ const char *timers[MAX_TIMERS];
 uint64_t GetIdleTimeForSingleTimer(Display *display, Window w,
                                    const char *timer) {
   if (*timer == 0) {
-#ifdef HAVE_SCRNSAVER
-    if (have_scrnsaver) {
+#ifdef HAVE_XSCREENSAVER_EXT
+    if (have_xscreensaver_ext) {
       XScreenSaverQueryInfo(display, w, saver_info);
       return saver_info->idle;
     }
 #endif
   } else {
-#ifdef HAVE_SYNC
-    if (have_sync) {
-      for (int i = 0; i < num_sync_counters; ++i) {
+#ifdef HAVE_XSYNC_EXT
+    if (have_xsync_ext) {
+      for (int i = 0; i < num_xsync_counters; ++i) {
         if (!strcmp(timer,
-                    sync_counters[i].name)) {  // I know this is inefficient.
+                    xsync_counters[i].name)) {  // I know this is inefficient.
           XSyncValue value;
-          XSyncQueryCounter(display, sync_counters[i].counter, &value);
+          XSyncQueryCounter(display, xsync_counters[i].counter, &value);
           return (((uint64_t)XSyncValueHigh32(value)) << 32) |
                  (uint64_t)XSyncValueLow32(value);
         }
@@ -144,21 +144,21 @@ int main(int argc, char **argv) {
   Window root_window = DefaultRootWindow(display);
 
   // Initialize the extensions.
-#ifdef HAVE_SCRNSAVER
-  have_scrnsaver = 0;
+#ifdef HAVE_XSCREENSAVER_EXT
+  have_xscreensaver_ext = 0;
   int scrnsaver_event_base, scrnsaver_error_base;
   if (XScreenSaverQueryExtension(display, &scrnsaver_event_base,
                                  &scrnsaver_error_base)) {
-    have_scrnsaver = 1;
+    have_xscreensaver_ext = 1;
     saver_info = XScreenSaverAllocInfo();
   }
 #endif
-#ifdef HAVE_SYNC
-  have_sync = 0;
+#ifdef HAVE_XSYNC_EXT
+  have_xsync_ext = 0;
   int sync_event_base, sync_error_base;
   if (XScreenSaverQueryExtension(display, &sync_event_base, &sync_error_base)) {
-    have_sync = 1;
-    sync_counters = XSyncListSystemCounters(display, &num_sync_counters);
+    have_xsync_ext = 1;
+    xsync_counters = XSyncListSystemCounters(display, &num_xsync_counters);
   }
 #endif
 

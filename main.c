@@ -36,17 +36,17 @@ limitations under the License.
 #include <time.h>        // for nanosleep, timespec
 #include <unistd.h>      // for access, pid_t, X_OK, chdir
 
-#ifdef HAVE_COMPOSITE
+#ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
 #endif
-#ifdef HAVE_SCRNSAVER
+#ifdef HAVE_XSCREENSAVER_EXT
 #include <X11/extensions/saver.h>      // for ScreenSaverNotify, ScreenSave...
 #include <X11/extensions/scrnsaver.h>  // for XScreenSaverNotifyEvent, XScr...
 #endif
-#ifdef HAVE_XF86MISC
+#ifdef HAVE_XF86MISC_EXT
 #include <X11/extensions/xf86misc.h>  // for XF86MiscSetGrabKeysState
 #endif
-#ifdef HAVE_XFIXES
+#ifdef HAVE_XFIXES_EXT
 #include <X11/extensions/Xfixes.h>      // for XFixesSetWindowShapeRegion
 #include <X11/extensions/shapeconst.h>  // for ShapeBounding
 #endif
@@ -98,7 +98,7 @@ const char *auth_executable;
 const char *saver_executable;
 //! The command to run once screen locking is complete.
 char *const *notify_command = NULL;
-#ifdef HAVE_COMPOSITE
+#ifdef HAVE_XCOMPOSITE_EXT
 //! Do not use XComposite to cover transparent notifications.
 int no_composite = 0;
 #endif
@@ -201,7 +201,7 @@ void usage(const char *me) {
       "Environment variables:\n"
       "  XSECURELOCK_AUTH=<auth module>\n"
       "  XSECURELOCK_FONT=<x11 font name>\n"
-#ifdef HAVE_COMPOSITE
+#ifdef HAVE_XCOMPOSITE_EXT
       "  XSECURELOCK_NO_COMPOSITE=<0|1>\n"
 #endif
       "  XSECURELOCK_PAM_SERVICE=<PAM service name>\n"
@@ -229,7 +229,7 @@ void load_defaults() {
   auth_executable = GetStringSetting("XSECURELOCK_AUTH", AUTH_EXECUTABLE);
   saver_executable =
       GetStringSetting("XSECURELOCK_GLOBAL_SAVER", GLOBAL_SAVER_EXECUTABLE);
-#ifdef HAVE_COMPOSITE
+#ifdef HAVE_XCOMPOSITE_EXT
   no_composite = GetIntSetting("XSECURELOCK_NO_COMPOSITE", 0);
 #endif
 }
@@ -451,32 +451,35 @@ int main(int argc, char **argv) {
 
   Window parent_window = root_window;
 
-#ifdef HAVE_COMPOSITE
+#ifdef HAVE_XCOMPOSITE_EXT
   int composite_event_base, composite_error_base, composite_major_version = 0,
                                                   composite_minor_version = 0;
-  int have_composite =
+  int have_xcomposite_ext =
       XCompositeQueryExtension(display, &composite_event_base,
                                &composite_error_base) &&
       // Require at least XComposite 0.3.
       XCompositeQueryVersion(display, &composite_major_version,
                              &composite_minor_version) &&
       (composite_major_version >= 1 || composite_minor_version >= 3);
-  if (!have_composite) {
+  if (!have_xcomposite_ext) {
     Log("XComposite extension not detected");
   }
-  if (have_composite && no_composite) {
+  if (have_xcomposite_ext && no_composite) {
     Log("XComposite extension detected but disabled by user");
-    have_composite = 0;
+    have_xcomposite_ext = 0;
   }
   Window composite_window;
-  if (have_composite) {
+  if (have_xcomposite_ext) {
     composite_window = XCompositeGetOverlayWindow(display, root_window);
     // Some compositers may unmap or shape the overlay window - undo that, just
     // in case.
     XMapRaised(display, composite_window);
-#ifdef HAVE_XFIXES
-    XFixesSetWindowShapeRegion(display, composite_window, ShapeBounding,  //
-                               0, 0, 0);
+#ifdef HAVE_XFIXES_EXT
+    int xfixes_event_base, xfixes_error_base;
+    if (XFixesQueryExtension(display, &xfixes_event_base, &xfixes_error_base)) {
+      XFixesSetWindowShapeRegion(display, composite_window, ShapeBounding,  //
+                                 0, 0, 0);
+    }
 #endif
     parent_window = composite_window;
   }
@@ -527,8 +530,8 @@ int main(int argc, char **argv) {
   XChangeProperty(display, background_window, dont_composite_atom, XA_CARDINAL,
                   32, PropModeReplace, (const unsigned char *)&dont_composite,
                   1);
-#ifdef HAVE_COMPOSITE
-  if (have_composite) {
+#ifdef HAVE_XCOMPOSITE_EXT
+  if (have_xcomposite_ext) {
     // Also set this property on the Composite Overlay Window, just in case a
     // compositor were to try compositing it (xcompmgr does, but doesn't know
     // this property anyway).
@@ -569,7 +572,7 @@ int main(int argc, char **argv) {
     }
   }
 
-#ifdef HAVE_SCRNSAVER
+#ifdef HAVE_XSCREENSAVER_EXT
   // If we support the screen saver extension, that'd be good.
   int scrnsaver_event_base, scrnsaver_error_base;
   if (!XScreenSaverQueryExtension(display, &scrnsaver_event_base,
@@ -580,7 +583,7 @@ int main(int argc, char **argv) {
   XScreenSaverSelectInput(display, background_window, ScreenSaverNotifyMask);
 #endif
 
-#ifdef HAVE_XF86MISC
+#ifdef HAVE_XF86MISC_EXT
   // In case keys to disable grabs are available, turn them off for the duration
   // of the lock.
   if (XF86MiscSetGrabKeysState(display, False) != MiscExtGrabStateSuccess) {
@@ -892,7 +895,7 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_EVENTS
           Log("Event%d %lu", priv.ev.type, (unsigned long)priv.ev.xany.window);
 #endif
-#ifdef HAVE_SCRNSAVER
+#ifdef HAVE_XSCREENSAVER_EXT
           // Handle screen saver notifications. If the screen is blanked anyway,
           // turn off the saver child.
           if (scrnsaver_event_base != 0 &&
@@ -919,8 +922,8 @@ done:
   XDestroyWindow(display, saver_window);
   XDestroyWindow(display, background_window);
 
-#ifdef HAVE_COMPOSITE
-  if (have_composite) {
+#ifdef HAVE_XCOMPOSITE_EXT
+  if (have_xcomposite_ext) {
     XCompositeReleaseOverlayWindow(display, composite_window);
   }
 #endif

@@ -30,10 +30,12 @@ if which clang-tidy; then
     -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
     -extra-arg=-DSAVER_EXECUTABLE=\"\" \
     -extra-arg=-DPAM_SERVICE_NAME=\"\" \
-    -extra-arg=-DHAVE_SCRNSAVER \
-    -extra-arg=-DHAVE_COMPOSITE \
-    -extra-arg=-DHAVE_XRANDR \
-    -extra-arg=-DHAVE_XKB \
+    -extra-arg=-DHAVE_XCOMPOSITE_EXT \
+    -extra-arg=-DHAVE_XFIXES_EXT \
+    -extra-arg=-DHAVE_XKB_EXT \
+    -extra-arg=-DHAVE_XRANDR_EXT \
+    -extra-arg=-DHAVE_XSCREENSAVER_EXT \
+    -extra-arg=-DHAVE_XSYNC_EXT \
     *.[ch] */*.[ch]
 fi
 
@@ -91,10 +93,12 @@ if which oclint; then
     -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
     -extra-arg=-DSAVER_EXECUTABLE=\"\" \
     -extra-arg=-DPAM_SERVICE_NAME=\"\" \
-    -extra-arg=-DHAVE_SCRNSAVER \
-    -extra-arg=-DHAVE_COMPOSITE \
-    -extra-arg=-DHAVE_XRANDR \
-    -extra-arg=-DHAVE_XKB \
+    -extra-arg=-DHAVE_XCOMPOSITE_EXT \
+    -extra-arg=-DHAVE_XFIXES_EXT \
+    -extra-arg=-DHAVE_XKB_EXT \
+    -extra-arg=-DHAVE_XRANDR_EXT \
+    -extra-arg=-DHAVE_XSCREENSAVER_EXT \
+    -extra-arg=-DHAVE_XSYNC_EXT \
     *.[ch] */*.[ch]
 fi
 

@@ -29,7 +29,7 @@ limitations under the License.
 #include <time.h>                   // for time
 #include <unistd.h>                 // for gethostname, getuid, read, ssize_t
 
-#ifdef HAVE_XKB
+#ifdef HAVE_XKB_EXT
 #include <X11/XKBlib.h>  // for XkbFreeClientMap, XkbGetIndicator...
 #endif
 
@@ -82,14 +82,20 @@ static const char cursor[] = "_";
 static int num_monitors;
 static Monitor monitors[MAX_MONITORS];
 
-#ifdef HAVE_XKB
+int have_xkb_ext;
+
 /*! \brief Check which modifiers are active.
  *
  * \return The current modifier mask as a string.
  */
 const char *get_indicators() {
+#ifdef HAVE_XKB_EXT
   static char buf[128];
   char *p;
+
+  if (!have_xkb_ext) {
+    return "";
+  }
 
   XkbDescPtr xkb;
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
@@ -171,8 +177,10 @@ const char *get_indicators() {
   }
   *p = 0;
   return have_output ? buf : "";
-}
+#else
+  return "";
 #endif
+}
 
 /*! \brief Display a string in the window.
  *
@@ -199,11 +207,9 @@ void display_string(const char *title, const char *str) {
 
   int tw_cursor = XTextWidth(font, cursor, strlen(cursor));
 
-#ifdef HAVE_XKB
   const char *indicators = get_indicators();
   int len_indicators = strlen(indicators);
   int tw_indicators = XTextWidth(font, indicators, len_indicators);
-#endif
 
   // Compute the region we will be using, relative to cx and cy.
   if (region_w < tw_title + tw_cursor) {
@@ -212,17 +218,11 @@ void display_string(const char *title, const char *str) {
   if (region_w < tw_str + tw_cursor) {
     region_w = tw_str + tw_cursor;
   }
-#ifdef HAVE_XKB
   if (region_w < tw_indicators + tw_cursor) {
     region_w = tw_indicators + tw_cursor;
   }
-#endif
   region_x = -region_w / 2;
-#ifdef HAVE_XKB
   region_h = 4 * th;
-#else
-  region_h = 3 * th;
-#endif
   region_y = -region_h / 2;
 
   int i;
@@ -249,11 +249,8 @@ void display_string(const char *title, const char *str) {
 
     XDrawString(display, window, gc, cx - tw_str / 2, sy + th * 2, str,
                 len_str);
-
-#ifdef HAVE_XKB
     XDrawString(display, window, gc, cx - tw_indicators / 2, sy + th * 3,
                 indicators, len_indicators);
-#endif
 
     // Disable clipping again.
     XSetClipMask(display, gc, None);
@@ -716,6 +713,14 @@ int main() {
     Log("Could not connect to $DISPLAY");
     return 1;
   }
+
+#ifdef HAVE_XKB_EXT
+  int xkb_opcode, xkb_event_base, xkb_error_base;
+  int xkb_major_version = XkbMajorVersion, xkb_minor_version = XkbMinorVersion;
+  have_xkb_ext =
+      XkbQueryExtension(display, &xkb_opcode, &xkb_event_base, &xkb_error_base,
+                        &xkb_major_version, &xkb_minor_version);
+#endif
 
   char hostname[256];
   if (gethostname(hostname, sizeof(hostname))) {

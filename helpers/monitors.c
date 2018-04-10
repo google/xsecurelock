@@ -20,34 +20,34 @@ limitations under the License.
 #include <stdlib.h>    // for qsort
 #include <string.h>    // for memcmp, memset
 
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR_EXT
 #include <X11/extensions/Xrandr.h>  // for XRRMonitorInfo, XRRCrtcInfo, XRRO...
 #include <X11/extensions/randr.h>   // for RANDR_MAJOR, RRNotify, RANDR_MINOR
 #if RANDR_MAJOR > 1 || (RANDR_MAJOR == 1 && RANDR_MINOR >= 5)
-#define HAVE_XRANDR15
+#define HAVE_XRANDR15_EXT
 #endif
 #endif
 
 #include "../env_settings.h"  // for GetIntSetting
 #include "../logging.h"       // for Log
 
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR_EXT
 static Display* initialized_for = NULL;
-static int have_xrandr12;
-#ifdef HAVE_XRANDR15
-static int have_xrandr15;
+static int have_xrandr12_ext;
+#ifdef HAVE_XRANDR15_EXT
+static int have_xrandr15_ext;
 #endif
 static int event_base;
 static int error_base;
 
 static int MaybeInitXRandR(Display* dpy) {
   if (dpy == initialized_for) {
-    return have_xrandr12;
+    return have_xrandr12_ext;
   }
 
-  have_xrandr12 = 0;
-#ifdef HAVE_XRANDR15
-  have_xrandr15 = 0;
+  have_xrandr12_ext = 0;
+#ifdef HAVE_XRANDR15_EXT
+  have_xrandr15_ext = 0;
 #endif
   if (XRRQueryExtension(dpy, &event_base, &error_base)) {
     int major, minor;
@@ -56,20 +56,20 @@ static int MaybeInitXRandR(Display* dpy) {
       // default root window size tracking is sufficient for that.
       if (major > 1 || (major == 1 && minor >= 2)) {
         if (!GetIntSetting("XSECURELOCK_NO_XRANDR", 0)) {
-          have_xrandr12 = 1;
+          have_xrandr12_ext = 1;
         }
       }
-#ifdef HAVE_XRANDR15
+#ifdef HAVE_XRANDR15_EXT
       if (major > 1 || (major == 1 && minor >= 5)) {
         if (!GetIntSetting("XSECURELOCK_NO_XRANDR15", 0)) {
-          have_xrandr15 = 1;
+          have_xrandr15_ext = 1;
         }
       }
 #endif
     }
   }
   initialized_for = dpy;
-  return have_xrandr12;
+  return have_xrandr12_ext;
 }
 #endif
 
@@ -131,7 +131,7 @@ static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
   ++*num_monitors;
 }
 
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR_EXT
 static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy, int ww,
                                int wh, Monitor* out_monitors,
                                size_t* out_num_monitors, size_t max_monitors) {
@@ -170,11 +170,11 @@ static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy, int ww,
   return *out_num_monitors != 0;
 }
 
-#ifdef HAVE_XRANDR15
+#ifdef HAVE_XRANDR15_EXT
 static int GetMonitorsXRandR15(Display* dpy, Window w, int wx, int wy, int ww,
                                int wh, Monitor* out_monitors,
                                size_t* out_num_monitors, size_t max_monitors) {
-  if (!have_xrandr15) {
+  if (!have_xrandr15_ext) {
     return 0;
   }
   int num_rrmonitors;
@@ -214,7 +214,7 @@ static int GetMonitorsXRandR(Display* dpy, Window w,
     wy = xwa->y;
   }
 
-#ifdef HAVE_XRANDR15
+#ifdef HAVE_XRANDR15_EXT
   if (GetMonitorsXRandR15(dpy, w, wx, wy, xwa->width, xwa->height, out_monitors,
                           out_num_monitors, max_monitors)) {
     return 1;
@@ -257,7 +257,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
   XGetWindowAttributes(dpy, w, &xwa);
 
   do {
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR_EXT
     if (GetMonitorsXRandR(dpy, w, &xwa, out_monitors, &num_monitors,
                           max_monitors)) {
       break;
@@ -279,7 +279,7 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
 }
 
 void SelectMonitorChangeEvents(Display* dpy, Window w) {
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR_EXT
   if (MaybeInitXRandR(dpy)) {
     XRRSelectInput(dpy, w,
                    RRScreenChangeNotifyMask | RRCrtcChangeNotifyMask |
@@ -292,7 +292,7 @@ void SelectMonitorChangeEvents(Display* dpy, Window w) {
 }
 
 int IsMonitorChangeEvent(Display* dpy, int type) {
-#ifdef HAVE_XRANDR
+#ifdef HAVE_XRANDR_EXT
   if (MaybeInitXRandR(dpy)) {
     switch (type - event_base) {
       case RRScreenChangeNotify:

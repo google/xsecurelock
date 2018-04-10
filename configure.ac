@@ -59,26 +59,26 @@ AC_DEFUN([RP_SEARCH_PROG], [
 # The X11 Screen Saver extension is used to turn off the screen saver when X11
 # handles screen blanking (e.g. via timeout) anyway. Saves CPU power.
 RP_SEARCH_LIBS(XScreenSaverQueryExtension, Xss,
-               [HAVE_SCRNSAVER], [xss], [check],
+               [HAVE_XSCREENSAVER_EXT], [xss], [check],
                [Use the X11 Screen Saver extension to save power])
 
 # The X Synchronization extension is used to get per-device idle times. Used by
 # until_nonidle only.
 RP_SEARCH_LIBS(XSyncQueryExtension, Xext,
-               [HAVE_SYNC], [xsync], [check],
+               [HAVE_XSYNC_EXT], [xsync], [check],
                [Use the X Synchronization extension to detect idle time])
 
 # The Composite extension needs an explicit opt-out because not having it can
 # cause desktop notifications to appear on top of the screen saver (privacy
 # risk).
 RP_SEARCH_LIBS(XCompositeQueryExtension, Xcomposite,
-               [HAVE_COMPOSITE], [xcomposite], [yes],
+               [HAVE_XCOMPOSITE_EXT], [xcomposite], [yes],
                [Use the X11 Composite extension to cover desktop notifications])
 
 # This extension doesn't really exist anymore, but served to counteract the
 # (also no longer existing) AllowClosedownGrabs and similar X server settings.
 RP_SEARCH_LIBS(XF86MiscSetGrabKeysState, Xxf86misc,
-               [HAVE_XF86MISC], [xf86misc], [check],
+               [HAVE_XF86MISC_EXT], [xf86misc], [check],
                [Use the XFree86-Misc extension to disable ungrab keys])
 
 # PAM-less operation is... unfortunate. Let's have users explicitly disable this
@@ -91,19 +91,19 @@ RP_SEARCH_LIBS(pam_authenticate, pam,
 # Querying the keyboard LEDs (and layout name) makes auth_pam_x11 more user
 # friendly.
 RP_SEARCH_LIBS(XkbGetIndicatorState, X11,
-               [HAVE_XKB], [xkb], [check],
+               [HAVE_XKB_EXT], [xkb], [check],
                [Use the X Keyboard extension to show the keyboard LEDs])
 
 # XRandR provides information about monitor layouts and is strongly recommended
 # on systems which can use more than one monitor (which includes most laptops).
 RP_SEARCH_LIBS(XRRGetScreenResources, Xrandr,
-               [HAVE_XRANDR], [xrandr], [check],
+               [HAVE_XRANDR_EXT], [xrandr], [check],
                [Use the XRandR extension to query monitor layouts])
 
 # The XFixes extension is used to work around possible weird leftover state from
 # compositors.
 RP_SEARCH_LIBS(XFixesSetWindowShapeRegion, Xfixes,
-               [HAVE_XFIXES], [xfixes], [check],
+               [HAVE_XFIXES_EXT], [xfixes], [check],
                [Use the XFixes extension to work around some compositors])
 
 RP_SEARCH_PROG(htpasswd, [$PATH],
