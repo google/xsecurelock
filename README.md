@@ -170,6 +170,11 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_GLOBAL_SAVER`: specifies the desired global screen saver module
     (by default this is a multiplexer that runs `XSECURELOCK_SAVER` on each
     screen).
+*   `XSECURELOCK_IDLE_TIMERS`: comma-separated list of idle time counters used
+    by `until_nonidle`. Typical values are either empty (relies on the X Screen
+    Saver extension instead), "IDLETIME" and "DEVICEIDLETIME <n>" where n is an
+    XInput device index. If multiple time counters are specified, the idle time
+    is the minimum of them all. All listed timers must have the same unit.
 *   `XSECURELOCK_NO_COMPOSITE`: disables covering the composite overlay window.
     This switches to a more traditional way of locking, but may allow desktop
     notifications to be visible on top of the screen lock. Not recommended.

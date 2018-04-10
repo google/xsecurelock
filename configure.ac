@@ -62,6 +62,12 @@ RP_SEARCH_LIBS(XScreenSaverQueryExtension, Xss,
                [HAVE_SCRNSAVER], [xss], [check],
                [Use the X11 Screen Saver extension to save power])
 
+# The X Synchronization extension is used to get per-device idle times. Used by
+# until_nonidle only.
+RP_SEARCH_LIBS(XSyncQueryExtension, Xext,
+               [HAVE_SYNC], [xsync], [check],
+               [Use the X Synchronization extension to detect idle time])
+
 # The Composite extension needs an explicit opt-out because not having it can
 # cause desktop notifications to appear on top of the screen saver (privacy
 # risk).
@@ -203,6 +209,8 @@ AC_SUBST(with_pamtester)
 AC_SUBST(with_xscreensaver)
 AM_CONDITIONAL([PAM_CHECK_ACCOUNT_TYPE],
                [test x$enable_pam_check_account_type = xyes])
+AM_CONDITIONAL([HAVE_IDLE_TIMER],
+               [test x$have_xss = xtrue -o x$have_xsync = xtrue])
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([helpers/auth_htpasswd],

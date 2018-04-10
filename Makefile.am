@@ -28,6 +28,9 @@ endif
 if HAVE_SCRNSAVER
 macros += -DHAVE_SCRNSAVER
 endif
+if HAVE_SYNC
+macros += -DHAVE_SYNC
+endif
 if HAVE_COMPOSITE
 macros += -DHAVE_COMPOSITE
 endif
@@ -102,13 +105,13 @@ dimmer_SOURCES = \
 	wm_properties.c wm_properties.h
 dimmer_CPPFLAGS = $(macros)
 
-if HAVE_SCRNSAVER
+if HAVE_IDLE_TIMER
 helpers_PROGRAMS += \
 	until_nonidle
 until_nonidle_SOURCES = \
 	env_settings.c env_settings.h \
 	helpers/until_nonidle.c \
-	logging.c logging.h \
+	logging.c logging.h
 until_nonidle_CPPFLAGS = $(macros)
 endif
 

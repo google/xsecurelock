@@ -26,36 +26,103 @@ limitations under the License.
  *   until_nonidle dim-screen || xsecurelock
  */
 
-#ifdef HAVE_SCRNSAVER
-#error This tool can only be compiled with the Screen Saver extension.
-#endif
-
 #include <X11/X.h>
 #include <X11/Xlib.h>
-#include <X11/extensions/saver.h>
-#include <X11/extensions/scrnsaver.h>
+#include <errno.h>
+#include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
-#include <errno.h>
+#include <string.h>
 #include <sys/signal.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
+#ifdef HAVE_SCRNSAVER
+#include <X11/extensions/saver.h>
+#include <X11/extensions/scrnsaver.h>
+#endif
+
+#ifdef HAVE_SYNC
+#include <X11/extensions/sync.h>
+#endif
+
 #include "../env_settings.h"
 #include "../logging.h"
 
-XScreenSaverInfo* saver_info;
+#ifdef HAVE_SCRNSAVER
+int have_scrnsaver;
+XScreenSaverInfo *saver_info;
+#endif
 
-unsigned long GetIdleTime(Display *display, Window w) {
-  // TODO(divVerent): Add Xsync timer support as well.
-  XScreenSaverQueryInfo(display, w, saver_info);
-  return saver_info->idle;
+#ifdef HAVE_SYNC
+int have_sync;
+int num_sync_counters;
+XSyncSystemCounter *sync_counters;
+#endif
+
+#define MAX_TIMERS 16
+size_t num_timers;
+const char *timers[MAX_TIMERS];
+
+uint64_t GetIdleTimeForSingleTimer(Display *display, Window w,
+                                   const char *timer) {
+  if (*timer == 0) {
+#ifdef HAVE_SCRNSAVER
+    if (have_scrnsaver) {
+      XScreenSaverQueryInfo(display, w, saver_info);
+      return saver_info->idle;
+    }
+#endif
+  } else {
+#ifdef HAVE_SYNC
+    if (have_sync) {
+      for (int i = 0; i < num_sync_counters; ++i) {
+        if (!strcmp(timer,
+                    sync_counters[i].name)) {  // I know this is inefficient.
+          XSyncValue value;
+          XSyncQueryCounter(display, sync_counters[i].counter, &value);
+          return (((uint64_t)XSyncValueHigh32(value)) << 32) |
+                 (uint64_t)XSyncValueLow32(value);
+        }
+      }
+    }
+#endif
+  }
+  Log("Timer \"%s\" not supported", timer);
+  return (uint64_t)-1;
 }
 
-int main(int argc, char** argv) {
+uint64_t GetIdleTime(Display *display, Window w, const char *timers) {
+  uint64_t min_idle_time = (uint64_t)-1;
+  for (;;) {
+    size_t len = strcspn(timers, ",");
+    if (timers[len] == 0) {  // End of string.
+      uint64_t this_idle_time = GetIdleTimeForSingleTimer(display, w, timers);
+      if (this_idle_time < min_idle_time) {
+        min_idle_time = this_idle_time;
+      }
+      return min_idle_time;
+    }
+    char this_timer[64];
+    if (len < sizeof(this_timer)) {
+      memcpy(this_timer, timers, len);
+      this_timer[len] = 0;
+      uint64_t this_idle_time =
+          GetIdleTimeForSingleTimer(display, w, this_timer);
+      if (this_idle_time < min_idle_time) {
+        min_idle_time = this_idle_time;
+      }
+    } else {
+      Log("Too long timer name - skipping: %s", timers);
+    }
+    timers += len + 1;
+  }
+}
+
+int main(int argc, char **argv) {
   if (argc <= 1) {
     Log("Usage: %s program args... - runs the given program until non-idle",
         argv[0]);
@@ -67,25 +134,40 @@ int main(int argc, char** argv) {
 
   int dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
   int wait_time_ms = GetIntSetting("XSECURELOCK_WAIT_TIME_MS", 5000);
+  const char *timers = GetStringSetting("XSECURELOCK_IDLE_TIMERS", "");
 
-  Display* display = XOpenDisplay(NULL);
+  Display *display = XOpenDisplay(NULL);
   if (display == NULL) {
     Log("Could not connect to $DISPLAY.");
     return 1;
   }
   Window root_window = DefaultRootWindow(display);
 
-  // Initialize the extension.
+  // Initialize the extensions.
+#ifdef HAVE_SCRNSAVER
+  have_scrnsaver = 0;
   int scrnsaver_event_base, scrnsaver_error_base;
-  if (!XScreenSaverQueryExtension(display, &scrnsaver_event_base,
-                                  &scrnsaver_error_base)) {
-    Log("No Screen Saver extension detected - cannot proceed");
-    return 1;
+  if (XScreenSaverQueryExtension(display, &scrnsaver_event_base,
+                                 &scrnsaver_error_base)) {
+    have_scrnsaver = 1;
+    saver_info = XScreenSaverAllocInfo();
   }
-  saver_info = XScreenSaverAllocInfo();
+#endif
+#ifdef HAVE_SYNC
+  have_sync = 0;
+  int sync_event_base, sync_error_base;
+  if (XScreenSaverQueryExtension(display, &sync_event_base, &sync_error_base)) {
+    have_sync = 1;
+    sync_counters = XSyncListSystemCounters(display, &num_sync_counters);
+  }
+#endif
 
   // Capture the initial idle time.
-  unsigned long prev_idle = GetIdleTime(display, root_window);
+  uint64_t prev_idle = GetIdleTime(display, root_window, timers);
+  if (prev_idle == (uint64_t)-1) {
+    Log("Could not initialize idle timers. Bailing out.");
+    return 1;
+  }
 
   // Start the subprocess.
   pid_t childpid = fork();
@@ -108,7 +190,7 @@ int main(int argc, char** argv) {
   while (childpid != 0) {
     nanosleep(&(const struct timespec){0, 10000000L}, NULL);  // 10ms.
 
-    unsigned long cur_idle = GetIdleTime(display, root_window);
+    uint64_t cur_idle = GetIdleTime(display, root_window, timers);
     still_idle = cur_idle >= prev_idle;
     prev_idle = cur_idle;
 
