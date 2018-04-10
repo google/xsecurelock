@@ -67,7 +67,7 @@ one of the following:
 xsecurelock
 env XSECURELOCK_SAVER=saver_xscreensaver xsecurelock
 env XSECURELOCK_SAVER=saver_mplayer XSECURELOCK_WANT_FIRST_KEYPRESS=1 xsecurelock
-env XSECURELOCK_FONT=`xlsfonts | grep '\<iso8859-1\>' | shuf | head -n 1` xsecurelock
+env XSECURELOCK_FONT=`xlsfonts | grep '\<iso10646-1\>' | shuf | head -n 1` xsecurelock
 ```
 
 Just kidding about the last one :)
