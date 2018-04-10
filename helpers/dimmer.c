@@ -81,15 +81,33 @@ int main(int argc, char** argv) {
 
   // Define a random order to draw the pixels.
   int coords[2 * PATTERN_SIZE * PATTERN_SIZE];
+  int coord_count = 0;
   for (int y = 0; y < PATTERN_SIZE; ++y) {
     for (int x = 0; x < PATTERN_SIZE; ++x) {
-      coords[2 * (y * PATTERN_SIZE + x)] = x;
-      coords[2 * (y * PATTERN_SIZE + x) + 1] = y;
+      // Keep 1 out of every 1x1 in 2x2, and of those 2 out of every 2x2 in 4x4.
+      // That's 12.5% of all pixels. The pattern will be this:
+      // ........
+      // .*...*..
+      // ........
+      // ...*...*
+      // ........
+      // .*...*..
+      // ........
+      // ...*...*
+      // Specifically aligned to leave rather empty rows than full rows when
+      // PATTERN_SIZE is even, and to still skip one pixel for PATTERN_SIZE 2
+      // and 3.
+      if ((x & y & 1) && !((x ^ y) & 2)) {
+        continue;
+      }
+      coords[2 * coord_count] = x;
+      coords[2 * coord_count + 1] = y;
+      ++coord_count;
     }
   }
   srand(time(NULL));
-  for (int i = 0; i < PATTERN_SIZE * PATTERN_SIZE; ++i) {
-    int j = rand() % (PATTERN_SIZE * PATTERN_SIZE - i) + i;  // In [i, n-1].
+  for (int i = 0; i < coord_count; ++i) {
+    int j = rand() % (coord_count - i) + i;  // In [i, n-1].
     int h = coords[2 * i];
     coords[2 * i] = coords[2 * j];
     coords[2 * j] = h;
@@ -100,11 +118,11 @@ int main(int argc, char** argv) {
 
   // Precalculate the sleep time per step.
   unsigned long long sleep_time_ns =
-      (dim_time_ms * 1000000ULL) / (PATTERN_SIZE * PATTERN_SIZE - 2);
+      (dim_time_ms * 1000000ULL) / (coord_count - 1);
   struct timespec sleep_ts;
   sleep_ts.tv_sec = sleep_time_ns / 1000000000;
   sleep_ts.tv_nsec = sleep_time_ns % 1000000000;
-  for (int i = 0; i < PATTERN_SIZE * PATTERN_SIZE - 1; ++i) {
+  for (int i = 0; i < coord_count; ++i) {
     // Sleep a while (except for the first iteration).
     if (i != 0) {
       nanosleep(&sleep_ts, NULL);
