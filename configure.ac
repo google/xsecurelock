@@ -48,8 +48,9 @@ AC_DEFUN([RP_SEARCH_PROG], [
                                       [with_$4=$5])
           AS_IF([test "x$with_$4" = xno],
                 [have_$4=false],
-                [AC_PATH_PROG([with_$4], [$1], [], [$2])
-                 AS_IF([test "xwith_$4" = x],
+                [path_to_$4=$with_$4
+                 AC_PATH_PROG([path_to_$4], [$1], [], [$2])
+                 AS_IF([test "x$path_to_$4" = x],
                        [AS_IF([test "x$with_$4" = xcheck],
                               [have_$4=false],
                               [AC_MSG_ERROR([--with-$4 was enabled, but test for $4 failed])])],
@@ -126,7 +127,7 @@ RP_SEARCH_PROG(slidescreen, /usr/lib/xscreensaver,
                [HAVE_XSCREENSAVER], [xscreensaver], [check],
                [Install saver_xscreensaver (specify --with-xscreensaver=/usr/lib/xscreensaver to set the saver plugin directory to use)])
 # However, all we really want is the directory name...
-with_xscreensaver=${with_xscreensaver%/slidescreen}
+path_to_xscreensaver=${path_to_xscreensaver%/slidescreen}
 
 pam_service_name=
 enable_pam_check_account_type=no
@@ -207,6 +208,7 @@ AC_SUBST(with_mplayer)
 AC_SUBST(with_mpv)
 AC_SUBST(with_pamtester)
 AC_SUBST(with_xscreensaver)
+AC_SUBST(path_to_xscreensaver)
 AM_CONDITIONAL([PAM_CHECK_ACCOUNT_TYPE],
                [test x$enable_pam_check_account_type = xyes])
 AM_CONDITIONAL([HAVE_IDLE_TIMER],

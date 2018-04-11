@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-: ${XSECURELOCK_XSCREENSAVER_PATH:=@with_xscreensaver@}
+: ${XSECURELOCK_XSCREENSAVER_PATH:=@path_to_xscreensaver@}
 
 simple_nl() {
   while read -r line; do

@@ -138,12 +138,6 @@ EXTRA_DIST = \
 	CONTRIBUTING \
 	LICENSE \
 	README.md \
-	helpers/auth_htpasswd \
-	helpers/auth_pamtester \
-	helpers/saver_blank \
-	helpers/saver_mplayer \
-	helpers/saver_mpv \
-	helpers/saver_xscreensaver \
 	Doxyfile \
 	autogen.sh
 
