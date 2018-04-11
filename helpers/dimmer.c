@@ -34,7 +34,39 @@ limitations under the License.
 #include "../env_settings.h"
 #include "../wm_properties.h"
 
-#define PATTERN_SIZE 8
+#define PATTERN_POWER 3
+
+// Get the entry of value index of the Bayer matrix for n = 2^power.
+void Bayer(int index, int power, int* x, int* y) {
+  // M_1 = [1].
+  if (power == 0) {
+    *x = 0;
+    *y = 0;
+    return;
+  }
+  // M_{2n} = [[4Mn 4M_n+2] [4M_n+3 4M_n+1]]
+  int subx, suby;
+  Bayer(index >> 2, power - 1, &subx, &suby);
+  int n = 1 << (power - 1);
+  switch(index % 4) {
+    case 0:
+      *x = subx;
+      *y = suby;
+      break;
+    case 1:
+      *x = subx + n;
+      *y = suby + n;
+      break;
+    case 2:
+      *x = subx + n;
+      *y = suby;
+      break;
+    case 3:
+      *x = subx;
+      *y = suby + n;
+      break;
+  }
+}
 
 int main(int argc, char** argv) {
   int dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
@@ -65,11 +97,11 @@ int main(int argc, char** argv) {
   // Create a pixmap to define the pattern we want to set as the window shape.
   XGCValues gc_values;
   gc_values.foreground = 0;
-  Pixmap pattern =
-      XCreatePixmap(display, dim_window, PATTERN_SIZE, PATTERN_SIZE, 1);
+  Pixmap pattern = XCreatePixmap(display, dim_window, 1 << PATTERN_POWER,
+                                 1 << PATTERN_POWER, 1);
   GC pattern_gc = XCreateGC(display, pattern, GCForeground, &gc_values);
-  XFillRectangle(display, pattern, pattern_gc, 0, 0, PATTERN_SIZE,
-                 PATTERN_SIZE);
+  XFillRectangle(display, pattern, pattern_gc, 0, 0, 1 << PATTERN_POWER,
+                 1 << PATTERN_POWER);
   XSetForeground(display, pattern_gc, 1);
 
   // Create a pixmap to define the shape of the screen-filling window (which
@@ -79,44 +111,8 @@ int main(int argc, char** argv) {
   GC dim_gc =
       XCreateGC(display, dim_window, GCFillStyle | GCStipple, &gc_values);
 
-  // Define a random order to draw the pixels.
-  int coords[2 * PATTERN_SIZE * PATTERN_SIZE];
-  int coord_count = 0;
-  for (int y = 0; y < PATTERN_SIZE; ++y) {
-    for (int x = 0; x < PATTERN_SIZE; ++x) {
-      // Keep 1 out of every 1x1 in 2x2, and of those 2 out of every 2x2 in 4x4.
-      // That's 12.5% of all pixels. The pattern will be this:
-      // ........
-      // .*...*..
-      // ........
-      // ...*...*
-      // ........
-      // .*...*..
-      // ........
-      // ...*...*
-      // Specifically aligned to leave rather empty rows than full rows when
-      // PATTERN_SIZE is even, and to still skip one pixel for PATTERN_SIZE 2
-      // and 3.
-      if ((x & y & 1) && !((x ^ y) & 2)) {
-        continue;
-      }
-      coords[2 * coord_count] = x;
-      coords[2 * coord_count + 1] = y;
-      ++coord_count;
-    }
-  }
-  srand(time(NULL));
-  for (int i = 0; i < coord_count; ++i) {
-    int j = rand() % (coord_count - i) + i;  // In [i, n-1].
-    int h = coords[2 * i];
-    coords[2 * i] = coords[2 * j];
-    coords[2 * j] = h;
-    h = coords[2 * i + 1];
-    coords[2 * i + 1] = coords[2 * j + 1];
-    coords[2 * j + 1] = h;
-  }
-
   // Precalculate the sleep time per step.
+  int coord_count = 7 << (2 * PATTERN_POWER - 3);  // i.e. 7/8 of the pixels.
   unsigned long long sleep_time_ns =
       (dim_time_ms * 1000000ULL) / (coord_count - 1);
   struct timespec sleep_ts;
@@ -128,8 +124,8 @@ int main(int argc, char** argv) {
       nanosleep(&sleep_ts, NULL);
     }
     // Advance the dim pattern by one step.
-    int x = coords[2 * i];
-    int y = coords[2 * i + 1];
+    int x, y;
+    Bayer(i, PATTERN_POWER, &x, &y);
     XDrawPoint(display, pattern, pattern_gc, x, y);
     // Draw the pattern on the window.
     XChangeGC(display, dim_gc, GCStipple, &gc_values);
