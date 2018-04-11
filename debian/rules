@@ -10,9 +10,10 @@ override_dh_auto_configure:
 	dh_auto_configure -- \
 		--with-pam --with-pam-service-name=common-auth \
 		--with-xcomposite \
+		--with-xfixes \
 		--with-xkb \
 		--with-xrandr \
-		--with-xfixes \
+		--with-xscreensaver=/usr/lib/xscreensaver \
 		--with-xss
 
 override_dh_autoreconf:
