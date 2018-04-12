@@ -138,8 +138,11 @@ EXTRA_DIST = \
 	CONTRIBUTING \
 	LICENSE \
 	README.md \
-	Doxyfile \
-	autogen.sh
+	autogen.sh \
+	debian \
+	helpers/saver_blank \
+	run-linters.sh \
+	test
 
 if HAVE_DOXYGEN
 doxyfile.stamp:
