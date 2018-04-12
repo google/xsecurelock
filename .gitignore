@@ -26,8 +26,10 @@
 
 # Binaries.
 /auth_pam_x11
+/dimmer
 /saver_multiplex
 /xsecurelock
+/until_nonidle
 
 # Doxygen stuff.
 /doxy
