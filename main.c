@@ -632,6 +632,7 @@ int main(int argc, char **argv) {
     XEvent ev;
     // The decoded key press.
     char buf[16];
+    KeySym keysym;
     // The length of the data in buf.
     int len;
   } priv;
@@ -791,10 +792,12 @@ int main(int argc, char **argv) {
           // Keyboard events launch the auth child.
           Status status = XLookupNone;
           int have_key = 1;
+          priv.keysym = NoSymbol;
           if (xic) {
             // This uses the current locale.
-            priv.len = XmbLookupString(xic, &priv.ev.xkey, priv.buf,
-                                       sizeof(priv.buf) - 1, NULL, &status);
+            priv.len =
+                XmbLookupString(xic, &priv.ev.xkey, priv.buf,
+                                sizeof(priv.buf) - 1, &priv.keysym, &status);
             if (priv.len <= 0) {
               // Error or no output. Fine.
               have_key = 0;
@@ -805,7 +808,7 @@ int main(int argc, char **argv) {
           } else {
             // This is always Latin-1. Sorry.
             priv.len = XLookupString(&priv.ev.xkey, priv.buf,
-                                     sizeof(priv.buf) - 1, NULL, NULL);
+                                     sizeof(priv.buf) - 1, &priv.keysym, NULL);
             if (priv.len <= 0) {
               // Error or no output. Fine.
               have_key = 0;
@@ -816,7 +819,12 @@ int main(int argc, char **argv) {
             Log("Received invalid length from XLookupString: %d", priv.len);
             have_key = 0;
           }
-          if (have_key) {
+          if (priv.keysym == XK_BackSpace &&
+              (priv.ev.xkey.state & ControlMask)) {
+            // Map Ctrl-Backspace to Ctrl-U.
+            priv.buf[0] = '\025';
+            priv.buf[1] = 0;
+          } else if (have_key) {
             // Map all newline-like things to newlines.
             if (priv.len == 1 && priv.buf[0] == '\r') {
               priv.buf[0] = '\n';
