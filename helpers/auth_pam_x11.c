@@ -451,13 +451,14 @@ int prompt(const char *msg, char **response, int echo) {
           priv.pwlen = priv.prevpos;
           break;
         }
+        case '\001':  // Ctrl-A.
+          // Clearing input line on just Ctrl-A is odd - but commonly
+          // requested. In most toolkits, Ctrl-A does not immediately erase but
+          // almost every keypress other than arrow keys will erase afterwards.
+          priv.pwlen = 0;
+          break;
         case '\025':  // Ctrl-U.
           // Delete the entire input line.
-          // TODO(divVerent): https://github.com/google/xsecurelock/issues/25
-          // is asking for automatic clearing on Ctrl-A. This seems a bit more
-          // tricky as usual UI behavior of Ctrl-A is more complex than just
-          // clearing - however we may consider just erasing the input line on
-          // that too.
           // i3lock: supports Ctrl-U but not Ctrl-A.
           // xscreensaver: supports Ctrl-U and Ctrl-X but not Ctrl-A.
           priv.pwlen = 0;
