@@ -162,6 +162,8 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
     in when blanking (one of standby, suspend, off and on, where "on" means to
     not invoke DPMS at all).
+*   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming
+    effect of `dimmer`. Usually shouldn't need touching.
 *   `XSECURELOCK_DIM_TIME_MS`: Milliseconds to dim for when above xss-lock
     command line with `dimmer` is used; also used by `wait_nonidle` to know when
     to assume dimming and waiting has finished and exit.

@@ -27,14 +27,13 @@ limitations under the License.
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
 #include "../env_settings.h"
 #include "../wm_properties.h"
-
-#define PATTERN_POWER 3
 
 // Get the entry of value index of the Bayer matrix for n = 2^power.
 void Bayer(int index, int power, int* x, int* y) {
@@ -71,6 +70,23 @@ void Bayer(int index, int power, int* x, int* y) {
 int main(int argc, char** argv) {
   int dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
   int wait_time_ms = GetIntSetting("XSECURELOCK_WAIT_TIME_MS", 5000);
+  int min_fps = GetIntSetting("XSECURELOCK_DIM_MIN_FPS", 30);
+
+  // Ensure dimming at least at a defined frame rate.
+  int pattern_power = 3;
+  // Total time of effect if we wouldn't stop after 7/8 of fading out.
+  double total_time_ms = dim_time_ms * 8.0 / 7.0;
+  // Minimum "total" frame count of the animation.
+  double total_frames_min = total_time_ms / 1000.0 * min_fps;
+  // This actually computes ceil(log2(sqrt(total_frames_min))) but cannot fail.
+  frexp(sqrt(total_frames_min), &pattern_power);
+  // Clip extreme/unsupported values.
+  if (pattern_power < 2) {
+    pattern_power = 2;
+  }
+  if (pattern_power > 8) {
+    pattern_power = 8;
+  }
 
   Display* display = XOpenDisplay(NULL);
   if (display == NULL) {
@@ -97,11 +113,11 @@ int main(int argc, char** argv) {
   // Create a pixmap to define the pattern we want to set as the window shape.
   XGCValues gc_values;
   gc_values.foreground = 0;
-  Pixmap pattern = XCreatePixmap(display, dim_window, 1 << PATTERN_POWER,
-                                 1 << PATTERN_POWER, 1);
+  Pixmap pattern = XCreatePixmap(display, dim_window, 1 << pattern_power,
+                                 1 << pattern_power, 1);
   GC pattern_gc = XCreateGC(display, pattern, GCForeground, &gc_values);
-  XFillRectangle(display, pattern, pattern_gc, 0, 0, 1 << PATTERN_POWER,
-                 1 << PATTERN_POWER);
+  XFillRectangle(display, pattern, pattern_gc, 0, 0, 1 << pattern_power,
+                 1 << pattern_power);
   XSetForeground(display, pattern_gc, 1);
 
   // Create a pixmap to define the shape of the screen-filling window (which
@@ -112,20 +128,15 @@ int main(int argc, char** argv) {
       XCreateGC(display, dim_window, GCFillStyle | GCStipple, &gc_values);
 
   // Precalculate the sleep time per step.
-  int coord_count = 7 << (2 * PATTERN_POWER - 3);  // i.e. 7/8 of the pixels.
-  unsigned long long sleep_time_ns =
-      (dim_time_ms * 1000000ULL) / (coord_count - 1);
+  int coord_count = 7 << (2 * pattern_power - 3);  // i.e. 7/8 of the pixels.
+  unsigned long long sleep_time_ns = (dim_time_ms * 1000000ULL) / coord_count;
   struct timespec sleep_ts;
   sleep_ts.tv_sec = sleep_time_ns / 1000000000;
   sleep_ts.tv_nsec = sleep_time_ns % 1000000000;
   for (int i = 0; i < coord_count; ++i) {
-    // Sleep a while (except for the first iteration).
-    if (i != 0) {
-      nanosleep(&sleep_ts, NULL);
-    }
     // Advance the dim pattern by one step.
     int x, y;
-    Bayer(i, PATTERN_POWER, &x, &y);
+    Bayer(i, pattern_power, &x, &y);
     XDrawPoint(display, pattern, pattern_gc, x, y);
     // Draw the pattern on the window.
     XChangeGC(display, dim_gc, GCStipple, &gc_values);
@@ -136,6 +147,9 @@ int main(int argc, char** argv) {
     }
     // Draw it!
     XFlush(display);
+    // Sleep a while. Yes, even at the end now - we want the user to see this
+    // after all.
+    nanosleep(&sleep_ts, NULL);
   }
 
   // Wait a bit at the end (to hand over to the screen locker without
