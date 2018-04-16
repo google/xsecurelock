@@ -260,18 +260,10 @@ void display_string(const char *title, const char *str) {
   XFlush(display);
 }
 
-/*! \brief Show a message to the user.
- *
- * \param msg The message.
- * \param is_error If true, the message is assumed to be an error.
- */
-void alert(const char *msg, int is_error) {
-  // Display message.
-  display_string(is_error ? "Error" : "PAM says", msg);
-
+void wait_for_keypress(int seconds) {
   // Sleep for up to 1 second _or_ a key press.
   struct timeval timeout;
-  timeout.tv_sec = 1;
+  timeout.tv_sec = seconds;
   timeout.tv_usec = 0;
   fd_set set;
   memset(&set, 0, sizeof(set));  // For clang-analyzer.
@@ -331,7 +323,8 @@ int prompt(const char *msg, char **response, int echo) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    alert("Password will not be stored securely.", 1);
+    display_string("Error", "Password will not be stored securely.");
+    wait_for_keypress(1);
   }
 
   priv.pwlen = 0;
@@ -474,7 +467,8 @@ int prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            alert("Password has not been stored securely.", 1);
+            display_string("Error", "Password has not been stored securely.");
+            wait_for_keypress(1);
           }
           if (priv.pwlen != 0) {
             memcpy(*response, priv.pwbuf, priv.pwlen);
@@ -541,10 +535,12 @@ int converse_one(const struct pam_message *msg, struct pam_response *resp) {
     case PAM_PROMPT_ECHO_ON:
       return prompt(msg->msg, &resp->resp, 1);
     case PAM_ERROR_MSG:
-      alert(msg->msg, 1);
+       display_string("Error", msg->msg);
+       wait_for_keypress(1);
       return PAM_SUCCESS;
     case PAM_TEXT_INFO:
-      alert(msg->msg, 0);
+      display_string("PAM says", msg->msg);
+      wait_for_keypress(1);
       return PAM_SUCCESS;
     default:
       return PAM_CONV_ERR;
@@ -588,6 +584,9 @@ int converse(int num_msg, const struct pam_message **msg,
     }
   }
 
+  // We're returning to PAM, so let's show the processing prompt.
+  display_string("", "Processing...");
+
   return PAM_SUCCESS;
 }
 
@@ -598,6 +597,10 @@ int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
   int attempt = 0;
   for (;;) {
     conv_error = 0;
+
+    // We're entering PAM, so let's show a processing prompt.
+    display_string("", "Processing...");
+
     int status = pam_call(pam, flags);
     if (conv_error) {  // Timeout or escape.
       return status;
@@ -796,6 +799,9 @@ int main() {
   pam_handle_t *pam;
   int status = authenticate(pwd->pw_name, hostname, &conv, &pam);
   int status2 = pam_end(pam, status);
+
+  // Clear any possible processing message.
+  display_string("", "");
 
   // Done with PAM, so we can free the getpwuid_r buffer now.
   free(pwd_buf);
