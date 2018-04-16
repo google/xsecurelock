@@ -191,7 +191,8 @@ void OpacityEffectPreCreateWindow(void *unused_self, Display *unused_display,
 }
 
 #define MIN_OPACITY 0x00000000
-#define MAX_OPACITY 0xdfffffff  // 1/8 transparent.
+#define MAX_OPACITY 0x637982ca  // 1/8 transparent.
+// sRGB conversion in bc: obase=16; (2^32-1) * (1.055*e(l(1/8)/2.4) - 0.055)
 
 void OpacityEffectPostCreateWindow(void *self, Display *display,
                                    Window dim_window) {
