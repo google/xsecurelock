@@ -34,6 +34,7 @@ limitations under the License.
 #include <time.h>
 
 #include "../env_settings.h"
+#include "../logging.h"
 #include "../wm_properties.h"
 
 // Get the entry of value index of the Bayer matrix for n = 2^power.
@@ -79,6 +80,7 @@ int HaveCompositor(Display *display) {
 int dim_time_ms;
 int wait_time_ms;
 int min_fps;
+double dim_alpha;
 
 XColor dim_color;
 
@@ -153,8 +155,8 @@ void DitherEffectInit(struct DitherEffect *dimmer, Display *unused_display) {
 
   // Ensure dimming at least at a defined frame rate.
   dimmer->pattern_power = 3;
-  // Total time of effect if we wouldn't stop after 7/8 of fading out.
-  double total_time_ms = dim_time_ms * 8.0 / 7.0;
+  // Total time of effect if we wouldn't stop after dim_alpha of fading out.
+  double total_time_ms = dim_time_ms / dim_alpha;
   // Minimum "total" frame count of the animation.
   double total_frames_min = total_time_ms / 1000.0 * min_fps;
   // This actually computes ceil(log2(sqrt(total_frames_min))) but cannot fail.
@@ -168,7 +170,7 @@ void DitherEffectInit(struct DitherEffect *dimmer, Display *unused_display) {
   }
   // Generate the frame count and vtable.
   dimmer->super.frame_count =
-      7 << (2 * dimmer->pattern_power - 3);  // i.e. 7/8 of the pixels.
+      ceil(pow(1 << dimmer->pattern_power, 2) * dim_alpha);
   dimmer->super.PreCreateWindow = DitherEffectPreCreateWindow;
   dimmer->super.PostCreateWindow = DitherEffectPostCreateWindow;
   dimmer->super.DrawFrame = DitherEffectDrawFrame;
@@ -178,6 +180,7 @@ struct OpacityEffect {
   struct DimEffect super;
 
   Atom property_atom;
+  double dim_color_brightness;
 };
 
 void OpacityEffectPreCreateWindow(void *unused_self, Display *unused_display,
@@ -190,17 +193,22 @@ void OpacityEffectPreCreateWindow(void *unused_self, Display *unused_display,
   *dimmask |= CWBackPixel;
 }
 
-#define MIN_OPACITY 0x00000000
-#define MAX_OPACITY 0x637982ca  // 1/8 transparent.
-// sRGB conversion in bc: obase=16; (2^32-1) * (1.055*e(l(1/8)/2.4) - 0.055)
-
 void OpacityEffectPostCreateWindow(void *self, Display *display,
                                    Window dim_window) {
   struct OpacityEffect *dimmer = self;
 
-  long value = MIN_OPACITY;
+  long value = 0;
   XChangeProperty(display, dim_window, dimmer->property_atom, XA_CARDINAL, 32,
                   PropModeReplace, (unsigned char *)&value, 1);
+}
+
+double sRGBToLinear(double value) {
+  return (value <= 0.04045) ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4);
+}
+
+double LinearTosRGB(double value) {
+  return (value <= 0.0031308) ? 12.92 * value
+                              : 1.055 * pow(value, 1.0 / 2.4) - 0.055;
 }
 
 void OpacityEffectDrawFrame(void *self, Display *display, Window dim_window,
@@ -209,18 +217,41 @@ void OpacityEffectDrawFrame(void *self, Display *display, Window dim_window,
   (void)unused_w;
   (void)unused_h;
 
-  long value = MAX_OPACITY - (MAX_OPACITY - MIN_OPACITY) /
-                                 dimmer->super.frame_count *
-                                 (dimmer->super.frame_count - frame - 1);
+  // Calculate the linear-space alpha we want to be fading to.
+  double linear_alpha = (frame + 1) * dim_alpha / dimmer->super.frame_count;
+  double linear_min = linear_alpha * dimmer->dim_color_brightness;
+  double linear_max =
+      linear_alpha * dimmer->dim_color_brightness + (1.0 - linear_alpha);
+
+  // Calculate the sRGB-space alpha we thus must select to get the same color
+  // range.
+  double srgb_min = LinearTosRGB(linear_min);
+  double srgb_max = LinearTosRGB(linear_max);
+  double srgb_alpha = 1.0 - (srgb_max - srgb_min);
+  // Note: this may have a different brightness level, here we're simply
+  // solving for the same contrast as the "dither" mode.
+
+  // Log("Got: [%f..%f], want: [%f..%f]",
+  //     srgb_alpha * LinearTosRGB(dimmer->dim_color_brightness),
+  //     srgb_alpha * LinearTosRGB(dimmer->dim_color_brightness) +
+  //         (1.0 - srgb_alpha),
+  //     srgb_min, srgb_max);
+
+  // Convert to an opacity value.
+  long value = nextafter(0xffffffff, 0) * srgb_alpha;
   XChangeProperty(display, dim_window, dimmer->property_atom, XA_CARDINAL, 32,
                   PropModeReplace, (unsigned char *)&value, 1);
 }
 
 void OpacityEffectInit(struct OpacityEffect *dimmer, Display *display) {
   dimmer->property_atom = XInternAtom(display, "_NET_WM_WINDOW_OPACITY", False);
+  dimmer->dim_color_brightness =
+      sRGBToLinear(dim_color.red / 65535.0) * 0.2126 +
+      sRGBToLinear(dim_color.green / 65535.0) * 0.7152 +
+      sRGBToLinear(dim_color.blue / 65535.0) * 0.0722;
 
   // Generate the frame count and vtable.
-  dimmer->super.frame_count = dim_time_ms * min_fps / 1000;
+  dimmer->super.frame_count = ceil(dim_time_ms * min_fps / 1000.0);
   dimmer->super.PreCreateWindow = OpacityEffectPreCreateWindow;
   dimmer->super.PostCreateWindow = OpacityEffectPostCreateWindow;
   dimmer->super.DrawFrame = OpacityEffectDrawFrame;
@@ -229,7 +260,7 @@ void OpacityEffectInit(struct OpacityEffect *dimmer, Display *display) {
 int main(int argc, char **argv) {
   Display *display = XOpenDisplay(NULL);
   if (display == NULL) {
-    fprintf(stderr, "Could not connect to $DISPLAY.\n");
+    Log("Could not connect to $DISPLAY");
     return 1;
   }
   Window root_window = DefaultRootWindow(display);
@@ -238,9 +269,29 @@ int main(int argc, char **argv) {
   dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
   wait_time_ms = GetIntSetting("XSECURELOCK_WAIT_TIME_MS", 5000);
   min_fps = GetIntSetting("XSECURELOCK_DIM_MIN_FPS", 30);
+  dim_alpha = atof(GetStringSetting("XSECURELOCK_DIM_ALPHA", "0.875"));
   int have_compositor = GetIntSetting(
       "XSECURELOCK_DIM_OVERRIDE_COMPOSITOR_DETECTION", HaveCompositor(display));
 
+  if (dim_alpha <= 0 || dim_alpha > 1) {
+    Log("XSECURELOCK_DIM_ALPHA must be in ]0..1] - using default");
+    dim_alpha = 0.875;
+  }
+
+  // Prepare the background color.
+  Colormap colormap = DefaultColormap(display, DefaultScreen(display));
+  const char *color_name = GetStringSetting("XSECURELOCK_DIM_COLOR", "black");
+  XParseColor(display, colormap, color_name, &dim_color);
+  if (XAllocColor(display, colormap, &dim_color)) {
+    // Log("Allocated color %lu = %d %d %d", dim_color.pixel, dim_color.red,
+    //     dim_color.green, dim_color.blue);
+  } else {
+    dim_color.pixel = BlackPixel(display, DefaultScreen(display));
+    XQueryColor(display, colormap, &dim_color);
+    Log("Could not allocate color or unknown color name: %s", color_name);
+  }
+
+  // Set up the filter.
   struct DitherEffect dither_dimmer;
   struct OpacityEffect opacity_dimmer;
   struct DimEffect *dimmer;
@@ -251,11 +302,6 @@ int main(int argc, char **argv) {
     DitherEffectInit(&dither_dimmer, display);
     dimmer = &dither_dimmer.super;
   }
-
-  // Prepare the background color.
-  dim_color.pixel = BlackPixel(display, DefaultScreen(display));
-  XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
-              &dim_color);
 
   // Create a simple screen-filling window.
   int w = DisplayWidth(display, DefaultScreen(display));
