@@ -585,7 +585,7 @@ int converse(int num_msg, const struct pam_message **msg,
   }
 
   // We're returning to PAM, so let's show the processing prompt.
-  display_string("", "Processing...");
+  display_string("Processing...", "");
 
   return PAM_SUCCESS;
 }
@@ -599,7 +599,7 @@ int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
     conv_error = 0;
 
     // We're entering PAM, so let's show a processing prompt.
-    display_string("", "Processing...");
+    display_string("Processing...", "");
 
     int status = pam_call(pam, flags);
     if (conv_error) {  // Timeout or escape.
