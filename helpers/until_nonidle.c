@@ -134,7 +134,13 @@ int main(int argc, char **argv) {
 
   int dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
   int wait_time_ms = GetIntSetting("XSECURELOCK_WAIT_TIME_MS", 5000);
-  const char *timers = GetStringSetting("XSECURELOCK_IDLE_TIMERS", "");
+  const char *timers = GetStringSetting("XSECURELOCK_IDLE_TIMERS",
+#ifdef HAVE_XSCREENSAVER_EXT
+                                        ""
+#else
+                                        "IDLETIME"
+#endif
+  );
 
   Display *display = XOpenDisplay(NULL);
   if (display == NULL) {
