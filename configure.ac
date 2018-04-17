@@ -59,6 +59,22 @@ AC_DEFUN([RP_SEARCH_PROG], [
                        [have_$4=true])])
           AM_CONDITIONAL([$3], [test x$have_$4 = xtrue])])
 
+# RP_CHECK_MODULE(prefix, module, macro, flag, default, description)
+AC_DEFUN([RP_CHECK_MODULE], [
+          AC_ARG_WITH([$4],
+                      [AS_HELP_STRING([--with-$4],
+                                      [$6 @<:@default=$5@:>@])],
+                                      [with_$4=$withval],
+                                      [with_$4=$5])
+          AS_IF([test "x$with_$4" = xno],
+                [have_$4=false],
+                [PKG_CHECK_MODULES($1, [$2],
+                                   [have_$4=true],
+                                [AS_IF([test "x$with_$4" = xcheck],
+                                       [have_$4=false],
+                                       [AC_MSG_ERROR([--with-$4 was enabled, but test for $4 failed])])])])
+          AM_CONDITIONAL([$3], [test x$have_$4 = xtrue])])
+
 # The X11 Screen Saver extension is used to turn off the screen saver when X11
 # handles screen blanking (e.g. via timeout) anyway. Saves CPU power.
 RP_SEARCH_LIBS(XScreenSaverQueryExtension, Xss,
@@ -90,6 +106,11 @@ RP_SEARCH_LIBS(XF86MiscSetGrabKeysState, Xxf86misc,
 RP_SEARCH_LIBS(pam_authenticate, pam,
                [HAVE_PAM], [pam], [yes],
                [Enable support for the PAM library to authenticate the user])
+
+# Xft optionally provides nicer font rendering.
+RP_CHECK_MODULE(XFT, [xft],
+                [HAVE_XFT_EXT], [xft], [check],
+                [Use the Xft extension for nicer fonts (requires Xrender too)])
 
 # Querying the keyboard LEDs (and layout name) makes auth_pam_x11 more user
 # friendly.

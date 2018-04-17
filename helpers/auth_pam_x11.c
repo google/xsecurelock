@@ -29,6 +29,11 @@ limitations under the License.
 #include <time.h>                   // for time
 #include <unistd.h>                 // for gethostname, getuid, read, ssize_t
 
+#ifdef HAVE_XFT_EXT
+#include <X11/Xft/Xft.h>
+#include <X11/extensions/Xrender.h>
+#endif
+
 #ifdef HAVE_XKB_EXT
 #include <X11/XKBlib.h>  // for XkbFreeClientMap, XkbGetIndicator...
 #endif
@@ -63,8 +68,15 @@ Window window;
 //! The X11 graphics context to draw with.
 GC gc;
 
-//! The font for the PAM messages.
-XFontStruct *font;
+//! The X11 core font for the PAM messages.
+XFontStruct *core_font;
+
+#ifdef HAVE_XFT_EXT
+//! The Xft font for the PAM messages.
+XftColor xft_color;
+XftDraw *xft_draw;
+XftFont *xft_font;
+#endif
 
 //! The Black color (used as background).
 unsigned long Black;
@@ -182,6 +194,54 @@ const char *get_indicators() {
 #endif
 }
 
+int TextAscent(void) {
+#ifdef HAVE_XFT_EXT
+  if (xft_font != NULL) {
+    return xft_font->ascent;
+  }
+#endif
+  return core_font->max_bounds.ascent;
+}
+
+int TextDescent(void) {
+#ifdef HAVE_XFT_EXT
+  if (xft_font != NULL) {
+    return xft_font->descent;
+  }
+#endif
+  return core_font->max_bounds.descent;
+}
+
+int TextWidth(const char *string, int len) {
+#ifdef HAVE_XFT_EXT
+  if (xft_font != NULL) {
+    XGlyphInfo extents;
+    XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
+                       &extents);
+    return extents.width;
+  }
+#endif
+  return XTextWidth(core_font, string, len);
+}
+
+void DrawString(int x, int y, const char *string, int len) {
+#ifdef HAVE_XFT_EXT
+  if (xft_font != NULL) {
+    // HACK: Query text extents here to make the text fit into the specified
+    // box. For y this is covered by the usual ascent/descent behavior - for x
+    // we however do have to work around font descents being drawn to the left
+    // of the cursor.
+    XGlyphInfo extents;
+    XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
+                       &extents);
+    XftDrawStringUtf8(xft_draw, &xft_color, xft_font, x - extents.x, y,
+                      (const FcChar8 *)string, len);
+    return;
+  }
+#endif
+  XDrawString(display, window, gc, x, y, string, len);
+}
+
 /*! \brief Display a string in the window.
  *
  * The given title and message will be displayed on all screens. In case caps
@@ -196,20 +256,20 @@ void display_string(const char *title, const char *str) {
   static int region_w = 0;
   static int region_h = 0;
 
-  int th = font->max_bounds.ascent + font->max_bounds.descent + 4;
-  int to = font->max_bounds.ascent + 2;  // Text at to has bbox from 0 to th.
+  int th = TextAscent() + TextDescent() + 4;
+  int to = TextAscent() + 2;  // Text at to has bbox from 0 to th.
 
   int len_title = strlen(title);
-  int tw_title = XTextWidth(font, title, len_title);
+  int tw_title = TextWidth(title, len_title);
 
   int len_str = strlen(str);
-  int tw_str = XTextWidth(font, str, len_str);
+  int tw_str = TextWidth(str, len_str);
 
-  int tw_cursor = XTextWidth(font, cursor, strlen(cursor));
+  int tw_cursor = TextWidth(cursor, strlen(cursor));
 
   const char *indicators = get_indicators();
   int len_indicators = strlen(indicators);
-  int tw_indicators = XTextWidth(font, indicators, len_indicators);
+  int tw_indicators = TextWidth(indicators, len_indicators);
 
   // Compute the region we will be using, relative to cx and cy.
   if (region_w < tw_title + tw_cursor) {
@@ -245,12 +305,10 @@ void display_string(const char *title, const char *str) {
                  region_h, False);
     }
 
-    XDrawString(display, window, gc, cx - tw_title / 2, sy, title, len_title);
+    DrawString(cx - tw_title / 2, sy, title, len_title);
 
-    XDrawString(display, window, gc, cx - tw_str / 2, sy + th * 2, str,
-                len_str);
-    XDrawString(display, window, gc, cx - tw_indicators / 2, sy + th * 3,
-                indicators, len_indicators);
+    DrawString(cx - tw_str / 2, sy + th * 2, str, len_str);
+    DrawString(cx - tw_indicators / 2, sy + th * 3, indicators, len_indicators);
 
     // Disable clipping again.
     XSetClipMask(display, gc, None);
@@ -535,8 +593,8 @@ int converse_one(const struct pam_message *msg, struct pam_response *resp) {
     case PAM_PROMPT_ECHO_ON:
       return prompt(msg->msg, &resp->resp, 1);
     case PAM_ERROR_MSG:
-       display_string("Error", msg->msg);
-       wait_for_keypress(1);
+      display_string("Error", msg->msg);
+      wait_for_keypress(1);
       return PAM_SUCCESS;
     case PAM_TEXT_INFO:
       display_string("PAM says", msg->msg);
@@ -762,20 +820,43 @@ int main() {
   Black = BlackPixel(display, DefaultScreen(display));
   White = WhitePixel(display, DefaultScreen(display));
 
-  font = NULL;
+  core_font = NULL;
+#ifdef HAVE_XFT_EXT
+  xft_font = NULL;
+#endif
+
   const char *font_name = GetStringSetting("XSECURELOCK_FONT", "");
+
+  // First try parsing the font name as an X11 core font. We're trying these
+  // first as their font name format is more restrictive (usually starts with a
+  // dash), except for when font aliases are used.
+  int have_font = 0;
   if (font_name[0] != 0) {
-    font = XLoadQueryFont(display, font_name);
-    if (font == NULL) {
-      Log("Could not load the specified font %s - trying to fall back to "
-          "fixed",
+    core_font = XLoadQueryFont(display, font_name);
+    have_font = (core_font != NULL);
+#ifdef HAVE_XFT_EXT
+    if (!have_font) {
+      xft_font = XftFontOpenName(display, DefaultScreen(display), font_name);
+      have_font = (xft_font != NULL);
+    }
+#endif
+  }
+  core_font = NULL;
+  if (!have_font) {
+    if (font_name[0] != 0) {
+      Log("Could not load the specified font %s - trying a default font",
           font_name);
     }
+#ifdef HAVE_XFT_EXT
+    xft_font = XftFontOpenName(display, DefaultScreen(display), "monospace");
+    have_font = (xft_font != NULL);
+#endif
+    if (!have_font) {
+      core_font = XLoadQueryFont(display, "fixed");
+      have_font = (core_font != NULL);
+    }
   }
-  if (font == NULL) {
-    font = XLoadQueryFont(display, "fixed");
-  }
-  if (font == NULL) {
+  if (!have_font) {
     Log("Could not load a mind-bogglingly stupid font");
     exit(1);
   }
@@ -784,9 +865,31 @@ int main() {
   gcattrs.function = GXcopy;
   gcattrs.foreground = White;
   gcattrs.background = Black;
-  gcattrs.font = font->fid;
+  if (core_font != NULL) {
+    gcattrs.font = core_font->fid;
+  }
   gc = XCreateGC(display, window,
-                 GCFunction | GCForeground | GCBackground | GCFont, &gcattrs);
+                 GCFunction | GCForeground | GCBackground |
+                     (core_font != NULL ? GCFont : 0),
+                 &gcattrs);
+
+#ifdef HAVE_XFT_EXT
+  if (xft_font != NULL) {
+    xft_draw = XftDrawCreate(display, window,
+                             DefaultVisual(display, DefaultScreen(display)),
+                             DefaultColormap(display, DefaultScreen(display)));
+
+    XRenderColor xrcolor;
+    xrcolor.red = 65535;
+    xrcolor.green = 65535;
+    xrcolor.blue = 65535;
+    xrcolor.alpha = 65535;
+    XftColorAllocValue(display, DefaultVisual(display, DefaultScreen(display)),
+                       DefaultColormap(display, DefaultScreen(display)),
+                       &xrcolor, &xft_color);
+  }
+#endif
+
   XSetWindowBackground(display, window, Black);
 
   SelectMonitorChangeEvents(display, window);

@@ -40,6 +40,9 @@ endif
 if HAVE_XFIXES_EXT
 macros += -DHAVE_XFIXES_EXT
 endif
+if HAVE_XFT_EXT
+macros += -DHAVE_XFT_EXT
+endif
 if HAVE_XRANDR_EXT
 macros += -DHAVE_XRANDR_EXT
 endif
@@ -125,7 +128,8 @@ auth_pam_x11_SOURCES = \
 	logging.c logging.h \
 	mlock_page.h \
 	xscreensaver_api.c xscreensaver_api.h
-auth_pam_x11_CPPFLAGS = $(macros)
+auth_pam_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS)
+auth_pam_x11_LDADD = $(XFT_LIBS)
 endif
 
 docsdir = $(docdir)
