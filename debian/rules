@@ -12,6 +12,7 @@ override_dh_auto_configure:
 		--with-xcomposite \
 		--with-xfixes \
 		--with-xkb \
+		--with-xft \
 		--with-xrandr \
 		--with-xscreensaver=/usr/lib/xscreensaver \
 		--with-xss

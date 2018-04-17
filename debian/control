@@ -11,6 +11,7 @@ Build-Depends: debhelper (>= 8.0.0),
   libx11-dev,
   libxcomposite-dev,
   libxfixes-dev,
+  libxft-dev,
   libxrandr-dev,
   libxss-dev,
   x11proto-core-dev
