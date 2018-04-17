@@ -841,7 +841,6 @@ int main() {
     }
 #endif
   }
-  core_font = NULL;
   if (!have_font) {
     if (font_name[0] != 0) {
       Log("Could not load the specified font %s - trying a default font",
