@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 #ifdef HAVE_XSYNC_EXT
   have_xsync_ext = 0;
   int sync_event_base, sync_error_base;
-  if (XScreenSaverQueryExtension(display, &sync_event_base, &sync_error_base)) {
+  if (XSyncQueryExtension(display, &sync_event_base, &sync_error_base)) {
     have_xsync_ext = 1;
     xsync_counters = XSyncListSystemCounters(display, &num_xsync_counters);
   }
