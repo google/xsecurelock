@@ -171,8 +171,9 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_DIM_TIME_MS`: Milliseconds to dim for when above xss-lock
     command line with `dimmer` is used; also used by `wait_nonidle` to know when
     to assume dimming and waiting has finished and exit.
-*   `XSECURELOCK_FONT`: X11 font name to use for `auth_pam_x11`. You can get a
-    list of supported font names by running `xlsfonts`.
+*   `XSECURELOCK_FONT`: X11 or FontConfig font name to use for `auth_pam_x11`.
+    You can get a list of supported font names by running `xlsfonts` and
+    `fc-list`.
 *   `XSECURELOCK_GLOBAL_SAVER`: specifies the desired global screen saver module
     (by default this is a multiplexer that runs `XSECURELOCK_SAVER` on each
     screen).
