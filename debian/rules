@@ -8,14 +8,22 @@ export DH_VERBOSE=1
 
 override_dh_auto_configure:
 	dh_auto_configure -- \
-		--with-pam --with-pam-service-name=common-auth \
+		--with-htpasswd=no \
+		--with-mplayer=no \
+		--with-mpv=no \
+		--with-pam \
+		--with-pam-service-name=common-auth \
+		--with-pamtester=no \
 		--with-xcomposite \
+		--with-xf86misc=no \
 		--with-xfixes \
-		--with-xkb \
+		--with-xfixes \
 		--with-xft \
+		--with-xkb \
 		--with-xrandr \
 		--with-xscreensaver=/usr/lib/xscreensaver \
-		--with-xss
+		--with-xss \
+		--with-xsync
 
 override_dh_autoreconf:
 	dh_autoreconf ./autogen.sh
