@@ -59,6 +59,9 @@ limitations under the License.
 //! Whether password display should hide the length.
 int paranoid_password = 1;
 
+//! If set, we can start a new login session.
+int have_switch_user_command = 0;
+
 //! The X11 display.
 Display *display;
 
@@ -271,6 +274,12 @@ void display_string(const char *title, const char *str) {
   int len_indicators = strlen(indicators);
   int tw_indicators = TextWidth(indicators, len_indicators);
 
+  const char *switch_user = have_switch_user_command
+                                ? "Press Ctrl-Alt-L or Win-L to switch user"
+                                : "";
+  int len_switch_user = strlen(switch_user);
+  int tw_switch_user = TextWidth(switch_user, len_switch_user);
+
   // Compute the region we will be using, relative to cx and cy.
   if (region_w < tw_title + tw_cursor) {
     region_w = tw_title + tw_cursor;
@@ -282,14 +291,14 @@ void display_string(const char *title, const char *str) {
     region_w = tw_indicators + tw_cursor;
   }
   region_x = -region_w / 2;
-  region_h = 4 * th;
+  region_h = (have_switch_user_command ? 5 : 4) * th;
   region_y = -region_h / 2;
 
   int i;
   for (i = 0; i < num_monitors; ++i) {
     int cx = monitors[i].x + monitors[i].width / 2;
     int cy = monitors[i].y + monitors[i].height / 2;
-    int sy = cy + to - th * 2;
+    int sy = cy + to - region_h / 2;
 
     // Clip all following output to the bounds of this monitor.
     XRectangle rect;
@@ -309,6 +318,10 @@ void display_string(const char *title, const char *str) {
 
     DrawString(cx - tw_str / 2, sy + th * 2, str, len_str);
     DrawString(cx - tw_indicators / 2, sy + th * 3, indicators, len_indicators);
+    if (have_switch_user_command) {
+      DrawString(cx - tw_switch_user / 2, sy + th * 4, switch_user,
+                 len_switch_user);
+    }
 
     // Disable clipping again.
     XSetClipMask(display, gc, None);
@@ -770,6 +783,8 @@ int main() {
 
   paranoid_password =
       GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", paranoid_password);
+  have_switch_user_command =
+      *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     Log("Could not connect to $DISPLAY");

@@ -102,6 +102,8 @@ char *const *notify_command = NULL;
 //! Do not use XComposite to cover transparent notifications.
 int no_composite = 0;
 #endif
+//! If set, we can start a new login session.
+int have_switch_user_command = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
@@ -232,6 +234,8 @@ void load_defaults() {
 #ifdef HAVE_XCOMPOSITE_EXT
   no_composite = GetIntSetting("XSECURELOCK_NO_COMPOSITE", 0);
 #endif
+  have_switch_user_command =
+      *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
 }
 
 /*! \brief Parse the command line arguments.
@@ -824,6 +828,12 @@ int main(int argc, char **argv) {
             // Map Ctrl-Backspace to Ctrl-U.
             priv.buf[0] = '\025';
             priv.buf[1] = 0;
+          } else if (have_switch_user_command && priv.keysym == XK_l &&
+                     (((priv.ev.xkey.state & ControlMask) &&
+                       (priv.ev.xkey.state & Mod1Mask)) ||
+                      (priv.ev.xkey.state & Mod4Mask))) {
+            // Switch to greeter on Ctrl-Alt-L or Win-L.
+            system("eval \"$XSECURELOCK_SWITCH_USER_COMMAND\" &");
           } else if (have_key) {
             // Map all newline-like things to newlines.
             if (priv.len == 1 && priv.buf[0] == '\r') {
