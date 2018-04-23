@@ -86,6 +86,11 @@ The option `-l` is critical as it makes sure not to allow machine suspend before
 the screen saver is active - otherwise previous screen content may show up for a
 short time after wakeup!
 
+NOTE: When using `xss-lock`, it's recommended to not launch `xsecurelock`
+directly for manual locking, but to manually lock using `xset s activate`. This
+ensures that `xss-lock` knows about the locking state and won't try again, which
+would spam the X11 error log.
+
 WARNING: Never rely on automatic locking for security, for the following
 reasons:
 
