@@ -57,10 +57,23 @@ limitations under the License.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
 
 //! Whether password display should hide the length.
-int paranoid_password = 1;
+int paranoid_password;
 
 //! If set, we can start a new login session.
-int have_switch_user_command = 0;
+int have_switch_user_command;
+
+//! If set, the prompt will be fixed by <username>@.
+int show_username;
+
+//! If set, the prompt will be fixed by <hostname>. If >1, the hostname will be
+// shown in full and not cut at the first dot.
+int show_hostname;
+
+//! The local hostname.
+const char *hostname;
+
+//! The username to authenticate as.
+const char *username;
 
 //! The X11 display.
 Display *display;
@@ -245,6 +258,43 @@ void DrawString(int x, int y, const char *string, int len) {
   XDrawString(display, window, gc, x, y, string, len);
 }
 
+void StrAppend(char **output, size_t *output_size, const char *input,
+                  size_t input_size) {
+  if (*output_size <= input_size) {
+    // Cut the input off. Sorry.
+    input_size = *output_size - 1;
+  }
+  memcpy(*output, input, input_size);
+  *output += input_size;
+  *output_size -= input_size;
+}
+
+void BuildTitle(char *output, size_t output_size, const char *input) {
+  if (show_username) {
+    size_t username_len = strlen(username);
+    StrAppend(&output, &output_size, username, username_len);
+  }
+
+  if (show_username && show_hostname) {
+    StrAppend(&output, &output_size, "@", 1);
+  }
+
+  if (show_hostname) {
+    size_t hostname_len =
+        show_hostname > 1 ? strlen(hostname) : strcspn(hostname, ".");
+    StrAppend(&output, &output_size, hostname, hostname_len);
+  }
+
+  if (*input == 0) {
+    *output = 0;
+    return;
+  }
+
+  StrAppend(&output, &output_size, " - ", 3);
+  strncpy(output, input, output_size - 1);
+  output[output_size - 1] = 0;
+}
+
 /*! \brief Display a string in the window.
  *
  * The given title and message will be displayed on all screens. In case caps
@@ -259,11 +309,14 @@ void display_string(const char *title, const char *str) {
   static int region_w = 0;
   static int region_h = 0;
 
+  char full_title[256];
+  BuildTitle(full_title, sizeof(full_title), title);
+
   int th = TextAscent() + TextDescent() + 4;
   int to = TextAscent() + 2;  // Text at to has bbox from 0 to th.
 
-  int len_title = strlen(title);
-  int tw_title = TextWidth(title, len_title);
+  int len_full_title = strlen(full_title);
+  int tw_full_title = TextWidth(full_title, len_full_title);
 
   int len_str = strlen(str);
   int tw_str = TextWidth(str, len_str);
@@ -281,8 +334,8 @@ void display_string(const char *title, const char *str) {
   int tw_switch_user = TextWidth(switch_user, len_switch_user);
 
   // Compute the region we will be using, relative to cx and cy.
-  if (region_w < tw_title + tw_cursor) {
-    region_w = tw_title + tw_cursor;
+  if (region_w < tw_full_title + tw_cursor) {
+    region_w = tw_full_title + tw_cursor;
   }
   if (region_w < tw_str + tw_cursor) {
     region_w = tw_str + tw_cursor;
@@ -314,7 +367,7 @@ void display_string(const char *title, const char *str) {
                  region_h, False);
     }
 
-    DrawString(cx - tw_title / 2, sy, title, len_title);
+    DrawString(cx - tw_full_title / 2, sy, full_title, len_full_title);
 
     DrawString(cx - tw_str / 2, sy + th * 2, str, len_str);
     DrawString(cx - tw_indicators / 2, sy + th * 3, indicators, len_indicators);
@@ -703,8 +756,7 @@ int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
  * \return The PAM status (PAM_SUCCESS after successful authentication, or
  *   anything else in case of error).
  */
-int authenticate(const char *username, const char *hostname,
-                 struct pam_conv *conv, pam_handle_t **pam) {
+int authenticate(struct pam_conv *conv, pam_handle_t **pam) {
   const char *service_name =
       GetStringSetting("XSECURELOCK_PAM_SERVICE", PAM_SERVICE_NAME);
   int status = pam_start(service_name, username, conv, pam);
@@ -781,8 +833,9 @@ int main() {
   // This is used by displaymarker only (no security relevance of the RNG).
   srand(time(NULL));
 
-  paranoid_password =
-      GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", paranoid_password);
+  show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
+  show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
+  paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
   have_switch_user_command =
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
 
@@ -799,12 +852,13 @@ int main() {
                         &xkb_major_version, &xkb_minor_version);
 #endif
 
-  char hostname[256];
-  if (gethostname(hostname, sizeof(hostname))) {
+  char hostname_storage[256];
+  if (gethostname(hostname_storage, sizeof(hostname_storage))) {
     LogErrno("gethostname");
     return 1;
   }
-  hostname[sizeof(hostname) - 1] = 0;
+  hostname_storage[sizeof(hostname_storage) - 1] = 0;
+  hostname = hostname_storage;
 
   struct passwd *pwd = NULL;
   struct passwd pwd_storage;
@@ -824,6 +878,7 @@ int main() {
     free(pwd_buf);
     return 1;
   }
+  username = pwd->pw_name;
 
   window = ReadWindowID();
   if (window == None) {
@@ -914,7 +969,7 @@ int main() {
   conv.appdata_ptr = NULL;
 
   pam_handle_t *pam;
-  int status = authenticate(pwd->pw_name, hostname, &conv, &pam);
+  int status = authenticate(&conv, &pam);
   int status2 = pam_end(pam, status);
 
   // Clear any possible processing message.

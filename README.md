@@ -199,6 +199,11 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_pam_x11` hide the password
     length.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
+*   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
+    screen of `auth_pam_x11`. Possible values are 0 for not showing the
+    hostname, 1 for showing the short form, and 2 for showing the long form.
+*   `XSECURELOCK_SHOW_USERRNAME`: whether to show the username on the login
+    screen of `auth_pam_x11`.
 *   `XSECURELOCK_SWITCH_USER_COMMAND`: shell command to execute when `Win-L` or
     `Ctrl-Alt-L` are pressed. Typical values could be `lxdm -c USER_SWITCH`,
     `dm-tool switch-to-greeter`, `gdmflexiserver` or `kdmctl reserve`, depending
