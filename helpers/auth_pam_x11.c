@@ -343,6 +343,9 @@ void display_string(const char *title, const char *str) {
   if (region_w < tw_indicators + tw_cursor) {
     region_w = tw_indicators + tw_cursor;
   }
+  if (region_w < tw_switch_user + tw_cursor) {
+    region_w = tw_switch_user + tw_cursor;
+  }
   region_x = -region_w / 2;
   region_h = (have_switch_user_command ? 5 : 4) * th;
   region_y = -region_h / 2;
