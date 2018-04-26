@@ -9,8 +9,8 @@ export DH_VERBOSE=1
 override_dh_auto_configure:
 	dh_auto_configure -- \
 		--with-htpasswd=no \
-		--with-mplayer=no \
-		--with-mpv=no \
+		--with-mplayer=/usr/bin/mplayer \
+		--with-mpv=/usr/bin/mpv \
 		--with-pam \
 		--with-pam-service-name=common-auth \
 		--with-pamtester=no \

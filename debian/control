@@ -21,8 +21,10 @@ Homepage: https://github.com/google/xsecurelock
 
 Package: xsecurelock
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Suggests: xscreensaver-data,
+Depends: x11-xserver-utils, ${shlibs:Depends}, ${misc:Depends}
+Suggests: mplayer,
+  mpv,
+  xscreensaver-data,
   xscreensaver-data-extra,
   xscreensaver-gl,
   xscreensaver-gl-extra
