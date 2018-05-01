@@ -56,6 +56,9 @@ limitations under the License.
 //! Minimum distance the cursor shall move on keypress.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
 
+//! Workaround for bad TextWidth results.
+#define TEXT_BORDER 4  // TODO(divVerent): Reduce, maybe fix potential bug?
+
 //! Whether password display should hide the length.
 int paranoid_password;
 
@@ -213,19 +216,19 @@ const char *get_indicators() {
 int TextAscent(void) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
-    return xft_font->ascent;
+    return xft_font->ascent + TEXT_BORDER;
   }
 #endif
-  return core_font->max_bounds.ascent;
+  return core_font->max_bounds.ascent + TEXT_BORDER;
 }
 
 int TextDescent(void) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
-    return xft_font->descent;
+    return xft_font->descent + TEXT_BORDER;
   }
 #endif
-  return core_font->max_bounds.descent;
+  return core_font->max_bounds.descent + TEXT_BORDER;
 }
 
 int TextWidth(const char *string, int len) {
@@ -234,10 +237,16 @@ int TextWidth(const char *string, int len) {
     XGlyphInfo extents;
     XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
                        &extents);
-    return extents.width;
+    // Use whichever is larger - visible bounding box (bigger if font is italic)
+    // or spacing to next character (bigger if last character is a space).
+    int maxpos = extents.width;
+    if (extents.xOff > extents.width) {
+      maxpos = extents.xOff;
+    }
+    return maxpos + 2 * TEXT_BORDER;
   }
 #endif
-  return XTextWidth(core_font, string, len);
+  return XTextWidth(core_font, string, len) + 2 * TEXT_BORDER;
 }
 
 void DrawString(int x, int y, const char *string, int len) {
@@ -312,16 +321,14 @@ void display_string(const char *title, const char *str) {
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
 
-  int th = TextAscent() + TextDescent() + 4;
-  int to = TextAscent() + 2;  // Text at to has bbox from 0 to th.
+  int th = TextAscent() + TextDescent();
+  int to = TextAscent();  // Text at to has bbox from 0 to th.
 
   int len_full_title = strlen(full_title);
   int tw_full_title = TextWidth(full_title, len_full_title);
 
   int len_str = strlen(str);
   int tw_str = TextWidth(str, len_str);
-
-  int tw_cursor = TextWidth(cursor, strlen(cursor));
 
   const char *indicators = get_indicators();
   int len_indicators = strlen(indicators);
@@ -334,17 +341,17 @@ void display_string(const char *title, const char *str) {
   int tw_switch_user = TextWidth(switch_user, len_switch_user);
 
   // Compute the region we will be using, relative to cx and cy.
-  if (region_w < tw_full_title + tw_cursor) {
-    region_w = tw_full_title + tw_cursor;
+  if (region_w < tw_full_title) {
+    region_w = tw_full_title;
   }
-  if (region_w < tw_str + tw_cursor) {
-    region_w = tw_str + tw_cursor;
+  if (region_w < tw_str) {
+    region_w = tw_str;
   }
-  if (region_w < tw_indicators + tw_cursor) {
-    region_w = tw_indicators + tw_cursor;
+  if (region_w < tw_indicators) {
+    region_w = tw_indicators;
   }
-  if (region_w < tw_switch_user + tw_cursor) {
-    region_w = tw_switch_user + tw_cursor;
+  if (region_w < tw_switch_user) {
+    region_w = tw_switch_user;
   }
   region_x = -region_w / 2;
   region_h = (have_switch_user_command ? 5 : 4) * th;
