@@ -34,11 +34,11 @@ allsavers() {
     )" |\
       simple_nl |\
       sed -e '
-        s/\t/ true\t/;                                # Simplify disabling.
-        s/ true\t-[[:space:]]*/ false\t/;             # Simplify disabling.
-        s/\t\(-\)\?[[:space:]]*/\t\1/;                # Strip whitespace.
-        s/\t\(-\)\?[^[:space:]]*:[[:space:]]*/\t\1/;  # Remove tag.
-        s/\t\(-\)\?"[^"]*"[[:space:]]*/\t\1/;         # Remove hack name.
+        s/\t/ true\t/;                                 # Handle disabling.
+        s/ true\t[[:space:]]*-[[:space:]]*/ false\t/;  # Handle disabling.
+        s/\t[[:space:]]*/\t/;                          # Strip whitespace.
+        s/\t[^[:space:]]*:[[:space:]]*/\t/;            # Remove visual name.
+        s/\t"[^"]*"[[:space:]]*/\t/;                   # Remove hack name.
       '
   else
     ls "$XSECURELOCK_XSCREENSAVER_PATH" |\
