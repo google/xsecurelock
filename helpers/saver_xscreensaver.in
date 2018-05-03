@@ -24,6 +24,7 @@ simple_nl() {
 }
 
 allsavers() {
+  want_all=$1
   if [ -f ~/.xscreensaver ]; then
     i=0
     printf "%b" "$(
@@ -33,16 +34,21 @@ allsavers() {
     )" |\
       simple_nl |\
       sed -e '
-        s/\t[[:space:]]*/\t/;                # Strip whitespace.
-        /\t-/d;                              # Remove disabled hacks.
-        s/\t[^[:space:]]*:[[:space:]]*/\t/;  # Remove visual name.
-        s/\t"[^"]*"[[:space:]]*/\t/;         # Remove hack name.
+        s/\t/ true\t/;                                # Simplify disabling.
+        s/ true\t-[[:space:]]*/ false\t/;             # Simplify disabling.
+        s/\t\(-\)\?[[:space:]]*/\t\1/;                # Strip whitespace.
+        s/\t\(-\)\?[^[:space:]]*:[[:space:]]*/\t\1/;  # Remove tag.
+        s/\t\(-\)\?"[^"]*"[[:space:]]*/\t\1/;         # Remove hack name.
       '
   else
     ls "$XSECURELOCK_XSCREENSAVER_PATH" |\
-      sed -e 's/$/ -root/' |\
+      sed -e '
+        s/^/true /;
+        s/$/ -root/;
+      ' |\
       simple_nl
-  fi | while read -r number saver flags; do
+  fi | while read -r number enabled saver flags; do
+    $want_all || $enabled || continue
     [ -x "$XSECURELOCK_XSCREENSAVER_PATH/$saver" ] || continue
     printf '%d\t%s/%s\n' "$number" "$XSECURELOCK_XSCREENSAVER_PATH" "$saver $flags"
   done
@@ -77,13 +83,14 @@ if [ -z "$selected" ]; then
 fi
 
 selectsaver() {
-  savers=$(allsavers)
   case "$mode" in
     one)
+      savers=$(allsavers true)
       count=$(printf '%s\n' "$savers" | wc -l)
       printf '%s\n' "$savers" | grep "^$selected$(printf '\t')"
       ;;
     *)
+      savers=$(allsavers false)
       count=$(printf '%s\n' "$savers" | wc -l)
       printf '%s\n' "$savers" | tail -n +$((selected % count + 1))
       ;;
