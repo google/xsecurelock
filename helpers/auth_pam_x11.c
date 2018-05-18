@@ -57,7 +57,13 @@ limitations under the License.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
 
 //! Workaround for bad TextWidth results.
-#define TEXT_BORDER 4  // TODO(divVerent): Reduce, maybe fix potential bug?
+#define TEXT_BORDER 16  // TODO(divVerent): Reduce, maybe fix potential bug?
+
+//! Draw border rectangle.
+#undef DRAW_BORDER
+
+//! Extra line spacing.
+#define LINE_SPACING 4
 
 //! Whether password display should hide the length.
 int paranoid_password;
@@ -216,19 +222,19 @@ const char *get_indicators() {
 int TextAscent(void) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
-    return xft_font->ascent + TEXT_BORDER;
+    return xft_font->ascent;
   }
 #endif
-  return core_font->max_bounds.ascent + TEXT_BORDER;
+  return core_font->max_bounds.ascent;
 }
 
 int TextDescent(void) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
-    return xft_font->descent + TEXT_BORDER;
+    return xft_font->descent;
   }
 #endif
-  return core_font->max_bounds.descent + TEXT_BORDER;
+  return core_font->max_bounds.descent;
 }
 
 int TextWidth(const char *string, int len) {
@@ -243,10 +249,10 @@ int TextWidth(const char *string, int len) {
     if (extents.xOff > extents.width) {
       maxpos = extents.xOff;
     }
-    return maxpos + 2 * TEXT_BORDER;
+    return maxpos;
   }
 #endif
-  return XTextWidth(core_font, string, len) + 2 * TEXT_BORDER;
+  return XTextWidth(core_font, string, len);
 }
 
 void DrawString(int x, int y, const char *string, int len) {
@@ -268,7 +274,7 @@ void DrawString(int x, int y, const char *string, int len) {
 }
 
 void StrAppend(char **output, size_t *output_size, const char *input,
-                  size_t input_size) {
+               size_t input_size) {
   if (*output_size <= input_size) {
     // Cut the input off. Sorry.
     input_size = *output_size - 1;
@@ -321,8 +327,9 @@ void display_string(const char *title, const char *str) {
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
 
-  int th = TextAscent() + TextDescent();
-  int to = TextAscent();  // Text at to has bbox from 0 to th.
+  int th = TextAscent() + TextDescent() + LINE_SPACING;
+  int to = TextAscent() + LINE_SPACING / 2;  // Text at to fits into 0 to th.
+  printf("th=%d to=%d\n", th, to);
 
   int len_full_title = strlen(full_title);
   int tw_full_title = TextWidth(full_title, len_full_title);
@@ -341,27 +348,31 @@ void display_string(const char *title, const char *str) {
   int tw_switch_user = TextWidth(switch_user, len_switch_user);
 
   // Compute the region we will be using, relative to cx and cy.
-  if (region_w < tw_full_title) {
-    region_w = tw_full_title;
+  int box_w = tw_full_title;
+  if (box_w < tw_str) {
+    box_w = tw_str;
   }
-  if (region_w < tw_str) {
-    region_w = tw_str;
+  if (box_w < tw_indicators) {
+    box_w = tw_indicators;
   }
-  if (region_w < tw_indicators) {
-    region_w = tw_indicators;
+  if (box_w < tw_switch_user) {
+    box_w = tw_switch_user;
   }
-  if (region_w < tw_switch_user) {
-    region_w = tw_switch_user;
+  int box_h = (have_switch_user_command ? 5 : 4) * th;
+  if (region_w < box_w + 2 * TEXT_BORDER) {
+    region_w = box_w + 2 * TEXT_BORDER;
   }
   region_x = -region_w / 2;
-  region_h = (have_switch_user_command ? 5 : 4) * th;
+  if (region_h < box_h + 2 * TEXT_BORDER) {
+    region_h = box_h + 2 * TEXT_BORDER;
+  }
   region_y = -region_h / 2;
 
   int i;
   for (i = 0; i < num_monitors; ++i) {
     int cx = monitors[i].x + monitors[i].width / 2;
     int cy = monitors[i].y + monitors[i].height / 2;
-    int sy = cy + to - region_h / 2;
+    int sy = cy + to - box_h / 2;
 
     // Clip all following output to the bounds of this monitor.
     XRectangle rect;
@@ -373,9 +384,20 @@ void display_string(const char *title, const char *str) {
 
     // Clear the region last written to.
     if (region_w != 0 && region_h != 0) {
-      XClearArea(display, window, cx + region_x, cy + region_y, region_w,
-                 region_h, False);
+      XClearArea(display, window,               //
+                 cx + region_x, cy + region_y,  //
+                 region_w, region_h,            //
+                 False);
     }
+
+#ifdef DRAW_BORDER
+    XDrawRectangle(display, window, gc,             //
+                   cx - box_w / 2, cy - box_h / 2,  //
+                   box_w - 1, box_h - 1);
+    XDrawRectangle(display, window, gc,           //
+                   cx + region_x, cy + region_y,  //
+                   region_w - 1, region_h - 1);
+#endif
 
     DrawString(cx - tw_full_title / 2, sy, full_title, len_full_title);
 
