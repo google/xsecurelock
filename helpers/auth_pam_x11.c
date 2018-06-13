@@ -93,21 +93,28 @@ Window window;
 //! The X11 graphics context to draw with.
 GC gc;
 
+//! The X11 graphics context to draw warnings with.
+GC gc_warning;
+
 //! The X11 core font for the PAM messages.
 XFontStruct *core_font;
 
 #ifdef HAVE_XFT_EXT
 //! The Xft font for the PAM messages.
 XftColor xft_color;
+XftColor xft_color_warning;
 XftDraw *xft_draw;
 XftFont *xft_font;
 #endif
 
-//! The Black color (used as background).
-unsigned long Black;
+//! The background color.
+unsigned long Background;
 
-//! The White color (used as foreground).
-unsigned long White;
+//! The foreground color.
+unsigned long Foreground;
+
+//! The warning color (used as foreground).
+unsigned long Warning;
 
 //! Set if a conversation error has happened during the last PAM call.
 static int conv_error = 0;
@@ -123,9 +130,12 @@ int have_xkb_ext;
 
 /*! \brief Check which modifiers are active.
  *
+ * \param warning Will be set to 1 if something's "bad" with the keyboard
+ *     layout (e.g. Caps Lock).
+ *
  * \return The current modifier mask as a string.
  */
-const char *get_indicators() {
+const char *get_indicators(int *warning) {
 #ifdef HAVE_XKB_EXT
   static char buf[128];
   char *p;
@@ -155,6 +165,14 @@ const char *get_indicators() {
     Log("XkbGetIndicatorState failed");
     XkbFreeClientMap(xkb, 0, True);
     return "";
+  }
+
+  // Detect Caps Lock.
+  // Note: in very pathological cases the modifier might be set without an
+  // XkbIndicator for it; then we show the line in red without telling the user
+  // why. Such a situation has not been observd yet though.
+  if (state.mods & LockMask) {
+    *warning = 1;
   }
 
   p = buf;
@@ -255,7 +273,7 @@ int TextWidth(const char *string, int len) {
   return XTextWidth(core_font, string, len);
 }
 
-void DrawString(int x, int y, const char *string, int len) {
+void DrawString(int x, int y, int is_warning, const char *string, int len) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
     // HACK: Query text extents here to make the text fit into the specified
@@ -265,12 +283,12 @@ void DrawString(int x, int y, const char *string, int len) {
     XGlyphInfo extents;
     XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
                        &extents);
-    XftDrawStringUtf8(xft_draw, &xft_color, xft_font, x - extents.x, y,
-                      (const FcChar8 *)string, len);
+    XftDrawStringUtf8(xft_draw, is_warning ? &xft_color_warning : &xft_color,
+                      xft_font, x - extents.x, y, (const FcChar8 *)string, len);
     return;
   }
 #endif
-  XDrawString(display, window, gc, x, y, string, len);
+  XDrawString(display, window, is_warning ? gc_warning : gc, x, y, string, len);
 }
 
 void StrAppend(char **output, size_t *output_size, const char *input,
@@ -329,7 +347,6 @@ void display_string(const char *title, const char *str) {
 
   int th = TextAscent() + TextDescent() + LINE_SPACING;
   int to = TextAscent() + LINE_SPACING / 2;  // Text at to fits into 0 to th.
-  printf("th=%d to=%d\n", th, to);
 
   int len_full_title = strlen(full_title);
   int tw_full_title = TextWidth(full_title, len_full_title);
@@ -337,7 +354,8 @@ void display_string(const char *title, const char *str) {
   int len_str = strlen(str);
   int tw_str = TextWidth(str, len_str);
 
-  const char *indicators = get_indicators();
+  int indicators_warning = 0;
+  const char *indicators = get_indicators(&indicators_warning);
   int len_indicators = strlen(indicators);
   int tw_indicators = TextWidth(indicators, len_indicators);
 
@@ -399,12 +417,12 @@ void display_string(const char *title, const char *str) {
                    region_w - 1, region_h - 1);
 #endif
 
-    DrawString(cx - tw_full_title / 2, sy, full_title, len_full_title);
+    DrawString(cx - tw_full_title / 2, sy, 0, full_title, len_full_title);
 
-    DrawString(cx - tw_str / 2, sy + th * 2, str, len_str);
-    DrawString(cx - tw_indicators / 2, sy + th * 3, indicators, len_indicators);
+    DrawString(cx - tw_str / 2, sy + th * 2, 0, str, len_str);
+    DrawString(cx - tw_indicators / 2, sy + th * 3, indicators_warning, indicators, len_indicators);
     if (have_switch_user_command) {
-      DrawString(cx - tw_switch_user / 2, sy + th * 4, switch_user,
+      DrawString(cx - tw_switch_user / 2, sy + th * 4, 0, switch_user,
                  len_switch_user);
     }
 
@@ -919,8 +937,12 @@ int main() {
     return 1;
   }
 
-  Black = BlackPixel(display, DefaultScreen(display));
-  White = WhitePixel(display, DefaultScreen(display));
+  Background = BlackPixel(display, DefaultScreen(display));
+  Foreground = WhitePixel(display, DefaultScreen(display));
+  XColor color, dummy;
+  XAllocNamedColor(display, DefaultColormap(display, DefaultScreen(display)),
+                   "red", &color, &dummy);
+  Warning = color.pixel;
 
   core_font = NULL;
 #ifdef HAVE_XFT_EXT
@@ -964,8 +986,8 @@ int main() {
 
   XGCValues gcattrs;
   gcattrs.function = GXcopy;
-  gcattrs.foreground = White;
-  gcattrs.background = Black;
+  gcattrs.foreground = Foreground;
+  gcattrs.background = Background;
   if (core_font != NULL) {
     gcattrs.font = core_font->fid;
   }
@@ -973,6 +995,11 @@ int main() {
                  GCFunction | GCForeground | GCBackground |
                      (core_font != NULL ? GCFont : 0),
                  &gcattrs);
+  gcattrs.foreground = Warning;
+  gc_warning = XCreateGC(display, window,
+                         GCFunction | GCForeground | GCBackground |
+                             (core_font != NULL ? GCFont : 0),
+                         &gcattrs);
 
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
@@ -988,10 +1015,17 @@ int main() {
     XftColorAllocValue(display, DefaultVisual(display, DefaultScreen(display)),
                        DefaultColormap(display, DefaultScreen(display)),
                        &xrcolor, &xft_color);
+    xrcolor.red = 65535;
+    xrcolor.green = 0;
+    xrcolor.blue = 0;
+    xrcolor.alpha = 65535;
+    XftColorAllocValue(display, DefaultVisual(display, DefaultScreen(display)),
+                       DefaultColormap(display, DefaultScreen(display)),
+                       &xrcolor, &xft_color_warning);
   }
 #endif
 
-  XSetWindowBackground(display, window, Black);
+  XSetWindowBackground(display, window, Background);
 
   SelectMonitorChangeEvents(display, window);
   num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
