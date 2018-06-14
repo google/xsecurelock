@@ -35,6 +35,7 @@ limitations under the License.
 #include <sys/wait.h>    // for WEXITSTATUS, waitpid, WIFEXITED
 #include <time.h>        // for nanosleep, timespec
 #include <unistd.h>      // for access, pid_t, X_OK, chdir
+#include <fcntl.h>       // for fcntl
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
@@ -397,6 +398,21 @@ void NotifyOfLock(int x11_fd) {
  */
 int main(int argc, char **argv) {
   setlocale(LC_CTYPE, "");
+
+  int fd = GetIntSetting("XSS_SLEEP_LOCK_FD", -1);
+  if (fd >= 0) {
+    // Children processes should not inherit the sleep lock
+    // Failures are not critical, systemd will ignore the lock
+    // when InhibitDelayMaxSec is reached
+    int flags = fcntl(fd, F_GETFD);
+    if (flags == 1) {
+      LogErrno("fcntl F_GETFD");
+    }
+    flags |= FD_CLOEXEC;
+    if (fcntl(fd, F_SETFD, flags) == 1) {
+      LogErrno("fcntl F_SETFD");
+    }
+  }
 
   // Change the current directory to HELPER_PATH so we don't need to process
   // path names.
