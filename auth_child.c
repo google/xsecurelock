@@ -152,9 +152,13 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         // Child process.
         setsid();
         ExportWindowID(w);
-        dup2(pc[0], 0);
-        close(pc[0]);
-        close(pc[1]);
+        if (pc[0] != 0) {
+          dup2(pc[0], 0);
+          close(pc[0]);
+        }
+        if (pc[1] != 0) {
+          close(pc[1]);
+        }
         execl(executable, executable, NULL);
         LogErrno("execl");
         exit(EXIT_FAILURE);
