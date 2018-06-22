@@ -56,10 +56,10 @@ limitations under the License.
 //! Minimum distance the cursor shall move on keypress.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
 
-//! Workaround for bad TextWidth results.
-#define TEXT_BORDER 4  // TODO(divVerent): Reduce, maybe fix potential bug?
+//! Border to clear around text (mainly a workaround for bad TextWidth results).
+#define TEXT_BORDER 0
 
-//! Draw border rectangle.
+//! Draw border rectangle (mainly for debugging).
 #undef DRAW_BORDER
 
 //! Extra line spacing.
