@@ -366,13 +366,9 @@ void MaybeRaiseWindow(Display *display, Window w) {
  *
  * \param fd The file descriptor of the X11 connection that we shouldn't close.
  */
-void NotifyOfLock(int x11_fd) {
-  int fd = GetIntSetting("XSS_SLEEP_LOCK_FD", -1);
-  if (fd == x11_fd) {
-    Log("XSS_SLEEP_LOCK_FD matches DISPLAY - what?!? We're probably "
-        "inhibiting sleep now");
-  } else if (fd != -1) {
-    if (close(fd) != 0) {
+void NotifyOfLock(int xss_sleep_lock_fd) {
+  if (xss_sleep_lock_fd != -1) {
+    if (close(xss_sleep_lock_fd) != 0) {
       LogErrno("close(XSS_SLEEP_LOCK_FD)");
     }
   }
@@ -399,18 +395,20 @@ void NotifyOfLock(int x11_fd) {
 int main(int argc, char **argv) {
   setlocale(LC_CTYPE, "");
 
-  int fd = GetIntSetting("XSS_SLEEP_LOCK_FD", -1);
-  if (fd >= 0) {
+  int xss_sleep_lock_fd = GetIntSetting("XSS_SLEEP_LOCK_FD", -1);
+  if (xss_sleep_lock_fd != -1) {
     // Children processes should not inherit the sleep lock
     // Failures are not critical, systemd will ignore the lock
     // when InhibitDelayMaxSec is reached
-    int flags = fcntl(fd, F_GETFD);
-    if (flags == 1) {
-      LogErrno("fcntl F_GETFD");
-    }
-    flags |= FD_CLOEXEC;
-    if (fcntl(fd, F_SETFD, flags) == 1) {
-      LogErrno("fcntl F_SETFD");
+    int flags = fcntl(xss_sleep_lock_fd, F_GETFD);
+    if (flags == -1) {
+      LogErrno("fcntl(XSS_SLEEP_LOCK_FD, F_GETFD)");
+    } else {
+      flags |= FD_CLOEXEC;
+      int status = fcntl(xss_sleep_lock_fd, F_SETFD, flags);
+      if (status == -1) {
+        LogErrno("fcntl(XSS_SLEEP_LOCK_FD, F_SETFD, %#x)", flags);
+      }
     }
   }
 
@@ -677,6 +675,13 @@ int main(int argc, char **argv) {
 
   enum WatchChildrenState requested_saver_state = WATCH_CHILDREN_NORMAL;
   int x11_fd = ConnectionNumber(display);
+
+  if (x11_fd == xss_sleep_lock_fd && xss_sleep_lock_fd != -1) {
+    Log("XSS_SLEEP_LOCK_FD matches DISPLAY - what?!? We're probably "
+        "inhibiting sleep now");
+    xss_sleep_lock_fd = -1;
+  }
+
   int background_window_mapped = 0, saver_window_mapped = 0,
       xss_lock_notified = 0;
   for (;;) {
@@ -888,7 +893,7 @@ int main(int argc, char **argv) {
           }
           if (background_window_mapped && saver_window_mapped &&
               !xss_lock_notified) {
-            NotifyOfLock(x11_fd);
+            NotifyOfLock(xss_sleep_lock_fd);
             xss_lock_notified = 1;
           }
           break;
