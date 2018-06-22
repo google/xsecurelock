@@ -268,7 +268,7 @@ int XGlyphInfoExpandAmount(XGlyphInfo* extents) {
     // For centering we should always use the logical bounding box, however for
     // erasing we should use the visible bounding box. Thus our goal is to
     // expand the _logical_ box to fully cover the _visible_ box:
-    int expand_left = -extents->x;
+    int expand_left = extents->x;
     int expand_right = -extents->x + extents->width - extents->xOff;
     int expand_max = expand_left > expand_right ? expand_left : expand_right;
     int expand_positive = expand_max > 0 ? expand_max : 0;
