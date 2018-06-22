@@ -57,7 +57,7 @@ limitations under the License.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
 
 //! Workaround for bad TextWidth results.
-#define TEXT_BORDER 16  // TODO(divVerent): Reduce, maybe fix potential bug?
+#define TEXT_BORDER 4  // TODO(divVerent): Reduce, maybe fix potential bug?
 
 //! Draw border rectangle.
 #undef DRAW_BORDER
@@ -255,19 +255,34 @@ int TextDescent(void) {
   return core_font->max_bounds.descent;
 }
 
+#ifdef HAVE_XFT_EXT
+// Returns the amount of pixels to expand the logical box in extents so it
+// covers the visible box.
+int XGlyphInfoExpandAmount(XGlyphInfo* extents) {
+    // Use whichever is larger - visible bounding box (bigger if font is italic)
+    // or spacing to next character (bigger if last character is a space).
+    // Best reference I could find:
+    //   https://keithp.com/~keithp/render/Xft.tutorial
+    // Visible bounding box: [-x, -x + width[
+    // Logical bounding box: [0, xOff[
+    // For centering we should always use the logical bounding box, however for
+    // erasing we should use the visible bounding box. Thus our goal is to
+    // expand the _logical_ box to fully cover the _visible_ box:
+    int expand_left = -extents->x;
+    int expand_right = -extents->x + extents->width - extents->xOff;
+    int expand_max = expand_left > expand_right ? expand_left : expand_right;
+    int expand_positive = expand_max > 0 ? expand_max : 0;
+    return expand_positive;
+}
+#endif
+
 int TextWidth(const char *string, int len) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
     XGlyphInfo extents;
     XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
                        &extents);
-    // Use whichever is larger - visible bounding box (bigger if font is italic)
-    // or spacing to next character (bigger if last character is a space).
-    int maxpos = extents.width;
-    if (extents.xOff > extents.width) {
-      maxpos = extents.xOff;
-    }
-    return maxpos;
+    return extents.xOff + 2 * XGlyphInfoExpandAmount(&extents);
   }
 #endif
   return XTextWidth(core_font, string, len);
@@ -284,7 +299,8 @@ void DrawString(int x, int y, int is_warning, const char *string, int len) {
     XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
                        &extents);
     XftDrawStringUtf8(xft_draw, is_warning ? &xft_color_warning : &xft_color,
-                      xft_font, x - extents.x, y, (const FcChar8 *)string, len);
+                      xft_font, x + XGlyphInfoExpandAmount(&extents), y,
+                      (const FcChar8 *)string, len);
     return;
   }
 #endif
