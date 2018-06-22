@@ -19,7 +19,6 @@ video=`find ~/Videos -type f | sort -R | head -n 1`
   --no-input-terminal \
   --really-quiet \
   --no-stop-screensaver \
-  --heartbeat-cmd="" \
   --wid="${XSCREENSAVER_WINDOW}" \
   --no-audio \
   -- \
