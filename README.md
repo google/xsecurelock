@@ -174,10 +174,12 @@ Options to XSecureLock can be passed by environment variables:
     of `auth_pam_x11` may be moved at startup to mitigate possible burn-in
     effects due to the auth dialog being displayed all the time (e.g. when
     spurious mouse events wake up the screen all the time).
-*   `XSECURELOCK_BURNIN_MITIGATION_DYNAMIC`: if set to 1, `auth_pam_x11` will
-    move the prompt while it is being displayed, but stay within the bounds of
-    `XSECURELOCK_BURNIN_MITIGATION`. This mitigates short-term burn-in effects
-    but is probably annoying to most users, and thus disabled by default.
+*   `XSECURELOCK_BURNIN_MITIGATION_DYNAMIC`: if set to a non-zero value,
+    `auth_pam_x11` will move the prompt while it is being displayed, but stay
+    within the bounds of `XSECURELOCK_BURNIN_MITIGATION`. The value of this
+    variable is the maximum allowed shift per screen refresh. This mitigates
+    short-term burn-in effects but is probably annoying to most users, and thus
+    disabled by default.
 *   `XSECURELOCK_DIM_ALPHA`: Linear-space opacity to fade the screen to.
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming

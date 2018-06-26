@@ -128,8 +128,11 @@ static int x_offset = 0;
 //! The y offset to apply to the entire display (to mitigate burn-in).
 static int y_offset = 0;
 
-//! Whether the offsets are allowed to change dynamically, and if so, how high.
-static int max_dynamic_offset = 0;
+//! Maximum offset value when dynamic changes are enabled.
+static int burnin_mitigation_max_offset = 0;
+
+//! How much the offsets are allowed to change dynamically, and if so, how high.
+static int burnin_mitigation_max_offset_change = 0;
 
 #define MAX_MONITORS 16
 static int num_monitors;
@@ -401,7 +404,7 @@ void display_string(const char *title, const char *str) {
   if (box_w < tw_switch_user) {
     box_w = tw_switch_user;
   }
-  int border = TEXT_BORDER + (max_dynamic_offset > 0 ? 1 : 0);
+  int border = TEXT_BORDER + burnin_mitigation_max_offset_change;
   int box_h = (have_switch_user_command ? 5 : 4) * th;
   if (region_w < box_w + 2 * border) {
     region_w = box_w + 2 * border;
@@ -412,16 +415,22 @@ void display_string(const char *title, const char *str) {
   }
   region_y = -region_h / 2;
 
-  if (max_dynamic_offset > 0) {
-    int new_x_offset = x_offset + rand() % 3 - 1;
-    if (-max_dynamic_offset <= new_x_offset &&
-        new_x_offset <= max_dynamic_offset) {
-      x_offset = new_x_offset;
+  if (burnin_mitigation_max_offset_change > 0) {
+    x_offset += rand() % (2 * burnin_mitigation_max_offset_change + 1) -
+                burnin_mitigation_max_offset_change;
+    if (x_offset < -burnin_mitigation_max_offset) {
+      x_offset = -burnin_mitigation_max_offset;
     }
-    int new_y_offset = y_offset + rand() % 3 - 1;
-    if (-max_dynamic_offset <= new_y_offset &&
-        new_y_offset <= max_dynamic_offset) {
-      y_offset = new_y_offset;
+    if (x_offset > burnin_mitigation_max_offset) {
+      x_offset = burnin_mitigation_max_offset;
+    }
+    y_offset += rand() % (2 * burnin_mitigation_max_offset_change + 1) -
+                burnin_mitigation_max_offset_change;
+    if (y_offset < -burnin_mitigation_max_offset) {
+      y_offset = -burnin_mitigation_max_offset;
+    }
+    if (y_offset > burnin_mitigation_max_offset) {
+      y_offset = burnin_mitigation_max_offset;
     }
   }
 
@@ -927,17 +936,19 @@ int main() {
   // pixels. This should mostly mitigate burn-in effects from the prompt
   // being displayed all the time, e.g. because the user's mouse is "shivering"
   // and thus the auth prompt reappears soon after timeout.
-  int burnin_mitigation = GetIntSetting("XSECURELOCK_BURNIN_MITIGATION", 16);
-  if (burnin_mitigation > 0) {
-    x_offset = rand() % (2 * burnin_mitigation + 1) - burnin_mitigation;
-    y_offset = rand() % (2 * burnin_mitigation + 1) - burnin_mitigation;
+  burnin_mitigation_max_offset =
+      GetIntSetting("XSECURELOCK_BURNIN_MITIGATION", 16);
+  if (burnin_mitigation_max_offset > 0) {
+    x_offset = rand() % (2 * burnin_mitigation_max_offset + 1) -
+               burnin_mitigation_max_offset;
+    y_offset = rand() % (2 * burnin_mitigation_max_offset + 1) -
+               burnin_mitigation_max_offset;
   }
 
   // If requested, mitigate burn-in even more by moving the auth prompt while
   // displayed. I bet many will find this annoying though.
-  if (GetIntSetting("XSECURELOCK_BURNIN_MITIGATION_DYNAMIC", 0)) {
-    max_dynamic_offset = burnin_mitigation;
-  }
+  burnin_mitigation_max_offset_change =
+      GetIntSetting("XSECURELOCK_BURNIN_MITIGATION_DYNAMIC", 0);
 
   prompt_timeout = GetIntSetting("XSECURELOCK_AUTH_TIMEOUT", 5 * 60);
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
