@@ -162,11 +162,22 @@ wait in dimmed state before locking.
 Options to XSecureLock can be passed by environment variables:
 
 *   `XSECURELOCK_AUTH`: specifies the desired authentication module.
+*   `XSECURELOCK_AUTH_TIMEOUT`: specifies the time (in seconds) to wait for
+    response to a prompt by `auth_pam_x11` before giving up and reverting to
+    the screen saver.
 *   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
     X11 to fully blank the screen; a negative value disables X11 blanking.
 *   `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
     in when blanking (one of standby, suspend, off and on, where "on" means to
     not invoke DPMS at all).
+*   `XSECURELOCK_BURNIN_MITIGATION`: specifies the number of pixels the prompt
+    of `auth_pam_x11` may be moved at startup to mitigate possible burn-in
+    effects due to the auth dialog being displayed all the time (e.g. when
+    spurious mouse events wake up the screen all the time).
+*   `XSECURELOCK_BURNIN_MITIGATION_DYNAMIC`: if set to 1, `auth_pam_x11` will
+    move the prompt while it is being displayed, but stay within the bounds of
+    `XSECURELOCK_BURNIN_MITIGATION`. This mitigates short-term burn-in effects
+    but is probably annoying to most users, and thus disabled by default.
 *   `XSECURELOCK_DIM_ALPHA`: Linear-space opacity to fade the screen to.
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming

@@ -48,7 +48,7 @@ limitations under the License.
 #define BLINK_INTERVAL (250 * 1000)
 
 //! The maximum time to wait at a prompt for user input in microseconds.
-#define PROMPT_TIMEOUT (5 * 60 * 1000 * 1000)
+int prompt_timeout;
 
 //! Length of the "paranoid password display".
 #define PARANOID_PASSWORD_LENGTH 32
@@ -121,6 +121,15 @@ static int conv_error = 0;
 
 //! The cursor character displayed at the end of the masked password input.
 static const char cursor[] = "_";
+
+//! The x offset to apply to the entire display (to mitigate burn-in).
+static int x_offset = 0;
+
+//! The y offset to apply to the entire display (to mitigate burn-in).
+static int y_offset = 0;
+
+//! Whether the offsets are allowed to change dynamically, and if so, how high.
+static int max_dynamic_offset = 0;
 
 #define MAX_MONITORS 16
 static int num_monitors;
@@ -258,21 +267,21 @@ int TextDescent(void) {
 #ifdef HAVE_XFT_EXT
 // Returns the amount of pixels to expand the logical box in extents so it
 // covers the visible box.
-int XGlyphInfoExpandAmount(XGlyphInfo* extents) {
-    // Use whichever is larger - visible bounding box (bigger if font is italic)
-    // or spacing to next character (bigger if last character is a space).
-    // Best reference I could find:
-    //   https://keithp.com/~keithp/render/Xft.tutorial
-    // Visible bounding box: [-x, -x + width[
-    // Logical bounding box: [0, xOff[
-    // For centering we should always use the logical bounding box, however for
-    // erasing we should use the visible bounding box. Thus our goal is to
-    // expand the _logical_ box to fully cover the _visible_ box:
-    int expand_left = extents->x;
-    int expand_right = -extents->x + extents->width - extents->xOff;
-    int expand_max = expand_left > expand_right ? expand_left : expand_right;
-    int expand_positive = expand_max > 0 ? expand_max : 0;
-    return expand_positive;
+int XGlyphInfoExpandAmount(XGlyphInfo *extents) {
+  // Use whichever is larger - visible bounding box (bigger if font is italic)
+  // or spacing to next character (bigger if last character is a space).
+  // Best reference I could find:
+  //   https://keithp.com/~keithp/render/Xft.tutorial
+  // Visible bounding box: [-x, -x + width[
+  // Logical bounding box: [0, xOff[
+  // For centering we should always use the logical bounding box, however for
+  // erasing we should use the visible bounding box. Thus our goal is to
+  // expand the _logical_ box to fully cover the _visible_ box:
+  int expand_left = extents->x;
+  int expand_right = -extents->x + extents->width - extents->xOff;
+  int expand_max = expand_left > expand_right ? expand_left : expand_right;
+  int expand_positive = expand_max > 0 ? expand_max : 0;
+  return expand_positive;
 }
 #endif
 
@@ -392,20 +401,34 @@ void display_string(const char *title, const char *str) {
   if (box_w < tw_switch_user) {
     box_w = tw_switch_user;
   }
+  int border = TEXT_BORDER + (max_dynamic_offset > 0 ? 1 : 0);
   int box_h = (have_switch_user_command ? 5 : 4) * th;
-  if (region_w < box_w + 2 * TEXT_BORDER) {
-    region_w = box_w + 2 * TEXT_BORDER;
+  if (region_w < box_w + 2 * border) {
+    region_w = box_w + 2 * border;
   }
   region_x = -region_w / 2;
-  if (region_h < box_h + 2 * TEXT_BORDER) {
-    region_h = box_h + 2 * TEXT_BORDER;
+  if (region_h < box_h + 2 * border) {
+    region_h = box_h + 2 * border;
   }
   region_y = -region_h / 2;
 
+  if (max_dynamic_offset > 0) {
+    int new_x_offset = x_offset + rand() % 3 - 1;
+    if (-max_dynamic_offset <= new_x_offset &&
+        new_x_offset <= max_dynamic_offset) {
+      x_offset = new_x_offset;
+    }
+    int new_y_offset = y_offset + rand() % 3 - 1;
+    if (-max_dynamic_offset <= new_y_offset &&
+        new_y_offset <= max_dynamic_offset) {
+      y_offset = new_y_offset;
+    }
+  }
+
   int i;
   for (i = 0; i < num_monitors; ++i) {
-    int cx = monitors[i].x + monitors[i].width / 2;
-    int cy = monitors[i].y + monitors[i].height / 2;
+    int cx = monitors[i].x + monitors[i].width / 2 + x_offset;
+    int cy = monitors[i].y + monitors[i].height / 2 + y_offset;
     int sy = cy + to - box_h / 2;
 
     // Clip all following output to the bounds of this monitor.
@@ -436,7 +459,8 @@ void display_string(const char *title, const char *str) {
     DrawString(cx - tw_full_title / 2, sy, 0, full_title, len_full_title);
 
     DrawString(cx - tw_str / 2, sy + th * 2, 0, str, len_str);
-    DrawString(cx - tw_indicators / 2, sy + th * 3, indicators_warning, indicators, len_indicators);
+    DrawString(cx - tw_indicators / 2, sy + th * 3, indicators_warning,
+               indicators, len_indicators);
     if (have_switch_user_command) {
       DrawString(cx - tw_switch_user / 2, sy + th * 4, 0, switch_user,
                  len_switch_user);
@@ -520,7 +544,7 @@ int prompt(const char *msg, char **response, int echo) {
   priv.pwlen = 0;
   priv.displaymarker = rand() % PARANOID_PASSWORD_LENGTH;
 
-  int max_blinks = PROMPT_TIMEOUT / BLINK_INTERVAL;
+  int max_blinks = (prompt_timeout * 1000 * 1000) / BLINK_INTERVAL;
 
   // Unfortunately we may have to break out of multiple loops at once here but
   // still do common cleanup work. So we have to track the return value in a
@@ -899,6 +923,23 @@ int main() {
   // This is used by displaymarker only (no security relevance of the RNG).
   srand(time(NULL));
 
+  // Unless disabled, we shift the login prompt randomly around by a few
+  // pixels. This should mostly mitigate burn-in effects from the prompt
+  // being displayed all the time, e.g. because the user's mouse is "shivering"
+  // and thus the auth prompt reappears soon after timeout.
+  int burnin_mitigation = GetIntSetting("XSECURELOCK_BURNIN_MITIGATION", 16);
+  if (burnin_mitigation > 0) {
+    x_offset = rand() % (2 * burnin_mitigation + 1) - burnin_mitigation;
+    y_offset = rand() % (2 * burnin_mitigation + 1) - burnin_mitigation;
+  }
+
+  // If requested, mitigate burn-in even more by moving the auth prompt while
+  // displayed. I bet many will find this annoying though.
+  if (GetIntSetting("XSECURELOCK_BURNIN_MITIGATION_DYNAMIC", 0)) {
+    max_dynamic_offset = burnin_mitigation;
+  }
+
+  prompt_timeout = GetIntSetting("XSECURELOCK_AUTH_TIMEOUT", 5 * 60);
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
