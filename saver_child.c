@@ -107,7 +107,10 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
       sigprocmask(SIG_SETMASK, &no_blocked_signals, NULL);
 
       ExportWindowID(w);
-      execl(executable, executable, NULL);
+      execl(executable,  // Path to binary.
+            executable,  // argv[0].
+            "-root",     // argv[1]; for XScreenSaver hacks, unused by our own.
+            NULL);
       LogErrno("execl");
       sleep(2);  // Reduce log spam or other effects from failed execl.
       exit(EXIT_FAILURE);

@@ -159,7 +159,9 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         if (pc[1] != 0) {
           close(pc[1]);
         }
-        execl(executable, executable, NULL);
+        execl(executable,  // Path to binary.
+              executable,  // argv[0].
+              NULL);
         LogErrno("execl");
         sleep(2);  // Reduce log spam or other effects from failed execl.
         exit(EXIT_FAILURE);
