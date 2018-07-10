@@ -388,7 +388,7 @@ void display_string(const char *title, const char *str) {
   int tw_indicators = TextWidth(indicators, len_indicators);
 
   const char *switch_user = have_switch_user_command
-                                ? "Press Ctrl-Alt-L or Win-L to switch user"
+                                ? "Press Ctrl-Alt-O or Win-O to switch user"
                                 : "";
   int len_switch_user = strlen(switch_user);
   int tw_switch_user = TextWidth(switch_user, len_switch_user);

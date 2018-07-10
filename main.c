@@ -824,11 +824,11 @@ int main(int argc, char **argv) {
             // Map Ctrl-Backspace to Ctrl-U (clear entry line).
             priv.buf[0] = '\025';
             priv.buf[1] = 0;
-          } else if (have_switch_user_command && priv.keysym == XK_l &&
+          } else if (have_switch_user_command && priv.keysym == XK_o &&
                      (((priv.ev.xkey.state & ControlMask) &&
                        (priv.ev.xkey.state & Mod1Mask)) ||
                       (priv.ev.xkey.state & Mod4Mask))) {
-            // Switch to greeter on Ctrl-Alt-L or Win-L.
+            // Switch to greeter on Ctrl-Alt-O or Win-O.
             system("eval \"$XSECURELOCK_SWITCH_USER_COMMAND\" &");
             // And send a Ctrl-U (clear entry line).
             priv.buf[0] = '\025';
