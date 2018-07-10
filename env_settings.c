@@ -19,6 +19,8 @@ limitations under the License.
 #include <errno.h>   // for errno, ERANGE
 #include <stdio.h>   // for fprintf, NULL, stderr
 #include <stdlib.h>  // for getenv, strtol, strtoull
+#include <string.h>  // for strchr
+#include <unistd.h>  // for access, X_OK
 
 #include "logging.h"
 
@@ -74,6 +76,42 @@ int GetIntSetting(const char* name, int def) {
 const char* GetStringSetting(const char* name, const char* def) {
   const char* value = getenv(name);
   if (value == NULL || value[0] == 0) {
+    return def;
+  }
+  return value;
+}
+
+const char* GetExecutablePathSetting(const char* name, const char* def,
+                                     int is_auth) {
+  const char* value = getenv(name);
+  if (value == NULL || value[0] == 0) {
+    return def;
+  }
+  if (strchr(value, '/') && value[0] != '/') {
+    Log("Executable name '%s' must be either an absolute path or a file within "
+        "%s",
+        value, HELPER_PATH);
+    return def;
+  }
+  const char* basename = strrchr(value, '/');
+  if (basename == NULL) {
+    basename = value;  // No slash, use as is.
+  } else {
+    ++basename;  // Skip the slash.
+  }
+  if (is_auth) {
+    if (strncmp(basename, "auth_", 5)) {
+      Log("Auth executable name '%s' must start with auth_", value);
+      return def;
+    }
+  } else {
+    if (!strncmp(basename, "auth_", 5)) {
+      Log("Non-auth executable name '%s' must not start with auth_", value);
+      return def;
+    }
+  }
+  if (access(value, X_OK)) {
+    Log("Executable '%s' must be executable", value);
     return def;
   }
   return value;

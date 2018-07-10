@@ -113,7 +113,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  saver_executable = GetStringSetting("XSECURELOCK_SAVER", SAVER_EXECUTABLE);
+  saver_executable =
+      GetExecutablePathSetting("XSECURELOCK_SAVER", SAVER_EXECUTABLE, 0);
 
   SelectMonitorChangeEvents(display, parent);
   num_monitors = GetMonitors(display, parent, monitors, MAX_MONITORS);

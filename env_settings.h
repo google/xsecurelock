@@ -50,4 +50,14 @@ int GetIntSetting(const char* name, int def);
  */
 const char* GetStringSetting(const char* name, const char* def);
 
+/*! \brief Loads a setting from the environment that specifies a binary name.
+ *
+ * \param name The setting to read (with XSECURELOCK_ variable name prefix).
+ * \param def The default value.
+ * \param is_auth If the path should be an auth child.
+ * \return The value of the setting, or def if unset, invalid or empty.
+ */
+const char* GetExecutablePathSetting(const char* name, const char* def,
+                                     int is_auth);
+
 #endif

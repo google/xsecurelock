@@ -161,6 +161,7 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         }
         execl(executable, executable, NULL);
         LogErrno("execl");
+        sleep(2);  // Reduce log spam or other effects from failed execl.
         exit(EXIT_FAILURE);
       } else {
         // Parent process after successful fork.

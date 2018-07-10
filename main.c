@@ -26,6 +26,7 @@ limitations under the License.
 #include <X11/Xlib.h>    // for XEvent, False, XSelectInput
 #include <X11/Xutil.h>   // for XLookupString
 #include <errno.h>       // for ECHILD, EINTR, errno
+#include <fcntl.h>       // for fcntl
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE
 #include <signal.h>      // for sigaction, sigemptyset, SIGPIPE
 #include <stdio.h>       // for printf, size_t
@@ -35,7 +36,6 @@ limitations under the License.
 #include <sys/wait.h>    // for WEXITSTATUS, waitpid, WIFEXITED
 #include <time.h>        // for nanosleep, timespec
 #include <unistd.h>      // for access, pid_t, X_OK, chdir
-#include <fcntl.h>       // for fcntl
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
@@ -229,9 +229,10 @@ void usage(const char *me) {
  * These settings override what was figured out at ./configure time.
  */
 void load_defaults() {
-  auth_executable = GetStringSetting("XSECURELOCK_AUTH", AUTH_EXECUTABLE);
-  saver_executable =
-      GetStringSetting("XSECURELOCK_GLOBAL_SAVER", GLOBAL_SAVER_EXECUTABLE);
+  auth_executable =
+      GetExecutablePathSetting("XSECURELOCK_AUTH", AUTH_EXECUTABLE, 1);
+  saver_executable = GetExecutablePathSetting("XSECURELOCK_GLOBAL_SAVER",
+                                              GLOBAL_SAVER_EXECUTABLE, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
   no_composite = GetIntSetting("XSECURELOCK_NO_COMPOSITE", 0);
 #endif
@@ -296,36 +297,10 @@ int check_settings() {
     Log("Auth module has not been specified in any way");
     return 0;
   }
-  if (strncmp(auth_executable, "auth_", 5)) {
-    Log("Auth module name must start with auth_");
-    return 0;
-  }
-  if (strchr(auth_executable, '.')) {
-    Log("Auth module name may not contain a dot");
-    return 0;
-  }
-  if (access(auth_executable, X_OK)) {
-    Log("Auth module must be executable");
-    return 0;
-  }
-
   if (saver_executable == NULL) {
     Log("Saver module has not been specified in any way");
     return 0;
   }
-  if (strncmp(saver_executable, "saver_", 6)) {
-    Log("Saver module name must start with saver_");
-    return 0;
-  }
-  if (strchr(saver_executable, '.')) {
-    Log("Saver module name may not contain a dot");
-    return 0;
-  }
-  if (access(saver_executable, X_OK)) {
-    Log("Saver module must be executable");
-    return 0;
-  }
-
   return 1;
 }
 

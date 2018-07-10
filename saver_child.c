@@ -109,6 +109,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
       ExportWindowID(w);
       execl(executable, executable, NULL);
       LogErrno("execl");
+      sleep(2);  // Reduce log spam or other effects from failed execl.
       exit(EXIT_FAILURE);
     } else {
       // Parent process after successful fork.
