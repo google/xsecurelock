@@ -1,3 +1,9 @@
+xsecurelock (0.6) unstable; urgency=medium
+
+  * Release version 1.0
+
+ -- Markus Teich <mteich@google.com>  Wed, 01 Aug 2018 16:31:16 +0200
+
 xsecurelock (0.5) unstable; urgency=low
 
   * Initial Release.
