@@ -351,7 +351,9 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
     return;
   }
 
-  StrAppend(&output, &output_size, " - ", 3);
+  if (show_username && show_hostname) {
+    StrAppend(&output, &output_size, " - ", 3);
+  }
   strncpy(output, input, output_size - 1);
   output[output_size - 1] = 0;
 }
