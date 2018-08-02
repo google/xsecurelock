@@ -1,0 +1,3 @@
+To build the package use git-buildpackage like so:
+
+gbp buildpackage --git-debian-branch=debian --git-upstream-tree=SLOPPY -uc -us
