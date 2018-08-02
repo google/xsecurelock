@@ -15,7 +15,7 @@ Build-Depends: debhelper (>= 8.0.0),
   libxrandr-dev,
   libxss-dev,
   x11proto-core-dev
-Standards-Version: 3.9.4
+Standards-Version: 4.0.0
 Homepage: https://github.com/google/xsecurelock
 
 Package: xsecurelock
