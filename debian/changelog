@@ -1,11 +1,6 @@
-xsecurelock (1.0) unstable; urgency=medium
+xsecurelock (1.0-1) unstable; urgency=medium
 
-  * Release version 1.0
+  * Initial upload
+  * Upstream version 1.0
 
  -- Markus Teich <mteich@google.com>  Wed, 01 Aug 2018 16:31:16 +0200
-
-xsecurelock (0.5) unstable; urgency=low
-
-  * Initial Release.
-
- -- Markus Teich <mteich@google.com>  Tue, 02 Jan 2018 20:04:19 +0100
