@@ -461,7 +461,7 @@ int main(int argc, char **argv) {
     Log("XComposite extension detected but disabled by user");
     have_xcomposite_ext = 0;
   }
-  Window composite_window;
+  Window composite_window = None, obscurer_window = None;
   if (have_xcomposite_ext) {
     composite_window = XCompositeGetOverlayWindow(display, root_window);
     // Some compositers may unmap or shape the overlay window - undo that, just
@@ -475,6 +475,15 @@ int main(int argc, char **argv) {
     }
 #endif
     parent_window = composite_window;
+    // Also create an "obscurer window" that we don't actually use but that
+    // covers everything in black in case the composite window temporarily does
+    // not work (e.g. in case the compositor hides the COW).
+    obscurer_window = XCreateWindow(
+        display, root_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
+        CopyFromParent,
+        CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor, &coverattrs);
+    SetWMProperties(display, obscurer_window, "xsecurelock", "obscurer", argc,
+                    argv);
   }
 #endif
 
@@ -497,8 +506,14 @@ int main(int argc, char **argv) {
 
   // Let's get notified if we lose visibility, so we can self-raise.
   XSelectInput(display, parent_window, StructureNotifyMask | FocusChangeMask);
+#ifdef HAVE_XCOMPOSITE_EXT
+  if (have_xcomposite_ext) {
+    XSelectInput(display, obscurer_window,
+                 StructureNotifyMask | VisibilityChangeMask);
+  }
+#endif
   XSelectInput(display, background_window,
-               StructureNotifyMask | VisibilityChangeMask | FocusChangeMask);
+               StructureNotifyMask | VisibilityChangeMask);
   XSelectInput(display, saver_window,
                StructureNotifyMask | VisibilityChangeMask);
 
@@ -692,6 +707,11 @@ int main(int argc, char **argv) {
 #ifdef AUTO_RAISE
     MaybeRaiseWindow(display, saver_window);
     MaybeRaiseWindow(display, background_window);
+#ifdef HAVE_XCOMPOSITE_EXT
+    if (have_xcomposite_ext) {
+      MaybeRaiseWindow(display, obscurer_window);
+    }
+#endif
 #endif
 
     // Take care of zombies.
@@ -750,6 +770,11 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_EVENTS
             Log("DisplayWidthHeight %d %d", w, h);
 #endif
+#ifdef HAVE_XCOMPOSITE_EXT
+            if (have_xcomposite_ext) {
+              XMoveResizeWindow(display, obscurer_window, 0, 0, w, h);
+            }
+#endif
             XMoveResizeWindow(display, background_window, 0, 0, w, h);
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
             // Just in case - ConfigureNotify might also be sent for raising
@@ -760,6 +785,11 @@ int main(int argc, char **argv) {
             MaybeRaiseWindow(display, saver_window);
           } else if (priv.ev.xconfigure.window == background_window) {
             MaybeRaiseWindow(display, background_window);
+#ifdef HAVE_XCOMPOSITE_EXT
+          } else if (have_xcomposite_ext &&
+                     priv.ev.xconfigure.window == obscurer_window) {
+            MaybeRaiseWindow(display, background_window);
+#endif
           }
           break;
         case VisibilityNotify:
@@ -772,9 +802,17 @@ int main(int argc, char **argv) {
             // If something else shows an OverrideRedirect window, we want to
             // stay on top.
             if (priv.ev.xvisibility.window == saver_window) {
+              Log("Someone overlapped the saver window. Undoing that");
               XRaiseWindow(display, saver_window);
             } else if (priv.ev.xvisibility.window == background_window) {
+              Log("Someone overlapped the background window. Undoing that");
               XRaiseWindow(display, background_window);
+#ifdef HAVE_XCOMPOSITE_EXT
+            } else if (have_xcomposite_ext &&
+                       priv.ev.xvisibility.window == obscurer_window) {
+              Log("Someone overlapped the obscurer window. Undoing that");
+              XRaiseWindow(display, obscurer_window);
+#endif
             } else {
               Log("Received unexpected VisibilityNotify for window %d",
                   (int)priv.ev.xvisibility.window);
@@ -877,9 +915,22 @@ int main(int argc, char **argv) {
           Log("UnmapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
           if (priv.ev.xmap.window == background_window) {
+            // This should never happen, but let's handle it anyway.
+            Log("Someone unmapped the background window. Undoing that");
             background_window_mapped = 0;
+            XMapRaised(display, background_window);
           } else if (priv.ev.xmap.window == saver_window) {
+            // This should never happen, but let's handle it anyway.
+            Log("Someone unmapped the saver window. Undoing that");
             saver_window_mapped = 0;
+            XMapRaised(display, saver_window);
+#ifdef HAVE_XCOMPOSITE_EXT
+          } else if (have_xcomposite_ext &&
+                     priv.ev.xmap.window == obscurer_window) {
+            // This should never happen, but let's handle it anyway.
+            Log("Someone unmapped the obscurer window. Undoing that");
+            XMapRaised(display, obscurer_window);
+#endif
           } else if (priv.ev.xmap.window == parent_window) {
             // This should never happen, but let's handle it anyway.
             // Compton might do this when --unredir-if-possible is set and a
@@ -941,6 +992,7 @@ done:
 
 #ifdef HAVE_XCOMPOSITE_EXT
   if (have_xcomposite_ext) {
+    XDestroyWindow(display, obscurer_window);
     XCompositeReleaseOverlayWindow(display, composite_window);
   }
 #endif
