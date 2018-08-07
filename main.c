@@ -338,10 +338,11 @@ void MaybeRaiseWindow(Display *display, Window w, int force) {
     XRaiseWindow(display, w);
     /*
     char buf[80];
-    snprintf(buf, sizeof(buf), "xwininfo -id %lu", siblings[nsiblings - 1]);
+    snprintf(buf, sizeof(buf), "xwininfo -all -id %lu",
+             siblings[nsiblings - 1]);
     buf[sizeof(buf) - 1] = 0;
     system(buf);
-    snprintf(buf, sizeof(buf), "xwininfo -id %lu", w);
+    snprintf(buf, sizeof(buf), "xwininfo -all -id %lu", w);
     buf[sizeof(buf) - 1] = 0;
     system(buf);
     */
