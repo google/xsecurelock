@@ -477,11 +477,17 @@ int main(int argc, char **argv) {
     parent_window = composite_window;
     // Also create an "obscurer window" that we don't actually use but that
     // covers everything in black in case the composite window temporarily does
-    // not work (e.g. in case the compositor hides the COW).
-    obscurer_window = XCreateWindow(
-        display, root_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
-        CopyFromParent,
-        CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor, &coverattrs);
+    // not work (e.g. in case the compositor hides the COW). We are making the
+    // obscurer window actually white, so issues like this become visible but
+    // harmless.
+    XSetWindowAttributes obscurerattrs = coverattrs;
+    obscurerattrs.background_pixel =
+        WhitePixel(display, DefaultScreen(display));
+    obscurer_window =
+        XCreateWindow(display, root_window, 0, 0, w, h, 0, CopyFromParent,
+                      InputOutput, CopyFromParent,
+                      CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
+                      &obscurerattrs);
     SetWMProperties(display, obscurer_window, "xsecurelock", "obscurer", argc,
                     argv);
   }
@@ -632,6 +638,13 @@ int main(int argc, char **argv) {
   // yet, thereby "confirming" the screen lock.
   XMapRaised(display, background_window);
   XMapRaised(display, saver_window);
+
+#ifdef HAVE_XCOMPOSITE_EXT
+  if (have_xcomposite_ext) {
+    // Map the obscurer window last so it should never become visible.
+    XMapRaised(display, obscurer_window);
+  }
+#endif
 
   // Private (possibly containing information about the user's password) data.
   // This data is locked to RAM using mlock() to avoid leakage to disk via swap.
@@ -992,6 +1005,7 @@ done:
 
 #ifdef HAVE_XCOMPOSITE_EXT
   if (have_xcomposite_ext) {
+    // Destroy the obscurer window first so it should never become visible.
     XDestroyWindow(display, obscurer_window);
     XCompositeReleaseOverlayWindow(display, composite_window);
   }
