@@ -102,6 +102,8 @@ char *const *notify_command = NULL;
 #ifdef HAVE_XCOMPOSITE_EXT
 //! Do not use XComposite to cover transparent notifications.
 int no_composite = 0;
+//! Create a fullscreen sized "obscurer window" against bad compositors.
+int composite_obscurer = 0;
 #endif
 //! If set, we can start a new login session.
 int have_switch_user_command = 0;
@@ -206,6 +208,7 @@ void usage(const char *me) {
       "  XSECURELOCK_FONT=<x11 font name>\n"
 #ifdef HAVE_XCOMPOSITE_EXT
       "  XSECURELOCK_NO_COMPOSITE=<0|1>\n"
+      "  XSECURELOCK_COMPOSITE_OBSCURER=<0|1>\n"
 #endif
       "  XSECURELOCK_PAM_SERVICE=<PAM service name>\n"
       "  XSECURELOCK_SAVER=<saver module>\n"
@@ -235,6 +238,7 @@ void load_defaults() {
                                               GLOBAL_SAVER_EXECUTABLE, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
   no_composite = GetIntSetting("XSECURELOCK_NO_COMPOSITE", 0);
+  composite_obscurer = GetIntSetting("XSECURELOCK_COMPOSITE_OBSCURER", 0);
 #endif
   have_switch_user_command =
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
@@ -308,7 +312,7 @@ int check_settings() {
  *
  * Does not cause any events if the window is already on the top.
  */
-void MaybeRaiseWindow(Display *display, Window w) {
+void MaybeRaiseWindow(Display *display, Window w, int force) {
   Window root, parent, grandparent;
   Window *children, *siblings;
   unsigned int nchildren, nsiblings;
@@ -329,6 +333,23 @@ void MaybeRaiseWindow(Display *display, Window w) {
   }
   if (w != siblings[nsiblings - 1]) {
     // Need to bring myself to the top first.
+    Log("MaybeRaiseWindow hit: window %lu was above my window %lu",
+        siblings[nsiblings - 1], w);
+    XRaiseWindow(display, w);
+    /*
+    char buf[80];
+    snprintf(buf, sizeof(buf), "xwininfo -id %lu", siblings[nsiblings - 1]);
+    buf[sizeof(buf) - 1] = 0;
+    system(buf);
+    snprintf(buf, sizeof(buf), "xwininfo -id %lu", w);
+    buf[sizeof(buf) - 1] = 0;
+    system(buf);
+    */
+  } else if (force) {
+    // When forcing, do it anyway.
+    Log("MaybeRaiseWindow miss: something obscured my window %lu but I can't "
+        "find it",
+        w);
     XRaiseWindow(display, w);
   }
   XFree(siblings);
@@ -421,8 +442,10 @@ int main(int argc, char **argv) {
   // Who's the root?
   Window root_window = DefaultRootWindow(display);
 
-  // Query the initial screen size, and get notified on updates.
-  XSelectInput(display, root_window, StructureNotifyMask);
+  // Query the initial screen size, and get notified on updates. Also we're
+  // going to grab on the root window, so FocusOut events about losing the grab
+  // will appear there.
+  XSelectInput(display, root_window, StructureNotifyMask | FocusChangeMask);
   int w = DisplayWidth(display, DefaultScreen(display));
   int h = DisplayHeight(display, DefaultScreen(display));
 #ifdef DEBUG_EVENTS
@@ -475,21 +498,26 @@ int main(int argc, char **argv) {
     }
 #endif
     parent_window = composite_window;
-    // Also create an "obscurer window" that we don't actually use but that
-    // covers everything in black in case the composite window temporarily does
-    // not work (e.g. in case the compositor hides the COW). We are making the
-    // obscurer window actually white, so issues like this become visible but
-    // harmless.
-    XSetWindowAttributes obscurerattrs = coverattrs;
-    obscurerattrs.background_pixel =
-        WhitePixel(display, DefaultScreen(display));
-    obscurer_window =
-        XCreateWindow(display, root_window, 0, 0, w, h, 0, CopyFromParent,
-                      InputOutput, CopyFromParent,
-                      CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
-                      &obscurerattrs);
-    SetWMProperties(display, obscurer_window, "xsecurelock", "obscurer", argc,
-                    argv);
+
+    if (composite_obscurer) {
+      // Also create an "obscurer window" that we don't actually use but that
+      // covers everything in black in case the composite window temporarily
+      // does not work (e.g. in case the compositor hides the COW). We are
+      // making the obscurer window actually white, so issues like this become
+      // visible but harmless. This is opt-in as obscurer windows are
+      // incompatible with
+      // --unredir-if-possible and similar features.
+      XSetWindowAttributes obscurerattrs = coverattrs;
+      obscurerattrs.background_pixel =
+          WhitePixel(display, DefaultScreen(display));
+      obscurer_window = XCreateWindow(
+          display, root_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
+          CopyFromParent,
+          CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
+          &obscurerattrs);
+      SetWMProperties(display, obscurer_window, "xsecurelock", "obscurer", argc,
+                      argv);
+    }
   }
 #endif
 
@@ -511,9 +539,12 @@ int main(int argc, char **argv) {
   SetWMProperties(display, saver_window, "xsecurelock", "saver", argc, argv);
 
   // Let's get notified if we lose visibility, so we can self-raise.
-  XSelectInput(display, parent_window, StructureNotifyMask | FocusChangeMask);
 #ifdef HAVE_XCOMPOSITE_EXT
-  if (have_xcomposite_ext) {
+  if (composite_window != None) {
+    XSelectInput(display, composite_window,
+                 StructureNotifyMask | VisibilityChangeMask);
+  }
+  if (obscurer_window != None) {
     XSelectInput(display, obscurer_window,
                  StructureNotifyMask | VisibilityChangeMask);
   }
@@ -545,7 +576,7 @@ int main(int argc, char **argv) {
                   32, PropModeReplace, (const unsigned char *)&dont_composite,
                   1);
 #ifdef HAVE_XCOMPOSITE_EXT
-  if (have_xcomposite_ext) {
+  if (composite_window != None) {
     // Also set this property on the Composite Overlay Window, just in case a
     // compositor were to try compositing it (xcompmgr does, but doesn't know
     // this property anyway).
@@ -610,7 +641,7 @@ int main(int argc, char **argv) {
   // holding some grabs while starting XSecureLock.
   int retries;
   for (retries = 10; retries >= 0; --retries) {
-    if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
+    if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
                      GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
                      CurrentTime) == GrabSuccess) {
       break;
@@ -622,8 +653,8 @@ int main(int argc, char **argv) {
     return 1;
   }
   for (retries = 10; retries >= 0; --retries) {
-    if (XGrabKeyboard(display, parent_window, False, GrabModeAsync,
-                      GrabModeAsync, CurrentTime) == GrabSuccess) {
+    if (XGrabKeyboard(display, root_window, False, GrabModeAsync, GrabModeAsync,
+                      CurrentTime) == GrabSuccess) {
       break;
     }
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
@@ -640,7 +671,7 @@ int main(int argc, char **argv) {
   XMapRaised(display, saver_window);
 
 #ifdef HAVE_XCOMPOSITE_EXT
-  if (have_xcomposite_ext) {
+  if (obscurer_window != None) {
     // Map the obscurer window last so it should never become visible.
     XMapRaised(display, obscurer_window);
   }
@@ -706,23 +737,23 @@ int main(int argc, char **argv) {
 
 #ifdef REINSTATE_GRABS
     // This really should never be needed...
-    if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
+    if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
                      GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
                      CurrentTime) != GrabSuccess) {
       Log("Critical: cannot re-grab pointer");
     }
-    if (XGrabKeyboard(display, parent_window, False, GrabModeAsync,
-                      GrabModeAsync, CurrentTime) != GrabSuccess) {
+    if (XGrabKeyboard(display, root_window, False, GrabModeAsync, GrabModeAsync,
+                      CurrentTime) != GrabSuccess) {
       Log("Critical: cannot re-grab keyboard");
     }
 #endif
 
 #ifdef AUTO_RAISE
-    MaybeRaiseWindow(display, saver_window);
-    MaybeRaiseWindow(display, background_window);
+    MaybeRaiseWindow(display, saver_window, 0);
+    MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
-    if (have_xcomposite_ext) {
-      MaybeRaiseWindow(display, obscurer_window);
+    if (obscurer_window != None) {
+      MaybeRaiseWindow(display, obscurer_window, 0);
     }
 #endif
 #endif
@@ -784,7 +815,7 @@ int main(int argc, char **argv) {
             Log("DisplayWidthHeight %d %d", w, h);
 #endif
 #ifdef HAVE_XCOMPOSITE_EXT
-            if (have_xcomposite_ext) {
+            if (obscurer_window != None) {
               XMoveResizeWindow(display, obscurer_window, 0, 0, w, h);
             }
 #endif
@@ -795,13 +826,13 @@ int main(int argc, char **argv) {
           // Also, whatever window has been reconfigured, should also be raised
           // to make sure.
           if (priv.ev.xconfigure.window == saver_window) {
-            MaybeRaiseWindow(display, saver_window);
+            MaybeRaiseWindow(display, saver_window, 0);
           } else if (priv.ev.xconfigure.window == background_window) {
-            MaybeRaiseWindow(display, background_window);
+            MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
-          } else if (have_xcomposite_ext &&
+          } else if (obscurer_window != None &&
                      priv.ev.xconfigure.window == obscurer_window) {
-            MaybeRaiseWindow(display, background_window);
+            MaybeRaiseWindow(display, obscurer_window, 0);
 #endif
           }
           break;
@@ -816,15 +847,23 @@ int main(int argc, char **argv) {
             // stay on top.
             if (priv.ev.xvisibility.window == saver_window) {
               Log("Someone overlapped the saver window. Undoing that");
-              XRaiseWindow(display, saver_window);
+              MaybeRaiseWindow(display, saver_window, 1);
             } else if (priv.ev.xvisibility.window == background_window) {
               Log("Someone overlapped the background window. Undoing that");
-              XRaiseWindow(display, background_window);
+              MaybeRaiseWindow(display, background_window, 1);
 #ifdef HAVE_XCOMPOSITE_EXT
-            } else if (have_xcomposite_ext &&
+            } else if (obscurer_window != None &&
                        priv.ev.xvisibility.window == obscurer_window) {
               Log("Someone overlapped the obscurer window. Undoing that");
-              XRaiseWindow(display, obscurer_window);
+              MaybeRaiseWindow(display, obscurer_window, 1);
+            } else if (composite_window != None &&
+                       priv.ev.xvisibility.window == composite_window) {
+              Log("Someone overlapped the composite overlay window window. "
+                  "Undoing that");
+              // Note: MaybeRaiseWindow isn't valid here, as the COW has the
+              // root as parent without being a proper child of it. Let's just
+              // raise the COW unconditionally.
+              XRaiseWindow(display, composite_window);
 #endif
             } else {
               Log("Received unexpected VisibilityNotify for window %d",
@@ -912,12 +951,12 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_EVENTS
           Log("MapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
-          if (priv.ev.xmap.window == background_window) {
-            background_window_mapped = 1;
-          } else if (priv.ev.xmap.window == saver_window) {
+          if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 1;
+          } else if (priv.ev.xmap.window == background_window) {
+            background_window_mapped = 1;
           }
-          if (background_window_mapped && saver_window_mapped &&
+          if (saver_window_mapped && background_window_mapped &&
               !xss_lock_notified) {
             NotifyOfLock(xss_sleep_lock_fd);
             xss_lock_notified = 1;
@@ -927,29 +966,34 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_EVENTS
           Log("UnmapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
-          if (priv.ev.xmap.window == background_window) {
-            // This should never happen, but let's handle it anyway.
-            Log("Someone unmapped the background window. Undoing that");
-            background_window_mapped = 0;
-            XMapRaised(display, background_window);
-          } else if (priv.ev.xmap.window == saver_window) {
+          if (priv.ev.xmap.window == saver_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the saver window. Undoing that");
             saver_window_mapped = 0;
             XMapRaised(display, saver_window);
+          } else if (priv.ev.xmap.window == background_window) {
+            // This should never happen, but let's handle it anyway.
+            Log("Someone unmapped the background window. Undoing that");
+            background_window_mapped = 0;
+            XMapRaised(display, background_window);
 #ifdef HAVE_XCOMPOSITE_EXT
-          } else if (have_xcomposite_ext &&
+          } else if (obscurer_window != None &&
                      priv.ev.xmap.window == obscurer_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the obscurer window. Undoing that");
             XMapRaised(display, obscurer_window);
-#endif
-          } else if (priv.ev.xmap.window == parent_window) {
+          } else if (composite_window != None &&
+                     priv.ev.xmap.window == composite_window) {
             // This should never happen, but let's handle it anyway.
             // Compton might do this when --unredir-if-possible is set and a
             // fullscreen game launches while the screen is locked.
-            Log("Someone unmapped our parent. Undoing that");
-            XMapRaised(display, parent_window);
+            Log("Someone unmapped the composite overlay window. Undoing that");
+            XMapRaised(display, composite_window);
+#endif
+          } else if (priv.ev.xmap.window == root_window) {
+            // This should never happen, but let's handle it anyway.
+            Log("Someone unmapped the root window?!? Undoing that");
+            XMapRaised(display, root_window);
           }
           break;
         case FocusIn:
@@ -958,14 +1002,14 @@ int main(int argc, char **argv) {
           Log("Focus%d %lu", priv.ev.xfocus.mode,
               (unsigned long)priv.ev.xfocus.window);
 #endif
-          if (priv.ev.xfocus.window == parent_window &&
+          if (priv.ev.xfocus.window == root_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
             Log("WARNING: lost grab, trying to grab again");
-            if (XGrabKeyboard(display, parent_window, False, GrabModeAsync,
+            if (XGrabKeyboard(display, root_window, False, GrabModeAsync,
                               GrabModeAsync, CurrentTime) != GrabSuccess) {
               Log("Critical: lost grab but cannot re-grab keyboard");
             }
-            if (XGrabPointer(display, parent_window, False, ALL_POINTER_EVENTS,
+            if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
                              GrabModeAsync, GrabModeAsync, None, None,
                              CurrentTime) != GrabSuccess) {
               Log("Critical: lost grab but cannot re-grab pointer");
@@ -1004,9 +1048,11 @@ done:
   XDestroyWindow(display, background_window);
 
 #ifdef HAVE_XCOMPOSITE_EXT
-  if (have_xcomposite_ext) {
+  if (obscurer_window != None) {
     // Destroy the obscurer window first so it should never become visible.
     XDestroyWindow(display, obscurer_window);
+  }
+  if (composite_window != None) {
     XCompositeReleaseOverlayWindow(display, composite_window);
   }
 #endif

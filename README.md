@@ -180,6 +180,14 @@ Options to XSecureLock can be passed by environment variables:
     variable is the maximum allowed shift per screen refresh. This mitigates
     short-term burn-in effects but is probably annoying to most users, and thus
     disabled by default.
+*   `XSECURELOCK_COMPOSITE_OBSCURER`: create a second full-screen window to
+    obscure window content in case a running compositor unmaps its own window.
+    Helps with some instances of bad compositor behavior (such as compositor
+    crashes/restarts, but also compton has been caught at drawing notifcation
+    icons above the screen locker when not using the GLX backend), but as this
+    is conceptually incompatible with compositors that unmap their window if a
+    fullscreen window exists (such as `compton --unredir-if-possible`), so it's
+    disabled by default.
 *   `XSECURELOCK_DIM_ALPHA`: Linear-space opacity to fade the screen to.
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming
