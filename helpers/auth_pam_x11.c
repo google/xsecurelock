@@ -451,12 +451,10 @@ void display_string(const char *title, const char *str) {
     XSetClipRectangles(display, gc, 0, 0, &rect, 1, YXBanded);
 
     // Clear the region last written to.
-    if (region_w != 0 && region_h != 0) {
-      XClearArea(display, window,               //
-                 cx + region_x, cy + region_y,  //
-                 region_w, region_h,            //
-                 False);
-    }
+    XClearArea(display, window,               //
+               cx + region_x, cy + region_y,  //
+               region_w, region_h,            //
+               False);
 
 #ifdef DRAW_BORDER
     XDrawRectangle(display, window, gc,             //
@@ -475,6 +473,32 @@ void display_string(const char *title, const char *str) {
     if (have_switch_user_command) {
       DrawString(cx - tw_switch_user / 2, sy + th * 4, 0, switch_user,
                  len_switch_user);
+    }
+
+    // Clear everything else last. This minimizes flicker.
+    if (cy + region_y - rect.y > 0) {
+      XClearArea(display, window,                     //
+                 rect.x, rect.y,                      //
+                 rect.width, cy + region_y - rect.y,  //
+                 False);
+    }
+    if (cx + region_x - rect.x > 0) {
+      XClearArea(display, window,                   //
+                 rect.x, cy + region_y,             //
+                 cx + region_x - rect.x, region_h,  //
+                 False);
+    }
+    if (rect.x + rect.width - cx - region_x - region_w > 0) {
+      XClearArea(display, window,                                           //
+                 cx + region_x + region_w, cy + region_y,                   //
+                 rect.x + rect.width - cx - region_x - region_w, region_h,  //
+                 False);
+    }
+    if (rect.y + rect.height - cy - region_y - region_h > 0) {
+      XClearArea(display, window,                                  //
+                 rect.x, cy + region_y + region_h, rect.width,     //
+                 rect.y + rect.height - cy - region_y - region_h,  //
+                 False);
     }
 
     // Disable clipping again.
