@@ -585,6 +585,9 @@ int main(int argc, char **argv) {
                     32, PropModeReplace, (const unsigned char *)&dont_composite,
                     1);
   }
+  // Note: NOT setting this on the obscurer window, as this is a fallback and
+  // actually should be composited to make sure the compositor never draws
+  // anything "interesting".
 #endif
 
   // Initialize XInput so we can get multibyte key events.
