@@ -102,7 +102,7 @@ char *const *notify_command = NULL;
 #ifdef HAVE_XCOMPOSITE_EXT
 //! Do not use XComposite to cover transparent notifications.
 int no_composite = 0;
-//! Create a fullscreen sized "obscurer window" against bad compositors.
+//! Create an almost-fullscreen sized "obscurer window" against bad compositors.
 int composite_obscurer = 0;
 #endif
 //! If set, we can start a new login session.
@@ -502,18 +502,18 @@ int main(int argc, char **argv) {
 
     if (composite_obscurer) {
       // Also create an "obscurer window" that we don't actually use but that
-      // covers everything in black in case the composite window temporarily
-      // does not work (e.g. in case the compositor hides the COW). We are
-      // making the obscurer window actually white, so issues like this become
-      // visible but harmless. This is opt-in as obscurer windows are
-      // incompatible with
-      // --unredir-if-possible and similar features.
+      // covers almost everything in case the composite window temporarily does
+      // not work (e.g. in case the compositor hides the COW).  We are making
+      // the obscurer window actually white, so issues like this become visible
+      // but harmless. The window isn't full-sized to avoid compositors turning
+      // off themselves in response to a full-screen window, but nevertheless
+      // this is kept opt-in for now until shown reliable.
       XSetWindowAttributes obscurerattrs = coverattrs;
       obscurerattrs.background_pixel =
           WhitePixel(display, DefaultScreen(display));
       obscurer_window = XCreateWindow(
-          display, root_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
-          CopyFromParent,
+          display, root_window, 1, 1, w - 2, h - 2, 0, CopyFromParent,
+          InputOutput, CopyFromParent,
           CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
           &obscurerattrs);
       SetWMProperties(display, obscurer_window, "xsecurelock", "obscurer", argc,
@@ -820,7 +820,7 @@ int main(int argc, char **argv) {
 #endif
 #ifdef HAVE_XCOMPOSITE_EXT
             if (obscurer_window != None) {
-              XMoveResizeWindow(display, obscurer_window, 0, 0, w, h);
+              XMoveResizeWindow(display, obscurer_window, 1, 1, w - 2, h - 2);
             }
 #endif
             XMoveResizeWindow(display, background_window, 0, 0, w, h);
