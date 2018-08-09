@@ -21,21 +21,22 @@ limitations under the License.
  *security.
  */
 
-#include <X11/X.h>       // for Window, GrabModeAsync, Curren...
-#include <X11/Xatom.h>   // for XA_CARDINAL, XA_ATOM
-#include <X11/Xlib.h>    // for XEvent, False, XSelectInput
-#include <X11/Xutil.h>   // for XLookupString
-#include <errno.h>       // for ECHILD, EINTR, errno
-#include <fcntl.h>       // for fcntl
-#include <locale.h>      // for NULL, setlocale, LC_CTYPE
-#include <signal.h>      // for sigaction, sigemptyset, SIGPIPE
-#include <stdio.h>       // for printf, size_t
-#include <stdlib.h>      // for EXIT_SUCCESS, exit, EXIT_FAILURE
-#include <string.h>      // for __s1_len, __s2_len, memset
-#include <sys/select.h>  // for timeval, fd_set, select, FD_SET
-#include <sys/wait.h>    // for WEXITSTATUS, waitpid, WIFEXITED
-#include <time.h>        // for nanosleep, timespec
-#include <unistd.h>      // for access, pid_t, X_OK, chdir
+#include <X11/X.h>            // for Window, GrabModeAsync, Curren...
+#include <X11/Xatom.h>        // for XA_CARDINAL, XA_ATOM
+#include <X11/Xlib.h>         // for XEvent, False, XSelectInput
+#include <X11/Xmu/WinUtil.h>  // For XmuClientWindow
+#include <X11/Xutil.h>        // for XLookupString
+#include <errno.h>            // for ECHILD, EINTR, errno
+#include <fcntl.h>            // for fcntl
+#include <locale.h>           // for NULL, setlocale, LC_CTYPE
+#include <signal.h>           // for sigaction, sigemptyset, SIGPIPE
+#include <stdio.h>            // for printf, size_t
+#include <stdlib.h>           // for EXIT_SUCCESS, exit, EXIT_FAILURE
+#include <string.h>           // for __s1_len, __s2_len, memset
+#include <sys/select.h>       // for timeval, fd_set, select, FD_SET
+#include <sys/wait.h>         // for WEXITSTATUS, waitpid, WIFEXITED
+#include <time.h>             // for nanosleep, timespec
+#include <unistd.h>           // for access, pid_t, X_OK, chdir
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
@@ -107,6 +108,8 @@ int composite_obscurer = 0;
 #endif
 //! If set, we can start a new login session.
 int have_switch_user_command = 0;
+//! If set, we try to force grabbing by "evil" means.
+int force_grab = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
@@ -242,6 +245,7 @@ void load_defaults() {
 #endif
   have_switch_user_command =
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
+  force_grab = GetIntSetting("XSECURELOCK_FORCE_GRAB", 1);
 }
 
 /*! \brief Parse the command line arguments.
@@ -354,6 +358,69 @@ void MaybeRaiseWindow(Display *display, Window w, int force) {
     XRaiseWindow(display, w);
   }
   XFree(siblings);
+}
+
+/*! \brief Acquire all necessary grabs to lock the screen.
+ *
+ * \param display The X11 display.
+ * \param root_window The root window.
+ * \param silent Do not log errors.
+ * \param force Try extra hard (1), or even harder (2). The latter mode will very likely interfere strongly with window managers.
+ * \return true if grabbing succeeded, false otherwise.
+ */
+int AcquireGrabs(Display *display, Window root_window, Cursor cursor,
+                 int silent, int force) {
+  Window *windows;
+  unsigned int n_windows;
+  if (force) {
+    Log("Trying to force grabbing by unmapping all windows. BAD HACK");
+    // Enter critical section.
+    XGrabServer(display);
+    // Unmap all windows.
+    Window unused_root_return, unused_parent_return;
+    XQueryTree(display, root_window, &unused_root_return, &unused_parent_return,
+               &windows, &n_windows);
+    for (unsigned int i = 0; i < n_windows; ++i) {
+      XWindowAttributes xwa;
+      XGetWindowAttributes(display, windows[i], &xwa);
+      if (xwa.map_state == IsUnmapped) {
+        windows[i] = None;  // Skip this one when mapping again.
+      } else {
+	      if (force == 1) {
+		      windows[i] = XmuClientWindow(display, windows[i]);
+	      }
+        XUnmapWindow(display, windows[i]);
+      }
+    }
+  }
+  int ok = 1;
+  if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
+                   GrabModeAsync, GrabModeAsync, None, cursor,
+                   CurrentTime) != GrabSuccess) {
+    if (!silent) {
+      Log("Critical: cannot grab pointer");
+    }
+    ok = 0;
+  }
+  if (XGrabKeyboard(display, root_window, False, GrabModeAsync, GrabModeAsync,
+                    CurrentTime) != GrabSuccess) {
+    if (!silent) {
+      Log("Critical: cannot grab keyboard");
+    }
+    ok = 0;
+  }
+  if (force) {
+    // Map the windows again.
+    for (unsigned int i = 0; i < n_windows; ++i) {
+      if (windows[i] != None) {
+        XMapWindow(display, windows[i]);
+      }
+    }
+    XFree(windows);
+    // Exit critical section.
+    XUngrabServer(display);
+  }
+  return ok;
 }
 
 /*! \brief Tell xss-lock or others that we're done locking.
@@ -644,27 +711,17 @@ int main(int argc, char **argv) {
   // Acquire all grabs we need. Retry in case the window manager is still
   // holding some grabs while starting XSecureLock.
   int retries;
+  int last_normal_attempt = force_grab ? 1 : 0;
   for (retries = 10; retries >= 0; --retries) {
-    if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
-                     GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
-                     CurrentTime) == GrabSuccess) {
+    if (AcquireGrabs(display, root_window, coverattrs.cursor,
+                     /*silent=*/retries > last_normal_attempt,
+                     /*force=*/retries < last_normal_attempt)) {
       break;
     }
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
   }
   if (retries < 0) {
-    Log("Could not grab pointer");
-    return 1;
-  }
-  for (retries = 10; retries >= 0; --retries) {
-    if (XGrabKeyboard(display, root_window, False, GrabModeAsync, GrabModeAsync,
-                      CurrentTime) == GrabSuccess) {
-      break;
-    }
-    nanosleep(&(const struct timespec){0, 100000000L}, NULL);
-  }
-  if (retries < 0) {
-    Log("Could not grab keyboard");
+    Log("Failed to grab. Giving up.");
     return 1;
   }
 
@@ -744,17 +801,8 @@ int main(int argc, char **argv) {
     need_to_reinstate_grabs = 1;
 #endif
     if (need_to_reinstate_grabs) {
-      need_to_reinstate_grabs = 0;
-      if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
-                       GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
-                       CurrentTime) != GrabSuccess) {
-        Log("Critical: cannot re-grab pointer");
-        need_to_reinstate_grabs = 1;
-      }
-      if (XGrabKeyboard(display, root_window, False, GrabModeAsync,
-                        GrabModeAsync, CurrentTime) != GrabSuccess) {
-        Log("Critical: cannot re-grab keyboard");
-        need_to_reinstate_grabs = 1;
+      if (AcquireGrabs(display, root_window, coverattrs.cursor, 0, 0)) {
+        need_to_reinstate_grabs = 0;
       }
     }
 
@@ -1015,16 +1063,7 @@ int main(int argc, char **argv) {
           if (priv.ev.xfocus.window == root_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
             Log("WARNING: lost grab, trying to grab again");
-            need_to_reinstate_grabs = 0;
-            if (XGrabKeyboard(display, root_window, False, GrabModeAsync,
-                              GrabModeAsync, CurrentTime) != GrabSuccess) {
-              Log("Critical: lost grab but cannot re-grab keyboard");
-              need_to_reinstate_grabs = 1;
-            }
-            if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
-                             GrabModeAsync, GrabModeAsync, None, None,
-                             CurrentTime) != GrabSuccess) {
-              Log("Critical: lost grab but cannot re-grab pointer");
+            if (!AcquireGrabs(display, root_window, coverattrs.cursor, 0, 0)) {
               need_to_reinstate_grabs = 1;
             }
           }

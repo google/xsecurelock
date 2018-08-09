@@ -198,6 +198,11 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_FONT`: X11 or FontConfig font name to use for `auth_pam_x11`.
     You can get a list of supported font names by running `xlsfonts` and
     `fc-list`.
+*   `XSECURELOCK_FORCE_GRAB`: When grabbing fails, try stealing the grab from
+    other windows (a value of `2` steals from all descendants of the root
+    window, while a value of `1` only steals from client windows). This works
+    only sometimes and is incompatible with many window managers, so use with
+    care. See the "Forcing Grabs" section below for details.
 *   `XSECURELOCK_GLOBAL_SAVER`: specifies the desired global screen saver module
     (by default this is a multiplexer that runs `XSECURELOCK_SAVER` on each
     screen).
@@ -345,6 +350,32 @@ exploits, the following measures are taken:
 Most these issues are inherent with X11 and can only really be fixed by
 migrating to an alternative such as Wayland; some of the issues (in particular
 the gamepad input issue) will probably persist even with Wayland.
+
+## Forcing Grabs
+
+As a workaround to the issue of another window already holding a grab, we offer
+an `XSECURELOCK_FORCE_GRAB` option.
+
+This adds a last measure attempt to force grabbing by iterating through all
+subwindows of the root window, unmapping them (which closes down their grabs),
+then taking the grab and mapping them again.
+
+This has the following known issues:
+
+*   If the grab was owned by a full screen window (e.g. a game using
+    `OverrideRedirect` to gain fullscreen mode), the window will become
+    unresponsive, as your actions will be interpreted by another window - which
+    you can't see - instead. Alt-Tabbing around may often work around this.
+*   If the grab was owned by a context menu, it may become impossible to close
+    the menu other than by selecting an item in it.
+*   It will also likely confuse window managers:
+    *   Probably all window managers will rearrange the windows in response to
+        this.
+    *   bspwm may create empty window panes.
+    *   Cinnamon (and probably other GNOME-derived WMs) may become unresponsive
+        and needs to be restarted.
+        *   As a mitigation we try to hit only client windows - but then we
+            lose the ability of closing down window manager owned grabs.
 
 # Known Compatibility Issues
 
