@@ -245,7 +245,7 @@ void load_defaults() {
 #endif
   have_switch_user_command =
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
-  force_grab = GetIntSetting("XSECURELOCK_FORCE_GRAB", 1);
+  force_grab = GetIntSetting("XSECURELOCK_FORCE_GRAB", 0);
 }
 
 /*! \brief Parse the command line arguments.
