@@ -71,7 +71,7 @@ limitations under the License.
  * appears to be required with some XScreenSaver hacks that cause XSecureLock to
  * lose MotionNotify events, but nothing else.
  */
-#define REINSTATE_GRABS
+#define ALWAYS_REINSTATE_GRABS
 
 /*! \brief Try to bring the grab window to foreground in regular intervals.
  *
@@ -721,7 +721,7 @@ int main(int argc, char **argv) {
   }
 
   int background_window_mapped = 0, saver_window_mapped = 0,
-      xss_lock_notified = 0;
+      need_to_reinstate_grabs = 0, xss_lock_notified = 0;
   for (;;) {
     // Watch children WATCH_CHILDREN_HZ times per second.
     fd_set in_fds;
@@ -739,18 +739,24 @@ int main(int argc, char **argv) {
     // If something changed our cursor, change it back.
     XUndefineCursor(display, saver_window);
 
-#ifdef REINSTATE_GRABS
+#ifdef ALWAYS_REINSTATE_GRABS
     // This really should never be needed...
-    if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
-                     GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
-                     CurrentTime) != GrabSuccess) {
-      Log("Critical: cannot re-grab pointer");
-    }
-    if (XGrabKeyboard(display, root_window, False, GrabModeAsync, GrabModeAsync,
-                      CurrentTime) != GrabSuccess) {
-      Log("Critical: cannot re-grab keyboard");
-    }
+    need_to_reinstate_grabs = 1;
 #endif
+    if (need_to_reinstate_grabs) {
+      need_to_reinstate_grabs = 0;
+      if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
+                       GrabModeAsync, GrabModeAsync, None, coverattrs.cursor,
+                       CurrentTime) != GrabSuccess) {
+        Log("Critical: cannot re-grab pointer");
+        need_to_reinstate_grabs = 1;
+      }
+      if (XGrabKeyboard(display, root_window, False, GrabModeAsync,
+                        GrabModeAsync, CurrentTime) != GrabSuccess) {
+        Log("Critical: cannot re-grab keyboard");
+        need_to_reinstate_grabs = 1;
+      }
+    }
 
 #ifdef AUTO_RAISE
     MaybeRaiseWindow(display, saver_window, 0);
@@ -1009,14 +1015,17 @@ int main(int argc, char **argv) {
           if (priv.ev.xfocus.window == root_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
             Log("WARNING: lost grab, trying to grab again");
+            need_to_reinstate_grabs = 0;
             if (XGrabKeyboard(display, root_window, False, GrabModeAsync,
                               GrabModeAsync, CurrentTime) != GrabSuccess) {
               Log("Critical: lost grab but cannot re-grab keyboard");
+              need_to_reinstate_grabs = 1;
             }
             if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
                              GrabModeAsync, GrabModeAsync, None, None,
                              CurrentTime) != GrabSuccess) {
               Log("Critical: lost grab but cannot re-grab pointer");
+              need_to_reinstate_grabs = 1;
             }
           }
           break;
