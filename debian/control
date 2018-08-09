@@ -12,6 +12,7 @@ Build-Depends: debhelper (>= 8.0.0),
   libxext-dev,
   libxfixes-dev,
   libxft-dev,
+  libxmuu-dev,
   libxrandr-dev,
   libxss-dev,
   x11proto-core-dev
