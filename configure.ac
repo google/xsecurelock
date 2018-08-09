@@ -20,6 +20,9 @@ AC_CHECK_HEADER(X11/Xlib.h,
                 [], [AC_ERROR([X includes not found.])])
 AC_CHECK_LIB(X11, XOpenDisplay,
              [], [AC_ERROR([X library not found.])])
+AC_CHECK_LIB(Xmuu, XmuClientWindow,
+             [], [AC_CHECK_LIB(Xmu, XmuClientWindow,
+             [], [AC_ERROR([Xmuu or Xmu library not found.])])])
 AC_CHECK_LIB(m, sqrt,
              [], [AC_ERROR([Math library not found.])])
 AC_CHECK_LIB(rt, timer_settime,
