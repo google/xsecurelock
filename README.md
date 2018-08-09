@@ -386,6 +386,15 @@ This has the following known issues:
     `XSECURELOCK_NO_COMPOSITE=1` to XSecureLock (which however may make
     notifications appear on top of the screen lock).
 
+*   XSecureLock is incompatible with the compositor built into `metacity` (a
+    GNOME component) because it draws on the Compositor Overlay Window with
+    `IncludeInferiors` set (i.e. it explicitly requests to draw on top of
+    programs like XSecureLock). It likely does this because the same is
+    necessary when drawing on top of the root window, which it had done in the
+    past but no longer does. Workarounds include disabling its compositor with
+    `gsettings set org.gnome.metacity compositing-manager false` or passing
+    `XSECURELOCK_NO_COMPOSITE=1` to XSecureLock.
+
 # License
 
 The code is released unser the Apache 2.0 license. See the LICENSE file for more
