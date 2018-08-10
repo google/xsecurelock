@@ -62,6 +62,9 @@ int prompt_timeout;
 //! Draw border rectangle (mainly for debugging).
 #undef DRAW_BORDER
 
+//! Clear the outside area too (may work around driver issues, costs CPU).
+#undef CLEAR_OUTSIDE
+
 //! Extra line spacing.
 #define LINE_SPACING 4
 
@@ -475,6 +478,7 @@ void display_string(const char *title, const char *str) {
                  len_switch_user);
     }
 
+#ifdef CLEAR_OUTSIDE
     // Clear everything else last. This minimizes flicker.
     if (cy + region_y - rect.y > 0) {
       XClearArea(display, window,                     //
@@ -500,6 +504,7 @@ void display_string(const char *title, const char *str) {
                  rect.y + rect.height - cy - region_y - region_h,  //
                  False);
     }
+#endif
 
     // Disable clipping again.
     XSetClipMask(display, gc, None);
