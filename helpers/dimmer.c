@@ -314,7 +314,9 @@ int main(int argc, char **argv) {
   Window dim_window =
       XCreateWindow(display, root_window, 0, 0, w, h, 0, CopyFromParent,
                     InputOutput, CopyFromParent, dimmask, &dimattrs);
-  SetWMProperties(display, dim_window, "xsecurelock", "dim", argc, argv);
+  // Not using the xsecurelock WM_CLASS here as this window shouldn't prevent
+  // forcing grabs.
+  SetWMProperties(display, dim_window, "xsecurelock-dimmer", "dim", argc, argv);
   dimmer->PostCreateWindow(dimmer, display, dim_window);
 
   // Precalculate the sleep time per step.

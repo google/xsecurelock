@@ -59,6 +59,7 @@ xsecurelock_SOURCES = \
 	mlock_page.h \
 	main.c \
 	saver_child.c saver_child.h \
+	unmap_all.c unmap_all.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 xsecurelock_CPPFLAGS = $(macros)

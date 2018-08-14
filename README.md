@@ -371,7 +371,6 @@ This has the following known issues:
 *   It will also likely confuse window managers:
     *   Probably all window managers will rearrange the windows in response to
         this.
-    *   bspwm may create empty window panes.
     *   Cinnamon (and probably other GNOME-derived WMs) may become unresponsive
         and needs to be restarted.
         *   As a mitigation we try to hit only client windows - but then we
