@@ -11,10 +11,12 @@ int main(int argc, char **argv) {
   }
   UnmapAllWindowsState state;
   XGrabServer(display);
-  InitUnmapAllWindowsState(&state, display, DefaultRootWindow(display), NULL, 0, NULL, NULL, 0);
+  InitUnmapAllWindowsState(&state, display, DefaultRootWindow(display), NULL, 0,
+                           NULL, NULL, 0);
   UnmapAllWindows(&state);
   RemapAllWindows(&state);
   XUngrabServer(display);
   ClearUnmapAllWindowsState(&state);
+  XCloseDisplay(display);
   return 0;
 }
