@@ -139,6 +139,19 @@ docs_DATA = \
 	LICENSE \
 	README.md
 
+# Some tools that we sure don't wan to install
+noinst_PROGRAMS = nvidia_break_compositor get_compositor remap_all
+nvidia_break_compositor_SOURCES = \
+	test/nvidia_break_compositor.c
+nvidia_break_compositor_CPPFLAGS = $(macros)
+get_compositor_SOURCES = \
+	test/get_compositor.c
+get_compositor_CPPFLAGS = $(macros)
+remap_all_SOURCES= \
+	test/remap_all.c \
+	unmap_all.c unmap_all.h
+remap_all_CPPFLAGS = $(macros)
+
 EXTRA_DIST = \
 	CONTRIBUTING \
 	LICENSE \

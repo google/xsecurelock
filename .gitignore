@@ -27,9 +27,12 @@
 # Binaries.
 /auth_pam_x11
 /dimmer
+/get_compositor
+/nvidia_break_compositor
+/remap_all
 /saver_multiplex
-/xsecurelock
 /until_nonidle
+/xsecurelock
 
 # Doxygen stuff.
 /doxy
