@@ -1,8 +1,7 @@
-#include "../unmap_all.h"
+#include "../unmap_all.h"  // for ClearUnmapAllWindowsState, InitUnmapAllWin...
 
-#include <X11/Xlib.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <X11/Xlib.h>  // for XCloseDisplay, XGrabServer, XOpenDisplay
+#include <stdio.h>     // for NULL, fprintf, stderr
 
 int main(int argc, char **unused_argv) {
   (void)unused_argv;

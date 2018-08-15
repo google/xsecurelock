@@ -21,43 +21,44 @@ limitations under the License.
  *security.
  */
 
-#include <X11/X.h>       // for Window, GrabModeAsync, Curren...
+#include <X11/X.h>       // for Window, None, CopyFromParent
 #include <X11/Xatom.h>   // for XA_CARDINAL, XA_ATOM
-#include <X11/Xlib.h>    // for XEvent, False, XSelectInput
+#include <X11/Xlib.h>    // for XEvent, XMapRaised, XSelectInput
 #include <X11/Xutil.h>   // for XLookupString
+#include <X11/keysym.h>  // for XK_BackSpace, XK_o
 #include <errno.h>       // for ECHILD, EINTR, errno
-#include <fcntl.h>       // for fcntl
+#include <fcntl.h>       // for fcntl, FD_CLOEXEC, F_GETFD
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE
 #include <signal.h>      // for sigaction, sigemptyset, SIGPIPE
 #include <stdio.h>       // for printf, size_t
-#include <stdlib.h>      // for EXIT_SUCCESS, exit, EXIT_FAILURE
-#include <string.h>      // for __s1_len, __s2_len, memset
-#include <sys/select.h>  // for timeval, fd_set, select, FD_SET
-#include <sys/wait.h>    // for WEXITSTATUS, waitpid, WIFEXITED
+#include <stdlib.h>      // for exit, system, EXIT_SUCCESS
+#include <string.h>      // for memset, strncmp, strcmp
+#include <sys/select.h>  // for select, timeval, fd_set, FD_SET
+#include <sys/wait.h>    // for waitpid, WEXITSTATUS, WIFEXITED
 #include <time.h>        // for nanosleep, timespec
-#include <unistd.h>      // for access, pid_t, X_OK, chdir
+#include <unistd.h>      // for chdir, close, execvp, fork
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
 #endif
 #ifdef HAVE_XSCREENSAVER_EXT
 #include <X11/extensions/saver.h>      // for ScreenSaverNotify, ScreenSave...
-#include <X11/extensions/scrnsaver.h>  // for XScreenSaverNotifyEvent, XScr...
+#include <X11/extensions/scrnsaver.h>  // for XScreenSaverQueryExtension
 #endif
 #ifdef HAVE_XF86MISC_EXT
 #include <X11/extensions/xf86misc.h>  // for XF86MiscSetGrabKeysState
 #endif
 #ifdef HAVE_XFIXES_EXT
-#include <X11/extensions/Xfixes.h>      // for XFixesSetWindowShapeRegion
+#include <X11/extensions/Xfixes.h>      // for XFixesQueryExtension, XFixesS...
 #include <X11/extensions/shapeconst.h>  // for ShapeBounding
 #endif
 
 #include "auth_child.h"     // for WantAuthChild, WatchAuthChild
-#include "env_settings.h"   // for GetIntSetting, GetStringSetting
+#include "env_settings.h"   // for GetIntSetting, GetExecutableP...
 #include "logging.h"        // for Log, LogErrno
 #include "mlock_page.h"     // for MLOCK_PAGE
 #include "saver_child.h"    // for WatchSaverChild
-#include "unmap_all.h"      // For UnmapAllWindows
+#include "unmap_all.h"      // for ClearUnmapAllWindowsState
 #include "wm_properties.h"  // for SetWMProperties
 
 /*! \brief How often (in times per second) to watch child processes.

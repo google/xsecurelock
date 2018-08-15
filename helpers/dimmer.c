@@ -25,18 +25,17 @@ limitations under the License.
  *  xss-lock -n dim-screen -l xsecurelock
  */
 
-#include <assert.h>
-#include <X11/X.h>
-#include <X11/Xatom.h>
-#include <X11/Xlib.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include <X11/X.h>      // for Window, Atom, CopyFromParent, GCForegr...
+#include <X11/Xatom.h>  // for XA_CARDINAL
+#include <X11/Xlib.h>   // for Display, XColor, XSetWindowAttributes
+#include <math.h>       // for pow, ceil, frexp, nextafter, sqrt
+#include <stdio.h>      // for NULL, snprintf
+#include <stdlib.h>     // for abort
+#include <time.h>       // for nanosleep, timespec
 
-#include "../env_settings.h"
-#include "../logging.h"
-#include "../wm_properties.h"
+#include "../env_settings.h"   // for GetIntSetting, GetDoubleSetting, GetSt...
+#include "../logging.h"        // for Log
+#include "../wm_properties.h"  // for SetWMProperties
 
 // Get the entry of value index of the Bayer matrix for n = 2^power.
 void Bayer(int index, int power, int *x, int *y) {

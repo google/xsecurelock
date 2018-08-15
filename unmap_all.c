@@ -1,10 +1,10 @@
 #include "unmap_all.h"
 
-#include <X11/X.h>            // for Window, GrabModeAsync, Curren...
-#include <X11/Xatom.h>        // for XA_CARDINAL, XA_ATOM
-#include <X11/Xlib.h>         // for XEvent, False, XSelectInput
-#include <X11/Xmu/WinUtil.h>  // For XmuClientWindow
-#include <string.h>
+#include <X11/X.h>            // for Window, None, IsUnmapped
+#include <X11/Xlib.h>         // for XFree, XGetWindowAttributes, XMapWindow
+#include <X11/Xmu/WinUtil.h>  // for XmuClientWindow
+#include <X11/Xutil.h>        // for XClassHint, XGetClassHint
+#include <string.h>           // for NULL, strcmp
 
 int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
                              Window root_window, const Window* ignored_windows,

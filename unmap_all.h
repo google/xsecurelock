@@ -39,10 +39,10 @@ typedef struct {
  *   already running.
  */
 int InitUnmapAllWindowsState(UnmapAllWindowsState *state, Display *display,
-                              Window root_window, const Window *ignored_windows,
-                              unsigned int n_ignored_windows,
-                              const char *my_res_class, const char *my_res_name,
-                              int include_frame);
+                             Window root_window, const Window *ignored_windows,
+                             unsigned int n_ignored_windows,
+                             const char *my_res_class, const char *my_res_name,
+                             int include_frame);
 
 /*! \brief Unmaps all windows, and stores them in the state.
  *

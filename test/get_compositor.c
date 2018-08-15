@@ -1,9 +1,8 @@
-#include <X11/X.h>
-#include <X11/Xatom.h>
-#include <X11/Xlib.h>
-#include <X11/extensions/Xcomposite.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <X11/X.h>                      // for Window, Atom, None
+#include <X11/Xlib.h>                   // for XGetSelectionOwner, XInternAtom
+#include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
+#include <stdio.h>                      // for printf, snprintf, fflush, stdout
+#include <stdlib.h>                     // for system
 
 void DumpWindow(const char *title, Window w) {
   printf("# %s window = %#llx\n", title, (unsigned long long)w);
