@@ -797,6 +797,7 @@ int main(int argc, char **argv) {
 
 #ifdef ALWAYS_REINSTATE_GRABS
     // This really should never be needed...
+    (void)need_to_reinstate_grabs;
     need_to_reinstate_grabs = 1;
 #endif
     if (need_to_reinstate_grabs) {

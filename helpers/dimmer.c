@@ -25,6 +25,7 @@ limitations under the License.
  *  xss-lock -n dim-screen -l xsecurelock
  */
 
+#include <assert.h>
 #include <X11/X.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -49,7 +50,7 @@ void Bayer(int index, int power, int *x, int *y) {
   int subx, suby;
   Bayer(index >> 2, power - 1, &subx, &suby);
   int n = 1 << (power - 1);
-  switch (index % 4) {
+  switch (index & 3) {
     case 0:
       *x = subx;
       *y = suby;
@@ -65,6 +66,10 @@ void Bayer(int index, int power, int *x, int *y) {
     case 3:
       *x = subx;
       *y = suby + n;
+      break;
+    default:
+      // Logically impossible, but clang-analyzer needs help here.
+      abort();
       break;
   }
 }
@@ -110,7 +115,7 @@ void DitherEffectPreCreateWindow(void *unused_self, Display *unused_display,
   (void)unused_self;
   (void)unused_display;
   (void)unused_dimattrs;
-  (void)unused_dimmask;
+  *unused_dimmask = *unused_dimmask;  // Shut up clang-analyzer.
 }
 
 void DitherEffectPostCreateWindow(void *self, Display *display,
@@ -269,7 +274,7 @@ int main(int argc, char **argv) {
   dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
   wait_time_ms = GetIntSetting("XSECURELOCK_WAIT_TIME_MS", 5000);
   min_fps = GetIntSetting("XSECURELOCK_DIM_MIN_FPS", 30);
-  dim_alpha = atof(GetStringSetting("XSECURELOCK_DIM_ALPHA", "0.875"));
+  dim_alpha = GetDoubleSetting("XSECURELOCK_DIM_ALPHA", 0.875);
   int have_compositor = GetIntSetting(
       "XSECURELOCK_DIM_OVERRIDE_COMPOSITOR_DETECTION", HaveCompositor(display));
 

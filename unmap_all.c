@@ -7,7 +7,7 @@
 #include <string.h>
 
 int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
-                             Window root_window, Window* ignored_windows,
+                             Window root_window, const Window* ignored_windows,
                              unsigned int n_ignored_windows,
                              const char* my_res_class, const char* my_res_name,
                              int include_frame) {
@@ -48,8 +48,8 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
       // unmapping as doing so could accidentally unlock the screen or
       // otherwise cause more damage than good.
       if ((my_res_class || my_res_name) &&
-          !(my_res_class && strcmp(my_res_class, cls.res_class)) &&
-          !(my_res_name && strcmp(my_res_name, cls.res_name))) {
+          (!my_res_class || strcmp(my_res_class, cls.res_class) == 0) &&
+          (!my_res_name || strcmp(my_res_name, cls.res_name) == 0)) {
         state->windows[i] = None;
         should_proceed = 0;
       }

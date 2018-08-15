@@ -92,6 +92,8 @@ uint64_t GetIdleTimeForSingleTimer(Display *display, Window w,
 #endif
   }
   Log("Timer \"%s\" not supported", timer);
+  (void) display;
+  (void) w;
   return (uint64_t)-1;
 }
 

@@ -9,6 +9,9 @@ if which clang-tidy; then
     'misc-*' \
     'performance-*' \
     'readability-*' \
+    '-cert-env33-c' \
+    '-cert-msc30-c' \
+    '-cert-msc50-cpp' \
     '-clang-analyzer-alpha.core.FixedAddr' \
     '-clang-analyzer-alpha.core.PointerArithm' \
     '-clang-analyzer-alpha.deadcode.UnreachableCode'
@@ -24,6 +27,7 @@ if which clang-tidy; then
     *.[ch] */*.[ch]
   # Try again with all extensions.
   clang-tidy -checks="$checks" \
+    -extra-arg=-I/usr/include/freetype2 \
     -extra-arg=-DHELPER_PATH=\"\" \
     -extra-arg=-DDOCS_PATH=\"\" \
     -extra-arg=-DAUTH_EXECUTABLE=\"\" \
@@ -33,6 +37,7 @@ if which clang-tidy; then
     -extra-arg=-DHAVE_XCOMPOSITE_EXT \
     -extra-arg=-DHAVE_XFIXES_EXT \
     -extra-arg=-DHAVE_XKB_EXT \
+    -extra-arg=-DHAVE_XFT_EXT \
     -extra-arg=-DHAVE_XRANDR_EXT \
     -extra-arg=-DHAVE_XSCREENSAVER_EXT \
     -extra-arg=-DHAVE_XSYNC_EXT \
@@ -42,64 +47,6 @@ fi
 # CPPCheck.
 if which cppcheck; then
   cppcheck --enable=all --inconclusive --std=posix  .
-fi
-
-# OCLint.
-if which oclint; then
-  # Try once without extensions.
-  oclint -enable-clang-static-analyzer -enable-global-analysis \
-    -disable-rule=AvoidBranchingStatementAsLastInLoop \
-    -disable-rule=BitwiseOperatorInConditional \
-    -disable-rule=CollapsibleIfStatements \
-    -disable-rule=DeepNestedBlock \
-    -disable-rule=GotoStatement \
-    -disable-rule=HighCyclomaticComplexity \
-    -disable-rule=HighNcssMethod \
-    -disable-rule=HighNPathComplexity \
-    -disable-rule=InvertedLogic \
-    -disable-rule=LongMethod \
-    -disable-rule=LongVariableName \
-    -disable-rule=ParameterReassignment \
-    -disable-rule=ShortVariableName \
-    -disable-rule=TooFewBranchesInSwitchStatement \
-    -disable-rule=UselessParentheses \
-    -extra-arg=-DHELPER_PATH=\"\" \
-    -extra-arg=-DDOCS_PATH=\"\" \
-    -extra-arg=-DAUTH_EXECUTABLE=\"\" \
-    -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
-    -extra-arg=-DSAVER_EXECUTABLE=\"\" \
-    -extra-arg=-DPAM_SERVICE_NAME=\"\" \
-    *.[ch] */*.[ch]
-  # Try again with all extensions.
-  oclint -enable-clang-static-analyzer -enable-global-analysis \
-    -disable-rule=AvoidBranchingStatementAsLastInLoop \
-    -disable-rule=BitwiseOperatorInConditional \
-    -disable-rule=CollapsibleIfStatements \
-    -disable-rule=DeepNestedBlock \
-    -disable-rule=GotoStatement \
-    -disable-rule=HighCyclomaticComplexity \
-    -disable-rule=HighNcssMethod \
-    -disable-rule=HighNPathComplexity \
-    -disable-rule=InvertedLogic \
-    -disable-rule=LongMethod \
-    -disable-rule=LongVariableName \
-    -disable-rule=ParameterReassignment \
-    -disable-rule=ShortVariableName \
-    -disable-rule=TooFewBranchesInSwitchStatement \
-    -disable-rule=UselessParentheses \
-    -extra-arg=-DHELPER_PATH=\"\" \
-    -extra-arg=-DDOCS_PATH=\"\" \
-    -extra-arg=-DAUTH_EXECUTABLE=\"\" \
-    -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
-    -extra-arg=-DSAVER_EXECUTABLE=\"\" \
-    -extra-arg=-DPAM_SERVICE_NAME=\"\" \
-    -extra-arg=-DHAVE_XCOMPOSITE_EXT \
-    -extra-arg=-DHAVE_XFIXES_EXT \
-    -extra-arg=-DHAVE_XKB_EXT \
-    -extra-arg=-DHAVE_XRANDR_EXT \
-    -extra-arg=-DHAVE_XSCREENSAVER_EXT \
-    -extra-arg=-DHAVE_XSYNC_EXT \
-    *.[ch] */*.[ch]
 fi
 
 # Clang Analyzer.

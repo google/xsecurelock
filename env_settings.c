@@ -73,6 +73,25 @@ int GetIntSetting(const char* name, int def) {
   return number;
 }
 
+double GetDoubleSetting(const char* name, double def) {
+  const char* value = getenv(name);
+  if (value == NULL || value[0] == 0) {
+    return def;
+  }
+  char* endptr = NULL;
+  errno = 0;
+  double number = strtod(value, &endptr);
+  if (errno == ERANGE) {
+    Log("Ignoring out-of-range value of %s: %s", name, value);
+    return def;
+  }
+  if ((endptr != NULL && *endptr != 0)) {
+    Log("Ignoring non-numeric value of %s: %s", name, value);
+    return def;
+  }
+  return number;
+}
+
 const char* GetStringSetting(const char* name, const char* def) {
   const char* value = getenv(name);
   if (value == NULL || value[0] == 0) {
@@ -100,7 +119,7 @@ const char* GetExecutablePathSetting(const char* name, const char* def,
     ++basename;  // Skip the slash.
   }
   if (is_auth) {
-    if (strncmp(basename, "auth_", 5)) {
+    if (strncmp(basename, "auth_", 5) != 0) {
       Log("Auth executable name '%s' must start with auth_", value);
       return def;
     }

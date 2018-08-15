@@ -162,7 +162,7 @@ int main(int argc, char** argv) {
         size_t new_num_monitors =
             GetMonitors(display, parent, new_monitors, MAX_SAVERS);
         if (new_num_monitors != num_monitors ||
-            memcmp(new_monitors, monitors, sizeof(monitors))) {
+            memcmp(new_monitors, monitors, sizeof(monitors)) != 0) {
           KillSavers();
           num_monitors = new_num_monitors;
           memcpy(monitors, new_monitors, sizeof(monitors));

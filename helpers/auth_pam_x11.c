@@ -248,6 +248,7 @@ const char *get_indicators(int *warning) {
   *p = 0;
   return have_output ? buf : "";
 #else
+  *warning = *warning;  // Shut up clang-analyzer.
   return "";
 #endif
 }
