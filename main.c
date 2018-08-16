@@ -242,7 +242,7 @@ void load_defaults() {
                                               GLOBAL_SAVER_EXECUTABLE, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
   no_composite = GetIntSetting("XSECURELOCK_NO_COMPOSITE", 0);
-  composite_obscurer = GetIntSetting("XSECURELOCK_COMPOSITE_OBSCURER", 0);
+  composite_obscurer = GetIntSetting("XSECURELOCK_COMPOSITE_OBSCURER", 1);
 #endif
   have_switch_user_command =
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");

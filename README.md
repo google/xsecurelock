@@ -184,10 +184,10 @@ Options to XSecureLock can be passed by environment variables:
     obscure window content in case a running compositor unmaps its own window.
     Helps with some instances of bad compositor behavior (such as compositor
     crashes/restarts, but also compton has been caught at drawing notifcation
-    icons above the screen locker when not using the GLX backend), but as this
-    is conceptually incompatible with compositors that unmap their window if a
-    fullscreen window exists (such as `compton --unredir-if-possible`), so it's
-    disabled by default.
+    icons above the screen locker when not using the GLX backend), should
+    prevent compositors from unredirecting as it's 1 pixel smaller than the
+    screen from every side, and should otherwise be harmless, so it's enabled
+    by default.
 *   `XSECURELOCK_DIM_ALPHA`: Linear-space opacity to fade the screen to.
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming
