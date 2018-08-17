@@ -14,35 +14,35 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>                  // for Atom, Success, None, GCBackground
-#include <X11/Xlib.h>               // for XDrawString, XTextWidth, XFontStruct
-#include <X11/extensions/XKB.h>     // for XkbUseCoreKbd, XkbGroupNamesMask
-#include <X11/extensions/XKBstr.h>  // for XkbStateRec, _XkbDesc, _XkbNamesRec
-#include <locale.h>                 // for NULL, setlocale, LC_CTYPE
-#include <pwd.h>                    // for getpwuid, passwd
-#include <security/_pam_types.h>    // for PAM_SUCCESS, pam_strerror, pam_re...
-#include <security/pam_appl.h>      // for pam_end, pam_start, pam_acct_mgmt
-#include <stdio.h>                  // for fprintf, stderr, LogErrno, NULL
-#include <stdlib.h>                 // for mblen, exit, free, calloc, getenv
-#include <string.h>                 // for memcpy, strlen, memset
-#include <sys/select.h>             // for timeval, select, FD_SET, FD_ZERO
-#include <time.h>                   // for time
-#include <unistd.h>                 // for gethostname, getuid, read, ssize_t
+#include <X11/X.h>                // for None, Atom, Success, GCBackground
+#include <X11/Xlib.h>             // for DefaultScreen, Screen, XCreateGC
+#include <locale.h>               // for NULL, setlocale, LC_CTYPE
+#include <pwd.h>                  // for getpwuid_r, passwd
+#include <security/_pam_types.h>  // for pam_strerror, PAM_SUCCESS, pam_s...
+#include <security/pam_appl.h>    // for pam_end, pam_start, pam_acct_mgmt
+#include <stdlib.h>               // for rand, free, mblen, size_t, exit
+#include <string.h>               // for strlen, memcpy, memset, size_t
+#include <sys/select.h>           // for timeval, select, fd_set, FD_SET
+#include <time.h>                 // for time
+#include <unistd.h>               // for gethostname, getuid, read, sysconf
 
 #ifdef HAVE_XFT_EXT
-#include <X11/Xft/Xft.h>
-#include <X11/extensions/Xrender.h>
+#include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftFontOpenName
+#include <X11/extensions/Xrender.h>  // for XRenderColor, XGlyphInfo
+#include <fontconfig/fontconfig.h>   // for FcChar8
 #endif
 
 #ifdef HAVE_XKB_EXT
-#include <X11/XKBlib.h>  // for XkbFreeClientMap, XkbGetIndicator...
+#include <X11/XKBlib.h>             // for XkbFreeClientMap, XkbGetIndicato...
+#include <X11/extensions/XKB.h>     // for XkbUseCoreKbd, XkbGroupNamesMask
+#include <X11/extensions/XKBstr.h>  // for XkbStateRec, _XkbDesc, _XkbNamesRec
 #endif
 
-#include "../env_settings.h"      // for GetStringSetting
+#include "../env_settings.h"      // for GetIntSetting, GetStringSetting
 #include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
 #include "../xscreensaver_api.h"  // for ReadWindowID
-#include "monitors.h"             // for Monitor, GetMonitors, IsMonitorCh...
+#include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
 
 //! The blinking interval in microseconds.
 #define BLINK_INTERVAL (250 * 1000)
@@ -248,6 +248,7 @@ const char *get_indicators(int *warning) {
   *p = 0;
   return have_output ? buf : "";
 #else
+  *warning = *warning;  // Shut up clang-analyzer.
   return "";
 #endif
 }

@@ -42,6 +42,14 @@ long GetLongSetting(const char* name, long def);
  */
 int GetIntSetting(const char* name, int def);
 
+/*! \brief Loads a floating-point setting from the environment.
+ *
+ * \param name The setting to read (with XSECURELOCK_ variable name prefix).
+ * \param def The default value.
+ * \return The value of the setting, or def if unset or not a number.
+ */
+double GetDoubleSetting(const char* name, double def);
+
 /*! \brief Loads a setting from the environment.
  *
  * \param name The setting to read (with XSECURELOCK_ variable name prefix).

@@ -21,43 +21,44 @@ limitations under the License.
  *security.
  */
 
-#include <X11/X.h>            // for Window, GrabModeAsync, Curren...
-#include <X11/Xatom.h>        // for XA_CARDINAL, XA_ATOM
-#include <X11/Xlib.h>         // for XEvent, False, XSelectInput
-#include <X11/Xmu/WinUtil.h>  // For XmuClientWindow
-#include <X11/Xutil.h>        // for XLookupString
-#include <errno.h>            // for ECHILD, EINTR, errno
-#include <fcntl.h>            // for fcntl
-#include <locale.h>           // for NULL, setlocale, LC_CTYPE
-#include <signal.h>           // for sigaction, sigemptyset, SIGPIPE
-#include <stdio.h>            // for printf, size_t
-#include <stdlib.h>           // for EXIT_SUCCESS, exit, EXIT_FAILURE
-#include <string.h>           // for __s1_len, __s2_len, memset
-#include <sys/select.h>       // for timeval, fd_set, select, FD_SET
-#include <sys/wait.h>         // for WEXITSTATUS, waitpid, WIFEXITED
-#include <time.h>             // for nanosleep, timespec
-#include <unistd.h>           // for access, pid_t, X_OK, chdir
+#include <X11/X.h>       // for Window, None, CopyFromParent
+#include <X11/Xatom.h>   // for XA_CARDINAL, XA_ATOM
+#include <X11/Xlib.h>    // for XEvent, XMapRaised, XSelectInput
+#include <X11/Xutil.h>   // for XLookupString
+#include <X11/keysym.h>  // for XK_BackSpace, XK_o
+#include <errno.h>       // for ECHILD, EINTR, errno
+#include <fcntl.h>       // for fcntl, FD_CLOEXEC, F_GETFD
+#include <locale.h>      // for NULL, setlocale, LC_CTYPE
+#include <signal.h>      // for sigaction, sigemptyset, SIGPIPE
+#include <stdio.h>       // for printf, size_t
+#include <stdlib.h>      // for exit, system, EXIT_SUCCESS
+#include <string.h>      // for memset, strncmp, strcmp
+#include <sys/select.h>  // for select, timeval, fd_set, FD_SET
+#include <sys/wait.h>    // for waitpid, WEXITSTATUS, WIFEXITED
+#include <time.h>        // for nanosleep, timespec
+#include <unistd.h>      // for chdir, close, execvp, fork
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
 #endif
 #ifdef HAVE_XSCREENSAVER_EXT
 #include <X11/extensions/saver.h>      // for ScreenSaverNotify, ScreenSave...
-#include <X11/extensions/scrnsaver.h>  // for XScreenSaverNotifyEvent, XScr...
+#include <X11/extensions/scrnsaver.h>  // for XScreenSaverQueryExtension
 #endif
 #ifdef HAVE_XF86MISC_EXT
 #include <X11/extensions/xf86misc.h>  // for XF86MiscSetGrabKeysState
 #endif
 #ifdef HAVE_XFIXES_EXT
-#include <X11/extensions/Xfixes.h>      // for XFixesSetWindowShapeRegion
+#include <X11/extensions/Xfixes.h>      // for XFixesQueryExtension, XFixesS...
 #include <X11/extensions/shapeconst.h>  // for ShapeBounding
 #endif
 
 #include "auth_child.h"     // for WantAuthChild, WatchAuthChild
-#include "env_settings.h"   // for GetIntSetting, GetStringSetting
+#include "env_settings.h"   // for GetIntSetting, GetExecutableP...
 #include "logging.h"        // for Log, LogErrno
 #include "mlock_page.h"     // for MLOCK_PAGE
 #include "saver_child.h"    // for WatchSaverChild
+#include "unmap_all.h"      // for ClearUnmapAllWindowsState
 #include "wm_properties.h"  // for SetWMProperties
 
 /*! \brief How often (in times per second) to watch child processes.
@@ -241,7 +242,7 @@ void load_defaults() {
                                               GLOBAL_SAVER_EXECUTABLE, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
   no_composite = GetIntSetting("XSECURELOCK_NO_COMPOSITE", 0);
-  composite_obscurer = GetIntSetting("XSECURELOCK_COMPOSITE_OBSCURER", 0);
+  composite_obscurer = GetIntSetting("XSECURELOCK_COMPOSITE_OBSCURER", 1);
 #endif
   have_switch_user_command =
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
@@ -365,33 +366,30 @@ void MaybeRaiseWindow(Display *display, Window w, int force) {
  * \param display The X11 display.
  * \param root_window The root window.
  * \param silent Do not log errors.
- * \param force Try extra hard (1), or even harder (2). The latter mode will very likely interfere strongly with window managers.
- * \return true if grabbing succeeded, false otherwise.
+ * \param force Try extra hard (1), or even harder (2). The latter mode will
+ * very likely interfere strongly with window managers. \return true if grabbing
+ * succeeded, false otherwise.
  */
-int AcquireGrabs(Display *display, Window root_window, Cursor cursor,
-                 int silent, int force) {
-  Window *windows;
-  unsigned int n_windows;
+int AcquireGrabs(Display *display, Window root_window, Window *ignored_windows,
+                 unsigned int n_ignored_windows, Cursor cursor, int silent,
+                 int force) {
+  UnmapAllWindowsState unmap_state;
   if (force) {
-    Log("Trying to force grabbing by unmapping all windows. BAD HACK");
     // Enter critical section.
     XGrabServer(display);
-    // Unmap all windows.
-    Window unused_root_return, unused_parent_return;
-    XQueryTree(display, root_window, &unused_root_return, &unused_parent_return,
-               &windows, &n_windows);
-    for (unsigned int i = 0; i < n_windows; ++i) {
-      XWindowAttributes xwa;
-      XGetWindowAttributes(display, windows[i], &xwa);
-      if (xwa.map_state == IsUnmapped) {
-        windows[i] = None;  // Skip this one when mapping again.
-      } else {
-	      if (force == 1) {
-		      windows[i] = XmuClientWindow(display, windows[i]);
-	      }
-        XUnmapWindow(display, windows[i]);
-      }
+    // Unmap all.
+    if (!InitUnmapAllWindowsState(&unmap_state, display, root_window,
+                                  ignored_windows, n_ignored_windows,
+                                  "xsecurelock", NULL, force > 1)) {
+      Log("Found XSecureLock to be already running, not forcing");
+      ClearUnmapAllWindowsState(&unmap_state);
+      XUngrabServer(display);
+      force = 0;
     }
+  }
+  if (force) {
+    Log("Trying to force grabbing by unmapping all windows. BAD HACK");
+    UnmapAllWindows(&unmap_state);
   }
   int ok = 1;
   if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
@@ -410,14 +408,8 @@ int AcquireGrabs(Display *display, Window root_window, Cursor cursor,
     ok = 0;
   }
   if (force) {
-    // Map the windows again.
-    for (unsigned int i = 0; i < n_windows; ++i) {
-      if (windows[i] != None) {
-        XMapWindow(display, windows[i]);
-      }
-    }
-    XFree(windows);
-    // Exit critical section.
+    RemapAllWindows(&unmap_state);
+    ClearUnmapAllWindowsState(&unmap_state);
     XUngrabServer(display);
   }
   return ok;
@@ -507,6 +499,10 @@ int main(int argc, char **argv) {
         "Only locking the default screen.\n");
   }
 
+  // My windows.
+  Window my_windows[3];
+  unsigned int n_my_windows = 0;
+
   // Who's the root?
   Window root_window = DefaultRootWindow(display);
 
@@ -585,6 +581,7 @@ int main(int argc, char **argv) {
           &obscurerattrs);
       SetWMProperties(display, obscurer_window, "xsecurelock", "obscurer", argc,
                       argv);
+      my_windows[n_my_windows++] = obscurer_window;
     }
   }
 #endif
@@ -601,10 +598,12 @@ int main(int argc, char **argv) {
       &coverattrs);
   SetWMProperties(display, background_window, "xsecurelock", "background", argc,
                   argv);
+  my_windows[n_my_windows++] = background_window;
   Window saver_window =
       XCreateWindow(display, background_window, 0, 0, w, h, 0, CopyFromParent,
                     InputOutput, CopyFromParent, CWBackPixel, &coverattrs);
   SetWMProperties(display, saver_window, "xsecurelock", "saver", argc, argv);
+  my_windows[n_my_windows++] = saver_window;
 
   // Let's get notified if we lose visibility, so we can self-raise.
 #ifdef HAVE_XCOMPOSITE_EXT
@@ -713,7 +712,8 @@ int main(int argc, char **argv) {
   int retries;
   int last_normal_attempt = force_grab ? 1 : 0;
   for (retries = 10; retries >= 0; --retries) {
-    if (AcquireGrabs(display, root_window, coverattrs.cursor,
+    if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
+                     coverattrs.cursor,
                      /*silent=*/retries > last_normal_attempt,
                      /*force=*/retries < last_normal_attempt)) {
       break;
@@ -798,10 +798,12 @@ int main(int argc, char **argv) {
 
 #ifdef ALWAYS_REINSTATE_GRABS
     // This really should never be needed...
+    (void)need_to_reinstate_grabs;
     need_to_reinstate_grabs = 1;
 #endif
     if (need_to_reinstate_grabs) {
-      if (AcquireGrabs(display, root_window, coverattrs.cursor, 0, 0)) {
+      if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
+                       coverattrs.cursor, 0, 0)) {
         need_to_reinstate_grabs = 0;
       }
     }
@@ -1063,7 +1065,8 @@ int main(int argc, char **argv) {
           if (priv.ev.xfocus.window == root_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
             Log("WARNING: lost grab, trying to grab again");
-            if (!AcquireGrabs(display, root_window, coverattrs.cursor, 0, 0)) {
+            if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
+                              coverattrs.cursor, 0, 0)) {
               need_to_reinstate_grabs = 1;
             }
           }

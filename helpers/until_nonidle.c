@@ -26,31 +26,29 @@ limitations under the License.
  *   until_nonidle dim-screen || xsecurelock
  */
 
-#include <X11/X.h>
-#include <X11/Xlib.h>
-#include <errno.h>
-#include <signal.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/signal.h>
-#include <sys/time.h>
-#include <sys/wait.h>
-#include <time.h>
-#include <unistd.h>
+#include <X11/X.h>     // for Window
+#include <X11/Xlib.h>  // for Display, XOpenDisplay, Default...
+#include <errno.h>     // for ECHILD, EINTR, errno
+#include <signal.h>    // for kill, SIGTERM
+#include <stdint.h>    // for uint64_t
+#include <stdlib.h>    // for exit, size_t, EXIT_SUCCESS
+#include <string.h>    // for NULL, memcpy, strcmp, strcspn
+#include <sys/time.h>  // for gettimeofday, timeval
+#include <sys/wait.h>  // for waitpid, WEXITSTATUS, WIFEXITED
+#include <time.h>      // for nanosleep, timespec
+#include <unistd.h>    // for execvp, fork, setsid, pid_t
 
 #ifdef HAVE_XSCREENSAVER_EXT
-#include <X11/extensions/saver.h>
-#include <X11/extensions/scrnsaver.h>
+#include <X11/extensions/scrnsaver.h>  // for XScreenSaverAllocInfo, XScreen...
 #endif
 
 #ifdef HAVE_XSYNC_EXT
-#include <X11/extensions/sync.h>
+#include <X11/extensions/sync.h>       // for XSyncSystemCounter, XSyncListS...
+#include <X11/extensions/syncconst.h>  // for XSyncValue
 #endif
 
-#include "../env_settings.h"
-#include "../logging.h"
+#include "../env_settings.h"  // for GetIntSetting, GetStringSetting
+#include "../logging.h"       // for Log, LogErrno
 
 #ifdef HAVE_XSCREENSAVER_EXT
 int have_xscreensaver_ext;
@@ -92,6 +90,8 @@ uint64_t GetIdleTimeForSingleTimer(Display *display, Window w,
 #endif
   }
   Log("Timer \"%s\" not supported", timer);
+  (void)display;
+  (void)w;
   return (uint64_t)-1;
 }
 

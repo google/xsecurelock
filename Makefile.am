@@ -59,6 +59,7 @@ xsecurelock_SOURCES = \
 	mlock_page.h \
 	main.c \
 	saver_child.c saver_child.h \
+	unmap_all.c unmap_all.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 xsecurelock_CPPFLAGS = $(macros)
@@ -137,6 +138,19 @@ docs_DATA = \
 	CONTRIBUTING \
 	LICENSE \
 	README.md
+
+# Some tools that we sure don't wan to install
+noinst_PROGRAMS = nvidia_break_compositor get_compositor remap_all
+nvidia_break_compositor_SOURCES = \
+	test/nvidia_break_compositor.c
+nvidia_break_compositor_CPPFLAGS = $(macros)
+get_compositor_SOURCES = \
+	test/get_compositor.c
+get_compositor_CPPFLAGS = $(macros)
+remap_all_SOURCES= \
+	test/remap_all.c \
+	unmap_all.c unmap_all.h
+remap_all_CPPFLAGS = $(macros)
 
 EXTRA_DIST = \
 	CONTRIBUTING \
