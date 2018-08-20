@@ -47,7 +47,7 @@ limitations under the License.
 //! The blinking interval in microseconds.
 #define BLINK_INTERVAL (250 * 1000)
 
-//! The maximum time to wait at a prompt for user input in microseconds.
+//! The maximum time to wait at a prompt for user input in seconds.
 int prompt_timeout;
 
 //! Length of the "paranoid password display".
@@ -572,7 +572,7 @@ int prompt(const char *msg, char **response, int echo) {
     size_t pos;
     int len;
   } priv;
-  int blinks = 0;
+  int blink_state = 0;
 
   if (!echo && MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
     LogErrno("mlock");
@@ -585,7 +585,7 @@ int prompt(const char *msg, char **response, int echo) {
   priv.pwlen = 0;
   priv.displaymarker = rand() % PARANOID_PASSWORD_LENGTH;
 
-  int max_blinks = (prompt_timeout * 1000 * 1000) / BLINK_INTERVAL;
+  time_t deadline = time(NULL) + prompt_timeout;
 
   // Unfortunately we may have to break out of multiple loops at once here but
   // still do common cleanup work. So we have to track the return value in a
@@ -601,13 +601,13 @@ int prompt(const char *msg, char **response, int echo) {
       priv.displaylen = priv.pwlen;
       // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
       // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-      priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
+      priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     } else if (paranoid_password) {
       priv.displaylen = PARANOID_PASSWORD_LENGTH;
       memset(priv.displaybuf, '_', priv.displaylen);
       priv.displaybuf[priv.pwlen ? priv.displaymarker : 0] =
-          (blinks % 2) ? '|' : '-';
+          blink_state ? '|' : '-';
       priv.displaybuf[priv.displaylen] = '\0';
     } else {
       mblen(NULL, 0);
@@ -626,17 +626,13 @@ int prompt(const char *msg, char **response, int echo) {
       memset(priv.displaybuf, '*', priv.displaylen);
       // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
       // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-      priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
+      priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
     display_string(msg, priv.displaybuf);
 
     // Blink the cursor.
-    ++blinks;
-    if (blinks > max_blinks) {
-      done = 1;
-      break;
-    }
+    blink_state = !blink_state;
 
     struct timeval timeout;
     timeout.tv_sec = BLINK_INTERVAL / 1000000;
@@ -653,6 +649,16 @@ int prompt(const char *msg, char **response, int echo) {
         done = 1;
         break;
       }
+      time_t now = time(NULL);
+      if (now > deadline) {
+        Log("AUTH_TIMEOUT hit");
+        done = 1;
+        break;
+      }
+      if (deadline > now + prompt_timeout) {
+        // Guard against the system clock stepping back.
+        deadline = now + prompt_timeout;
+      }
       if (nfds == 0) {
         // Blink...
         break;
@@ -661,9 +667,11 @@ int prompt(const char *msg, char **response, int echo) {
       // From now on, only do nonblocking selects so we update the screen ASAP.
       timeout.tv_usec = 0;
 
-      // Force the cursor to be in visible state while typing. This also resets
-      // the prompt timeout.
-      blinks = 0;
+      // Force the cursor to be in visible state while typing.
+      blink_state = 0;
+
+      // Reset the prompt timeout.
+      deadline = now + prompt_timeout;
 
       ssize_t nread = read(0, &priv.inputbuf, 1);
       if (nread <= 0) {
