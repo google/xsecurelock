@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: Markus Teich <mteich@google.com>
 Build-Depends: debhelper (>= 8.0.0),
   autotools-dev,
+  dash,
   dh-autoreconf,
   libc6,
   libpam-dev,
