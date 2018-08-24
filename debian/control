@@ -4,7 +4,6 @@ Priority: optional
 Maintainer: Markus Teich <mteich@google.com>
 Build-Depends: debhelper (>= 8.0.0),
   autotools-dev,
-  dash,
   dh-autoreconf,
   libc6,
   libpam-dev,
@@ -22,7 +21,7 @@ Homepage: https://github.com/google/xsecurelock
 
 Package: xsecurelock
 Architecture: any
-Depends: x11-xserver-utils, ${shlibs:Depends}, ${misc:Depends}
+Depends: dash, x11-xserver-utils, ${shlibs:Depends}, ${misc:Depends}
 Suggests: mplayer,
   mpv,
   xscreensaver-data,
