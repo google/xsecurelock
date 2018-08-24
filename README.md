@@ -362,6 +362,8 @@ then taking the grab and mapping them again.
 
 This has the following known issues:
 
+*   Grabs owned by the root window cannot be closed down this way. However,
+    only screen lockers and fullscreen games should be doing that.
 *   If the grab was owned by a full screen window (e.g. a game using
     `OverrideRedirect` to gain fullscreen mode), the window will become
     unresponsive, as your actions will be interpreted by another window - which
@@ -375,6 +377,8 @@ This has the following known issues:
         and needs to be restarted.
         *   As a mitigation we try to hit only client windows - but then we
             lose the ability of closing down window manager owned grabs.
+*   Negative side effects as described are still likely to happen in case the
+    measure fails.
 
 # Known Compatibility Issues
 

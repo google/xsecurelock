@@ -47,7 +47,7 @@ limitations under the License.
 //! The blinking interval in microseconds.
 #define BLINK_INTERVAL (250 * 1000)
 
-//! The maximum time to wait at a prompt for user input in microseconds.
+//! The maximum time to wait at a prompt for user input in seconds.
 int prompt_timeout;
 
 //! Length of the "paranoid password display".
@@ -136,6 +136,9 @@ static int burnin_mitigation_max_offset = 0;
 
 //! How much the offsets are allowed to change dynamically, and if so, how high.
 static int burnin_mitigation_max_offset_change = 0;
+
+//! Whether the last printed message was a prompt.
+static int last_message_was_prompt = 0;
 
 #define MAX_MONITORS 16
 static int num_monitors;
@@ -369,12 +372,15 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  *
  * \param title The title of the message.
  * \param str The message itself.
+ * \param is_prompt Whether the message is a prompt.
  */
-void display_string(const char *title, const char *str) {
+void display_string(const char *title, const char *str, int is_prompt) {
   static int region_x;
   static int region_y;
   static int region_w = 0;
   static int region_h = 0;
+
+  last_message_was_prompt = is_prompt;
 
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
@@ -572,20 +578,20 @@ int prompt(const char *msg, char **response, int echo) {
     size_t pos;
     int len;
   } priv;
-  int blinks = 0;
+  int blink_state = 0;
 
   if (!echo && MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    display_string("Error", "Password will not be stored securely.");
+    display_string("Error", "Password will not be stored securely.", 0);
     wait_for_keypress(1);
   }
 
   priv.pwlen = 0;
   priv.displaymarker = rand() % PARANOID_PASSWORD_LENGTH;
 
-  int max_blinks = (prompt_timeout * 1000 * 1000) / BLINK_INTERVAL;
+  time_t deadline = time(NULL) + prompt_timeout;
 
   // Unfortunately we may have to break out of multiple loops at once here but
   // still do common cleanup work. So we have to track the return value in a
@@ -601,13 +607,13 @@ int prompt(const char *msg, char **response, int echo) {
       priv.displaylen = priv.pwlen;
       // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
       // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-      priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
+      priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     } else if (paranoid_password) {
       priv.displaylen = PARANOID_PASSWORD_LENGTH;
       memset(priv.displaybuf, '_', priv.displaylen);
       priv.displaybuf[priv.pwlen ? priv.displaymarker : 0] =
-          (blinks % 2) ? '|' : '-';
+          blink_state ? '|' : '-';
       priv.displaybuf[priv.displaylen] = '\0';
     } else {
       mblen(NULL, 0);
@@ -626,17 +632,13 @@ int prompt(const char *msg, char **response, int echo) {
       memset(priv.displaybuf, '*', priv.displaylen);
       // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
       // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-      priv.displaybuf[priv.displaylen] = (blinks % 2) ? ' ' : *cursor;
+      priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
-    display_string(msg, priv.displaybuf);
+    display_string(msg, priv.displaybuf, 1);
 
     // Blink the cursor.
-    ++blinks;
-    if (blinks > max_blinks) {
-      done = 1;
-      break;
-    }
+    blink_state = !blink_state;
 
     struct timeval timeout;
     timeout.tv_sec = BLINK_INTERVAL / 1000000;
@@ -653,6 +655,16 @@ int prompt(const char *msg, char **response, int echo) {
         done = 1;
         break;
       }
+      time_t now = time(NULL);
+      if (now > deadline) {
+        Log("AUTH_TIMEOUT hit");
+        done = 1;
+        break;
+      }
+      if (deadline > now + prompt_timeout) {
+        // Guard against the system clock stepping back.
+        deadline = now + prompt_timeout;
+      }
       if (nfds == 0) {
         // Blink...
         break;
@@ -661,9 +673,11 @@ int prompt(const char *msg, char **response, int echo) {
       // From now on, only do nonblocking selects so we update the screen ASAP.
       timeout.tv_usec = 0;
 
-      // Force the cursor to be in visible state while typing. This also resets
-      // the prompt timeout.
-      blinks = 0;
+      // Force the cursor to be in visible state while typing.
+      blink_state = 0;
+
+      // Reset the prompt timeout.
+      deadline = now + prompt_timeout;
 
       ssize_t nread = read(0, &priv.inputbuf, 1);
       if (nread <= 0) {
@@ -722,7 +736,7 @@ int prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            display_string("Error", "Password has not been stored securely.");
+            display_string("Error", "Password has not been stored securely.", 0);
             wait_for_keypress(1);
           }
           if (priv.pwlen != 0) {
@@ -790,11 +804,11 @@ int converse_one(const struct pam_message *msg, struct pam_response *resp) {
     case PAM_PROMPT_ECHO_ON:
       return prompt(msg->msg, &resp->resp, 1);
     case PAM_ERROR_MSG:
-      display_string("Error", msg->msg);
+      display_string("Error", msg->msg, 0);
       wait_for_keypress(1);
       return PAM_SUCCESS;
     case PAM_TEXT_INFO:
-      display_string("PAM says", msg->msg);
+      display_string("PAM says", msg->msg, 0);
       wait_for_keypress(1);
       return PAM_SUCCESS;
     default:
@@ -839,8 +853,12 @@ int converse(int num_msg, const struct pam_message **msg,
     }
   }
 
-  // We're returning to PAM, so let's show the processing prompt.
-  display_string("Processing...", "");
+  // We're returning to PAM, so let's show the processing prompt. Unless PAM
+  // displayed its own explanation of why it is waiting, in which case we let
+  // that stand.
+  if (last_message_was_prompt) {
+    display_string("Processing...", "", 0);
+  }
 
   return PAM_SUCCESS;
 }
@@ -854,7 +872,8 @@ int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
     conv_error = 0;
 
     // We're entering PAM, so let's show a processing prompt.
-    display_string("Processing...", "");
+    // This one is shown unconditionally, as the PAM conversation starts here.
+    display_string("Processing...", "", 0);
 
     int status = pam_call(pam, flags);
     if (conv_error) {  // Timeout or escape.
@@ -1139,7 +1158,7 @@ int main() {
   int status2 = pam_end(pam, status);
 
   // Clear any possible processing message.
-  display_string("", "");
+  display_string("", "", 0);
 
   // Done with PAM, so we can free the getpwuid_r buffer now.
   free(pwd_buf);
