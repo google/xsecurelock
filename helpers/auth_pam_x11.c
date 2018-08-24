@@ -137,6 +137,9 @@ static int burnin_mitigation_max_offset = 0;
 //! How much the offsets are allowed to change dynamically, and if so, how high.
 static int burnin_mitigation_max_offset_change = 0;
 
+//! Whether the last printed message was a prompt.
+static int last_message_was_prompt = 0;
+
 #define MAX_MONITORS 16
 static int num_monitors;
 static Monitor monitors[MAX_MONITORS];
@@ -369,12 +372,15 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  *
  * \param title The title of the message.
  * \param str The message itself.
+ * \param is_prompt Whether the message is a prompt.
  */
-void display_string(const char *title, const char *str) {
+void display_string(const char *title, const char *str, int is_prompt) {
   static int region_x;
   static int region_y;
   static int region_w = 0;
   static int region_h = 0;
+
+  last_message_was_prompt = is_prompt;
 
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
@@ -578,7 +584,7 @@ int prompt(const char *msg, char **response, int echo) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    display_string("Error", "Password will not be stored securely.");
+    display_string("Error", "Password will not be stored securely.", 0);
     wait_for_keypress(1);
   }
 
@@ -629,7 +635,7 @@ int prompt(const char *msg, char **response, int echo) {
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
-    display_string(msg, priv.displaybuf);
+    display_string(msg, priv.displaybuf, 1);
 
     // Blink the cursor.
     blink_state = !blink_state;
@@ -730,7 +736,7 @@ int prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            display_string("Error", "Password has not been stored securely.");
+            display_string("Error", "Password has not been stored securely.", 0);
             wait_for_keypress(1);
           }
           if (priv.pwlen != 0) {
@@ -798,11 +804,11 @@ int converse_one(const struct pam_message *msg, struct pam_response *resp) {
     case PAM_PROMPT_ECHO_ON:
       return prompt(msg->msg, &resp->resp, 1);
     case PAM_ERROR_MSG:
-      display_string("Error", msg->msg);
+      display_string("Error", msg->msg, 0);
       wait_for_keypress(1);
       return PAM_SUCCESS;
     case PAM_TEXT_INFO:
-      display_string("PAM says", msg->msg);
+      display_string("PAM says", msg->msg, 0);
       wait_for_keypress(1);
       return PAM_SUCCESS;
     default:
@@ -847,8 +853,12 @@ int converse(int num_msg, const struct pam_message **msg,
     }
   }
 
-  // We're returning to PAM, so let's show the processing prompt.
-  display_string("Processing...", "");
+  // We're returning to PAM, so let's show the processing prompt. Unless PAM
+  // displayed its own explanation of why it is waiting, in which case we let
+  // that stand.
+  if (last_message_was_prompt) {
+    display_string("Processing...", "", 0);
+  }
 
   return PAM_SUCCESS;
 }
@@ -862,7 +872,8 @@ int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
     conv_error = 0;
 
     // We're entering PAM, so let's show a processing prompt.
-    display_string("Processing...", "");
+    // This one is shown unconditionally, as the PAM conversation starts here.
+    display_string("Processing...", "", 0);
 
     int status = pam_call(pam, flags);
     if (conv_error) {  // Timeout or escape.
@@ -1147,7 +1158,7 @@ int main() {
   int status2 = pam_end(pam, status);
 
   // Clear any possible processing message.
-  display_string("", "");
+  display_string("", "", 0);
 
   // Done with PAM, so we can free the getpwuid_r buffer now.
   free(pwd_buf);
