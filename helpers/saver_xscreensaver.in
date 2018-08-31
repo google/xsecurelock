@@ -16,43 +16,78 @@
 
 : ${XSECURELOCK_XSCREENSAVER_PATH:=@path_to_xscreensaver@}
 
-simple_nl() {
-  while read -r line; do
-    printf "%d\t%s\n" "$i" "$line"
+TAB='	'
+
+# Note: the following logic is somewhat derived from parse_screenhack in
+# XScreenSaver.
+convert_xscreensaver_programs() {
+  i=0
+  while IFS= read -r line; do
+    skipwhite() {
+      while :; do
+        case "$line" in
+          $TAB*) line=${line#$TAB} ;;
+          \ *)   line=${line# } ;;
+          *)     break ;;
+        esac
+      done
+    }
+    skipwhite
+    # Read disabled field.
+    case "$line" in
+      -*) enabled=false; line=${line#-}; skipwhite ;;
+      *)  enabled=true ;;
+    esac
+    # Strip visual name (VISUAL:, where VISUAL can't contain " or whitespace).
+    case "${line%%[\" $TAB]*}" in
+      *:*) line=${line#*:}; skipwhite ;;
+    esac
+    # Strip textual description ("description").
+    case "$line" in
+      '"'*) line=${line#\"*\"}; skipwhite ;;
+    esac
+    # What's remaining is the program name with its options.
+    echo "$i $enabled $line"
     i=$((i+1))
   done
 }
 
-allsavers() {
+convert_program_list() {
+  i=0
+  while IFS= read -r line; do
+    echo "$i true $line -root"
+    i=$((i+1))
+  done
+}
+
+list_savers() {
   want_all=$1
   if [ -f ~/.xscreensaver ]; then
-    i=0
     printf "%b" "$(
       xrdb -n ~/.xscreensaver 2>/dev/null |\
       grep ^programs: |\
       cut -d : -f 2-
-    )" |\
-      simple_nl |\
-      sed -e '
-        s/\t/ true\t/;                                 # Handle disabling.
-        s/ true\t[[:space:]]*-[[:space:]]*/ false\t/;  # Handle disabling.
-        s/\t[[:space:]]*/\t/;                          # Strip whitespace.
-        s/\t[^[:space:]]*:[[:space:]]*/\t/;            # Remove visual name.
-        s/\t"[^"]*"[[:space:]]*/\t/;                   # Remove hack name.
-      '
+    )" | convert_xscreensaver_programs
   else
-    ls "$XSECURELOCK_XSCREENSAVER_PATH" |\
-      sed -e '
-        s/^/true /;
-        s/$/ -root/;
-      ' |\
-      simple_nl
+    ls "$XSECURELOCK_XSCREENSAVER_PATH" | convert_program_list
   fi | while read -r number enabled saver flags; do
     $want_all || $enabled || continue
     [ -x "$XSECURELOCK_XSCREENSAVER_PATH/$saver" ] || continue
     printf '%d\t%s/%s\n' "$number" "$XSECURELOCK_XSCREENSAVER_PATH" "$saver $flags"
   done
 }
+
+# Debug mode to list all savers.
+case "$1" in
+  --list_savers)
+    list_savers false
+    exit 0
+    ;;
+  --list_all_savers)
+    list_savers true
+    exit 0
+    ;;
+esac
 
 mode=$(
   xrdb -n ~/.xscreensaver 2>/dev/null |\
@@ -82,15 +117,15 @@ if [ -z "$selected" ]; then
   selected=$PPID
 fi
 
-selectsaver() {
+select_saver() {
   case "$mode" in
     one)
-      savers=$(allsavers true)
+      savers=$(list_savers true)
       count=$(printf '%s\n' "$savers" | wc -l)
       printf '%s\n' "$savers" | grep "^$selected$(printf '\t')"
       ;;
     *)
-      savers=$(allsavers false)
+      savers=$(list_savers false)
       count=$(printf '%s\n' "$savers" | wc -l)
       printf '%s\n' "$savers" | tail -n +$((selected % count + 1))
       ;;
@@ -100,9 +135,9 @@ selectsaver() {
 # We can just run savers in a loop, until one sticks; xsecurelock will kill our
 # entire process group anyway when unlocking.
 while :; do
-  saver=$(selectsaver)
+  saver=$(select_saver)
   if [ -n "$saver" ]; then
-    $saver
+    eval $saver
   fi
   sleep 2
   echo >&2 "xsecurelock: Screen saver failed: $saver. Trying another one..."
