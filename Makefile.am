@@ -157,7 +157,6 @@ EXTRA_DIST = \
 	LICENSE \
 	README.md \
 	autogen.sh \
-	debian \
 	helpers/saver_blank \
 	run-linters.sh \
 	test
