@@ -969,8 +969,13 @@ int main(int argc, char **argv) {
             Log("Received invalid length from XLookupString: %d", priv.len);
             have_key = 0;
           }
-          if (priv.keysym == XK_BackSpace &&
-              (priv.ev.xkey.state & ControlMask)) {
+          if (priv.keysym == XK_Tab && (priv.ev.xkey.state & ControlMask)) {
+            // Map Ctrl-Tab to Ctrl-S (switch layout). We remap this one
+            // because not all layouts have a key for S.
+            priv.buf[0] = '\023';
+            priv.buf[1] = 0;
+          } else if (priv.keysym == XK_BackSpace &&
+                     (priv.ev.xkey.state & ControlMask)) {
             // Map Ctrl-Backspace to Ctrl-U (clear entry line).
             priv.buf[0] = '\025';
             priv.buf[1] = 0;
