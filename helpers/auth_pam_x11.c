@@ -146,14 +146,48 @@ static Monitor monitors[MAX_MONITORS];
 
 int have_xkb_ext;
 
+/*! \brief Switch to the next keyboard layout.
+ */
+void SwitchKeyboardLayout(void) {
+#ifdef HAVE_XKB_EXT
+  if (!have_xkb_ext) {
+    return;
+  }
+
+  XkbDescPtr xkb;
+  xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
+  if (XkbGetControls(display, XkbUseCoreKbd, xkb) != Success) {
+    Log("XkbGetControls failed");
+    XkbFreeClientMap(xkb, 0, True);
+    return;
+  }
+  if (xkb->ctrls->num_groups < 1) {
+    Log("XkbGetControls returned less than 1 group");
+    XkbFreeClientMap(xkb, 0, True);
+    return;
+  }
+  XkbStateRec state;
+  if (XkbGetState(display, XkbUseCoreKbd, &state) != Success) {
+    Log("XkbGetState failed");
+    XkbFreeClientMap(xkb, 0, True);
+    return;
+  }
+
+  XkbLockGroup(display, XkbUseCoreKbd,
+               (state.group + 1) % xkb->ctrls->num_groups);
+#endif
+}
+
 /*! \brief Check which modifiers are active.
  *
  * \param warning Will be set to 1 if something's "bad" with the keyboard
  *     layout (e.g. Caps Lock).
+ * \param have_multiple_layouts Will be set to 1 if more than one keyboard
+ *     layout is available for switching.
  *
  * \return The current modifier mask as a string.
  */
-const char *get_indicators(int *warning) {
+const char *GetIndicators(int *warning, int *have_multiple_layouts) {
 #ifdef HAVE_XKB_EXT
   static char buf[128];
   char *p;
@@ -164,6 +198,11 @@ const char *get_indicators(int *warning) {
 
   XkbDescPtr xkb;
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
+  if (XkbGetControls(display, XkbUseCoreKbd, xkb) != Success) {
+    Log("XkbGetControls failed");
+    XkbFreeClientMap(xkb, 0, True);
+    return "";
+  }
   if (XkbGetNames(
           display,
           XkbIndicatorNamesMask | XkbGroupNamesMask | XkbSymbolsNameMask,
@@ -191,6 +230,11 @@ const char *get_indicators(int *warning) {
   // why. Such a situation has not been observd yet though.
   if (state.mods & LockMask) {
     *warning = 1;
+  }
+
+  // Provide info about multiple layouts.
+  if (xkb->ctrls->num_groups > 1) {
+    *have_multiple_layouts = 1;
   }
 
   p = buf;
@@ -395,9 +439,16 @@ void display_string(const char *title, const char *str, int is_prompt) {
   int tw_str = TextWidth(str, len_str);
 
   int indicators_warning = 0;
-  const char *indicators = get_indicators(&indicators_warning);
+  int have_multiple_layouts = 0;
+  const char *indicators =
+      GetIndicators(&indicators_warning, &have_multiple_layouts);
   int len_indicators = strlen(indicators);
   int tw_indicators = TextWidth(indicators, len_indicators);
+
+  const char *switch_layout =
+      have_multiple_layouts ? "Press Ctrl-Tab to switch keyboard layout" : "";
+  int len_switch_layout = strlen(switch_layout);
+  int tw_switch_layout = TextWidth(switch_layout, len_switch_layout);
 
   const char *switch_user = have_switch_user_command
                                 ? "Press Ctrl-Alt-O or Win-O to switch user"
@@ -413,11 +464,14 @@ void display_string(const char *title, const char *str, int is_prompt) {
   if (box_w < tw_indicators) {
     box_w = tw_indicators;
   }
+  if (box_w < tw_switch_layout) {
+    box_w = tw_switch_layout;
+  }
   if (box_w < tw_switch_user) {
     box_w = tw_switch_user;
   }
   int border = TEXT_BORDER + burnin_mitigation_max_offset_change;
-  int box_h = (have_switch_user_command ? 5 : 4) * th;
+  int box_h = (4 + have_multiple_layouts + have_switch_user_command) * th;
   if (region_w < box_w + 2 * border) {
     region_w = box_w + 2 * border;
   }
@@ -450,7 +504,7 @@ void display_string(const char *title, const char *str, int is_prompt) {
   for (i = 0; i < num_monitors; ++i) {
     int cx = monitors[i].x + monitors[i].width / 2 + x_offset;
     int cy = monitors[i].y + monitors[i].height / 2 + y_offset;
-    int sy = cy + to - box_h / 2;
+    int y = cy + to - box_h / 2;
 
     // Clip all following output to the bounds of this monitor.
     XRectangle rect;
@@ -475,14 +529,25 @@ void display_string(const char *title, const char *str, int is_prompt) {
                    region_w - 1, region_h - 1);
 #endif
 
-    DrawString(cx - tw_full_title / 2, sy, 0, full_title, len_full_title);
+    DrawString(cx - tw_full_title / 2, y, 0, full_title, len_full_title);
+    y += th * 2;
 
-    DrawString(cx - tw_str / 2, sy + th * 2, 0, str, len_str);
-    DrawString(cx - tw_indicators / 2, sy + th * 3, indicators_warning,
-               indicators, len_indicators);
+    DrawString(cx - tw_str / 2, y, 0, str, len_str);
+    y += th;
+
+    DrawString(cx - tw_indicators / 2, y, indicators_warning, indicators,
+               len_indicators);
+    y += th;
+
+    if (have_multiple_layouts) {
+      DrawString(cx - tw_switch_layout / 2, y, 0, switch_layout,
+                 len_switch_layout);
+      y += th;
+    }
+
     if (have_switch_user_command) {
-      DrawString(cx - tw_switch_user / 2, sy + th * 4, 0, switch_user,
-                 len_switch_user);
+      DrawString(cx - tw_switch_user / 2, y, 0, switch_user, len_switch_user);
+      y += th;
     }
 
 #ifdef CLEAR_OUTSIDE
@@ -719,6 +784,9 @@ int prompt(const char *msg, char **response, int echo) {
           // almost every keypress other than arrow keys will erase afterwards.
           priv.pwlen = 0;
           break;
+        case '\023':  // Ctrl-S.
+          SwitchKeyboardLayout();
+          break;
         case '\025':  // Ctrl-U.
           // Delete the entire input line.
           // i3lock: supports Ctrl-U but not Ctrl-A.
@@ -736,7 +804,8 @@ int prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            display_string("Error", "Password has not been stored securely.", 0);
+            display_string("Error", "Password has not been stored securely.",
+                           0);
             wait_for_keypress(1);
           }
           if (priv.pwlen != 0) {
@@ -1006,7 +1075,7 @@ int main() {
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
   have_switch_user_command =
-      *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
+      !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     Log("Could not connect to $DISPLAY");
