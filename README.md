@@ -33,6 +33,8 @@ distribution of choice, but will be similar:
 *   x11-xserver-utils (for the `saver_blank` module)
 *   xscreensaver (for the `saver_xscreensaver` module)
 
+NOTE: FreeBSD is not supported yet; see issue #43.
+
 # Installation
 
 NOTE: In these instructions, please replace SERVICE-NAME by the name of an
