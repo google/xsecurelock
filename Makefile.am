@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-AM_CFLAGS = -Wall -Wextra -D_POSIX_C_SOURCE=200112L
+AM_CFLAGS = -Wall -Wextra -D_POSIX_C_SOURCE=200112L -D_XOPEN_SOURCE=600
 
 macros = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
