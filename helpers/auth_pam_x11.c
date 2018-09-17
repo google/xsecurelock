@@ -18,7 +18,6 @@ limitations under the License.
 #include <X11/Xlib.h>             // for DefaultScreen, Screen, XCreateGC
 #include <locale.h>               // for NULL, setlocale, LC_CTYPE
 #include <pwd.h>                  // for getpwuid_r, passwd
-#include <security/_pam_types.h>  // for pam_strerror, PAM_SUCCESS, pam_s...
 #include <security/pam_appl.h>    // for pam_end, pam_start, pam_acct_mgmt
 #include <stdlib.h>               // for rand, free, mblen, size_t, exit
 #include <string.h>               // for strlen, memcpy, memset, size_t
