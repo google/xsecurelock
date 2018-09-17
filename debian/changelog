@@ -1,3 +1,18 @@
+xsecurelock (1.1-1) unstable; urgency=medium
+
+  * Upstream version 1.1
+  * Fix separator display logic.
+  * Additional obscurer window.
+  * Grab on root window.
+  * Add window unmapper that allows xsecurelock to steal grabs (default: off).
+  * Correctly parse xscreensaver preferences.
+  * Use real time clock for auth timeout.
+  * Only show "Processing..." if the last PAM action was a prompt.
+  * Add keyboard layout switching shortcut to auth_pam_x11 module.
+  * Add date and PID to log output.
+
+ -- Markus Teich <mteich@google.com>  Mon, 17 Sep 2018 19:53:52 +0200
+
 xsecurelock (1.0-1) unstable; urgency=medium
 
   * Initial upload
