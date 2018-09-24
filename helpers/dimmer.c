@@ -330,7 +330,8 @@ int main(int argc, char **argv) {
   sleep_ts.tv_sec = sleep_time_ns / 1000000000;
   sleep_ts.tv_nsec = sleep_time_ns % 1000000000;
   XMapRaised(display, dim_window);
-  for (int i = 0; i < dimmer->frame_count; ++i) {
+  int i;
+  for (i = 0; i < dimmer->frame_count; ++i) {
     // Advance the dim pattern by one step.
     dimmer->DrawFrame(dimmer, display, dim_window, i, w, h);
     // Draw it!

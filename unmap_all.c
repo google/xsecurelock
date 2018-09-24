@@ -21,7 +21,8 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
   Window unused_root_return, unused_parent_return;
   XQueryTree(state->display, state->root_window, &unused_root_return,
              &unused_parent_return, &state->windows, &state->n_windows);
-  for (unsigned int i = 0; i < state->n_windows; ++i) {
+  unsigned int i;
+  for (i = 0; i < state->n_windows; ++i) {
     XWindowAttributes xwa;
     XGetWindowAttributes(display, state->windows[i], &xwa);
     // Not mapped -> nothing to do.
@@ -35,7 +36,8 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
       state->windows[i] = XmuClientWindow(display, state->windows[i]);
     }
     // If any window we'd be unmapping is in the ignore list, skip it.
-    for (unsigned int j = 0; j < n_ignored_windows; ++j) {
+    unsigned int j;
+    for (j = 0; j < n_ignored_windows; ++j) {
       if (state->windows[i] == ignored_windows[j]) {
         state->windows[i] = None;
       }
@@ -68,7 +70,8 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
 }
 
 void UnmapAllWindows(UnmapAllWindowsState* state) {
-  for (unsigned int i = 0; i < state->n_windows; ++i) {
+  unsigned int i;
+  for (i = 0; i < state->n_windows; ++i) {
     if (state->windows[i] != None) {
       XUnmapWindow(state->display, state->windows[i]);
     }
@@ -76,7 +79,8 @@ void UnmapAllWindows(UnmapAllWindowsState* state) {
 }
 
 void RemapAllWindows(UnmapAllWindowsState* state) {
-  for (unsigned int i = 0; i < state->n_windows; ++i) {
+  unsigned int i;
+  for (i = 0; i < state->n_windows; ++i) {
     if (state->windows[i] != None) {
       XMapWindow(state->display, state->windows[i]);
     }
