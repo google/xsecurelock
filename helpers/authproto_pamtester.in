@@ -14,8 +14,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-echo "Enter password:" |\
-  display -window "$XSCREENSAVER_WINDOW" TEXT:-
+printf "P\000\017Enter password:"
+case "$(head -c 1)" in
+  p)
+    hi=$(od -N 1 -t u1 | head -n 1 | cut -d ' ' -f 2- | tr -d ' ')
+    lo=$(od -N 1 -t u1 | head -n 1 | cut -d ' ' -f 2- | tr -d ' ')
+    len=$((hi * 256 + lo))
+    if { head -c "$len"; echo; } |\
+        @path_to_pamtester@ @pam_service_name@ "$USER" authenticate \
+          >/dev/null 2>&1; then
+      printf "i\000\013I know you."
+      exit 0
+    else
+      printf "e\000\021Invalid password."
+      exit 1
+    fi
+    ;;
+  x)
+    exit 1
+    ;;
+  *)
+    echo >&2 "Unexpected packet type."
+    exit 1
+    ;;
+esac
 
-exec >/dev/null 2>&1
-exec @with_htpasswd@ -v ~/.xsecurelock.pw "$USER"
+# Shouldn't get here.
+exit 42

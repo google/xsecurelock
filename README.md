@@ -22,18 +22,15 @@ distribution of choice, but will be similar:
 *   binutils
 *   gcc
 *   libc6-dev
-*   libpam-dev (for the `auth_pam_x11` module)
+*   libpam-dev (for the `authproto_pam` module)
 *   libx11-dev
 *   libxss-dev
 *   make
 *   mplayer (for the `saver_mplayer` module)
 *   mpv (for the `saver_mpv` module)
-*   imagemagick (for the `auth_htpasswd` and `auth_pamtester` modules)
-*   pamtester (for the `auth_pamtester` module)
+*   pamtester (for the `authproto_pamtester` module)
 *   x11-xserver-utils (for the `saver_blank` module)
 *   xscreensaver (for the `saver_xscreensaver` module)
-
-NOTE: FreeBSD is not supported yet; see issue #43.
 
 # Installation
 
@@ -165,7 +162,7 @@ Options to XSecureLock can be passed by environment variables:
 
 *   `XSECURELOCK_AUTH`: specifies the desired authentication module.
 *   `XSECURELOCK_AUTH_TIMEOUT`: specifies the time (in seconds) to wait for
-    response to a prompt by `auth_pam_x11` before giving up and reverting to
+    response to a prompt by `auth_x11` before giving up and reverting to
     the screen saver.
 *   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
     X11 to fully blank the screen; a negative value disables X11 blanking.
@@ -173,11 +170,11 @@ Options to XSecureLock can be passed by environment variables:
     in when blanking (one of standby, suspend, off and on, where "on" means to
     not invoke DPMS at all).
 *   `XSECURELOCK_BURNIN_MITIGATION`: specifies the number of pixels the prompt
-    of `auth_pam_x11` may be moved at startup to mitigate possible burn-in
+    of `auth_x11` may be moved at startup to mitigate possible burn-in
     effects due to the auth dialog being displayed all the time (e.g. when
     spurious mouse events wake up the screen all the time).
 *   `XSECURELOCK_BURNIN_MITIGATION_DYNAMIC`: if set to a non-zero value,
-    `auth_pam_x11` will move the prompt while it is being displayed, but stay
+    `auth_x11` will move the prompt while it is being displayed, but stay
     within the bounds of `XSECURELOCK_BURNIN_MITIGATION`. The value of this
     variable is the maximum allowed shift per screen refresh. This mitigates
     short-term burn-in effects but is probably annoying to most users, and thus
@@ -197,7 +194,7 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_DIM_TIME_MS`: Milliseconds to dim for when above xss-lock
     command line with `dimmer` is used; also used by `wait_nonidle` to know when
     to assume dimming and waiting has finished and exit.
-*   `XSECURELOCK_FONT`: X11 or FontConfig font name to use for `auth_pam_x11`.
+*   `XSECURELOCK_FONT`: X11 or FontConfig font name to use for `auth_x11`.
     You can get a list of supported font names by running `xlsfonts` and
     `fc-list`.
 *   `XSECURELOCK_FORCE_GRAB`: When grabbing fails, try stealing the grab from
@@ -222,14 +219,14 @@ Options to XSecureLock can be passed by environment variables:
     and fall back to XRandR 1.2. Not recommended.
 *   `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with
     that name in `/etc/pam.d`.
-*   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_pam_x11` hide the password
+*   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_x11` hide the password
     length.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 *   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
-    screen of `auth_pam_x11`. Possible values are 0 for not showing the
+    screen of `auth_x11`. Possible values are 0 for not showing the
     hostname, 1 for showing the short form, and 2 for showing the long form.
 *   `XSECURELOCK_SHOW_USERNAME`: whether to show the username on the login
-    screen of `auth_pam_x11`.
+    screen of `auth_x11`.
 *   `XSECURELOCK_SWITCH_USER_COMMAND`: shell command to execute when `Win-O` or
     `Ctrl-Alt-O` are pressed (think "_other_ user"). Typical values could be
     `lxdm -c USER_SWITCH`, `dm-tool switch-to-greeter`, `gdmflexiserver` or
@@ -250,13 +247,8 @@ process of successful locking.
 
 The following authentication modules are included:
 
-*   `auth_pam_x11`: Authenticates via PAM using keyboard input (X11 based;
-    recommended).
-*   `auth_pamtester`: Authenticates via PAM using keyboard input (pamtester).
-*   `auth_htpasswd`: Authenticates via a htpasswd style file stored in
-    `~/.xsecurelock.pw`. To generate this file, run: `( umask 077; htpasswd -cB
-    ~/.xsecurelock.pw "$USER" )` Use this only if you for some reason can't use
-    PAM!
+*   `auth_x11`: Authenticates via an authproto module using keyboard input (X11
+    based; recommended).
 
 ## Writing Your Own Module
 
@@ -268,6 +260,37 @@ location: `/usr/local/libexec/xsecurelock/helpers`).
     locale-dependent multibyte encoding (usually UTF-8). Use the `mb*` C
     functions to act on these.
 *   Output: it may draw on or create windows below `$XSCREENSAVER_WINDOW`.
+*   Exit status: if authentication was successful, it must return with status
+    zero. If it returns with any other status (including e.g. a segfault),
+    XSecureLock assumes failed authentication.
+*   It is recommended that it shall spawn the configured authentication
+    protocol module and let it do the actual authentication; that way the
+    authentication module can focus on the user interface alone.
+
+# Authentication Protocol Modules
+
+The following authentication protocol ("authproto") modules are included:
+
+*   `authproto_htpasswd`: Authenticates via a htpasswd style file stored in
+    `~/.xsecurelock.pw`. To generate this file, run: `( umask 077; htpasswd -cB
+    ~/.xsecurelock.pw "$USER" )` Use this only if you for some reason can't use
+    PAM!
+*   `authproto_pam`: Authenticates via PAM. Use this.
+*   `authproto_pamtester`: Authenticates via PAM using pamtester. Shouldn't
+    be required unless you can't compile `authproto_pam`. Only supports simple
+    password based conversations.
+
+## Writing Your Own Module
+
+The authentication protocol module is a separate executable, whose name must
+start with `authproto_` and be installed together with the included
+`authproto_` modules (default location:
+`/usr/local/libexec/xsecurelock/helpers`).
+
+*   Input: in response to some output messages, it may receive authproto
+    messages. See helpers/authproto.h for details.
+*   Output: it should output authproto messages; see helpers/authproto.h for
+    details.
 *   Exit status: if authentication was successful, it must return with status
     zero. If it returns with any other status (including e.g. a segfault),
     XSecureLock assumes failed authentication.

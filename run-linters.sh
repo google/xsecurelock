@@ -21,6 +21,7 @@ if which clang-tidy; then
     -extra-arg=-DHELPER_PATH=\"\" \
     -extra-arg=-DDOCS_PATH=\"\" \
     -extra-arg=-DAUTH_EXECUTABLE=\"\" \
+    -extra-arg=-DAUTHPROTO_EXECUTABLE=\"\" \
     -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
     -extra-arg=-DSAVER_EXECUTABLE=\"\" \
     -extra-arg=-DPAM_SERVICE_NAME=\"\" \
@@ -31,6 +32,7 @@ if which clang-tidy; then
     -extra-arg=-DHELPER_PATH=\"\" \
     -extra-arg=-DDOCS_PATH=\"\" \
     -extra-arg=-DAUTH_EXECUTABLE=\"\" \
+    -extra-arg=-DAUTHPROTO_EXECUTABLE=\"\" \
     -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
     -extra-arg=-DSAVER_EXECUTABLE=\"\" \
     -extra-arg=-DPAM_SERVICE_NAME=\"\" \

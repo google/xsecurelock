@@ -14,16 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>                // for None, Atom, Success, GCBackground
-#include <X11/Xlib.h>             // for DefaultScreen, Screen, XCreateGC
-#include <locale.h>               // for NULL, setlocale, LC_CTYPE
-#include <pwd.h>                  // for getpwuid_r, passwd
-#include <security/pam_appl.h>    // for pam_end, pam_start, pam_acct_mgmt
-#include <stdlib.h>               // for rand, free, mblen, size_t, exit
-#include <string.h>               // for strlen, memcpy, memset, size_t
-#include <sys/select.h>           // for timeval, select, fd_set, FD_SET
-#include <time.h>                 // for time
-#include <unistd.h>               // for gethostname, getuid, read, sysconf
+#include <X11/X.h>     // for None, Atom, Success, GCBackground
+#include <X11/Xlib.h>  // for DefaultScreen, Screen, XCreateGC
+#include <errno.h>
+#include <locale.h>      // for NULL, setlocale, LC_CTYPE
+#include <signal.h>      // for kill, SIGTERM, sigemptyset, sigprocmask
+#include <stdlib.h>      // for rand, free, mblen, size_t, exit
+#include <string.h>      // for strlen, memcpy, memset, size_t
+#include <sys/select.h>  // for timeval, select, fd_set, FD_SET
+#include <sys/wait.h>    // for WEXITSTATUS, WIFEXITED, WIFSIGNALED
+#include <time.h>        // for time
+#include <unistd.h>      // for gethostname, getuid, read, sysconf
 
 #ifdef HAVE_XFT_EXT
 #include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftFontOpenName
@@ -37,11 +38,16 @@ limitations under the License.
 #include <X11/extensions/XKBstr.h>  // for XkbStateRec, _XkbDesc, _XkbNamesRec
 #endif
 
+#include "../env_info.h"
 #include "../env_settings.h"      // for GetIntSetting, GetStringSetting
 #include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
 #include "../xscreensaver_api.h"  // for ReadWindowID
-#include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
+#include "authproto.h"
+#include "monitors.h"  // for Monitor, GetMonitors, IsMonitorC...
+
+//! The authproto helper to use.
+const char *authproto_executable;
 
 //! The blinking interval in microseconds.
 #define BLINK_INTERVAL (250 * 1000)
@@ -81,10 +87,10 @@ int show_username;
 int show_hostname;
 
 //! The local hostname.
-const char *hostname;
+char hostname[256];
 
 //! The username to authenticate as.
-const char *username;
+char username[256];
 
 //! The X11 display.
 Display *display;
@@ -118,9 +124,6 @@ unsigned long Foreground;
 //! The warning color (used as foreground).
 unsigned long Warning;
 
-//! Set if a conversation error has happened during the last PAM call.
-static int conv_error = 0;
-
 //! The cursor character displayed at the end of the masked password input.
 static const char cursor[] = "_";
 
@@ -135,9 +138,6 @@ static int burnin_mitigation_max_offset = 0;
 
 //! How much the offsets are allowed to change dynamically, and if so, how high.
 static int burnin_mitigation_max_offset_change = 0;
-
-//! Whether the last printed message was a prompt.
-static int last_message_was_prompt = 0;
 
 #define MAX_MONITORS 16
 static int num_monitors;
@@ -295,6 +295,7 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
   return have_output ? buf : "";
 #else
   *warning = *warning;  // Shut up clang-analyzer.
+  *have_multiple_layouts = *have_multiple_layouts;  // Shut up clang-analyzer.
   return "";
 #endif
 }
@@ -415,15 +416,12 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  *
  * \param title The title of the message.
  * \param str The message itself.
- * \param is_prompt Whether the message is a prompt.
  */
-void display_string(const char *title, const char *str, int is_prompt) {
+void display_string(const char *title, const char *str) {
   static int region_x;
   static int region_y;
   static int region_w = 0;
   static int region_h = 0;
-
-  last_message_was_prompt = is_prompt;
 
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
@@ -546,7 +544,7 @@ void display_string(const char *title, const char *str, int is_prompt) {
 
     if (have_switch_user_command) {
       DrawString(cx - tw_switch_user / 2, y, 0, switch_user, len_switch_user);
-      y += th;
+      // y += th;
     }
 
 #ifdef CLEAR_OUTSIDE
@@ -610,7 +608,7 @@ void wait_for_keypress(int seconds) {
  *   The caller is supposed to eventually free() it.
  * \param echo If true, the input will be shown; otherwise it will be hidden
  *   (password entry).
- * \return PAM_SUCCESS if successful, anything else otherwise.
+ * \return 1 if successful, anything else otherwise.
  */
 int prompt(const char *msg, char **response, int echo) {
   // Ask something. Return strdup'd string.
@@ -648,7 +646,7 @@ int prompt(const char *msg, char **response, int echo) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    display_string("Error", "Password will not be stored securely.", 0);
+    display_string("Error", "Password will not be stored securely.");
     wait_for_keypress(1);
   }
 
@@ -660,7 +658,7 @@ int prompt(const char *msg, char **response, int echo) {
   // Unfortunately we may have to break out of multiple loops at once here but
   // still do common cleanup work. So we have to track the return value in a
   // variable.
-  int status = PAM_CONV_ERR;
+  int status = 0;
   int done = 0;
 
   while (!done) {
@@ -699,7 +697,7 @@ int prompt(const char *msg, char **response, int echo) {
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
-    display_string(msg, priv.displaybuf, 1);
+    display_string(msg, priv.displaybuf);
 
     // Blink the cursor.
     blink_state = !blink_state;
@@ -803,15 +801,14 @@ int prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            display_string("Error", "Password has not been stored securely.",
-                           0);
+            display_string("Error", "Password has not been stored securely.");
             wait_for_keypress(1);
           }
           if (priv.pwlen != 0) {
             memcpy(*response, priv.pwbuf, priv.pwlen);
           }
           (*response)[priv.pwlen] = 0;
-          status = PAM_SUCCESS;
+          status = 1;
           done = 1;
           break;
         default:
@@ -857,191 +854,159 @@ int prompt(const char *msg, char **response, int echo) {
   return status;
 }
 
-/*! \brief Perform a single PAM conversation step.
+/*! \brief Perform authentication using a helper proxy.
  *
- * \param msg The PAM message.
- * \param resp The PAM response to store the output in.
- * \return The PAM status (PAM_SUCCESS in case of success, or anything else in
- *   case of error).
+ * \return The authentication status (0 for OK, 1 otherwise).
  */
-int converse_one(const struct pam_message *msg, struct pam_response *resp) {
-  resp->resp_retcode = 0;  // Unused but should be set to zero.
-  switch (msg->msg_style) {
-    case PAM_PROMPT_ECHO_OFF:
-      return prompt(msg->msg, &resp->resp, 0);
-    case PAM_PROMPT_ECHO_ON:
-      return prompt(msg->msg, &resp->resp, 1);
-    case PAM_ERROR_MSG:
-      display_string("Error", msg->msg, 0);
-      wait_for_keypress(1);
-      return PAM_SUCCESS;
-    case PAM_TEXT_INFO:
-      display_string("PAM says", msg->msg, 0);
-      wait_for_keypress(1);
-      return PAM_SUCCESS;
-    default:
-      return PAM_CONV_ERR;
+int authenticate() {
+  int requestfd[2], responsefd[2];
+  if (pipe(requestfd)) {
+    LogErrno("pipe");
+    return 1;
   }
-}
-
-/*! \brief Perform a PAM conversation.
- *
- * \param num_msg The number of conversation steps to execute.
- * \param msg The PAM messages.
- * \param resp The PAM responses to store the output in.
- * \param appdata_ptr Unused.
- * \return The PAM status (PAM_SUCCESS in case of success, or anything else in
- *   case of error).
- */
-int converse(int num_msg, const struct pam_message **msg,
-             struct pam_response **resp, void *appdata_ptr) {
-  (void)appdata_ptr;
-
-  if (conv_error) {
-    Log("converse() got called again with %d messages (first: %s) after "
-        "having failed before - this is very likely a bug in the PAM "
-        "module having made the call. Bailing out",
-        num_msg, num_msg <= 0 ? "(none)" : msg[0]->msg);
-    exit(1);
+  if (pipe(responsefd)) {
+    LogErrno("pipe");
+    return 1;
   }
 
-  *resp = calloc(num_msg, sizeof(struct pam_response));
+  // Use authproto_pam.
+  pid_t childpid = fork();
+  if (childpid == -1) {
+    LogErrno("fork");
+    return 1;
+  }
 
-  int i;
-  for (i = 0; i < num_msg; ++i) {
-    int status = converse_one(msg[i], &(*resp)[i]);
-    if (status != PAM_SUCCESS) {
-      for (i = 0; i < num_msg; ++i) {
-        free((*resp)[i].resp);
+  if (childpid == 0) {
+    // Child process. Just run authproto_pam.
+    // But first, move requestfd[1] to 1 and responsefd[0] to 0.
+    close(requestfd[0]);
+    close(responsefd[1]);
+
+    if (requestfd[1] == 0) {
+      // Tricky case. We don't _expect_ this to happen - after all,
+      // initially our own fd 0 should be bound to xsecurelock's main
+      // program - but nevertheless let's handle it.
+      // At least this implies that no other fd is 0.
+      int requestfd1 = dup(requestfd[1]);
+      close(requestfd[1]);
+      dup2(responsefd[0], 0);
+      close(responsefd[0]);
+      if (requestfd1 != 1) {
+        dup2(requestfd1, 1);
+        close(requestfd1);
       }
-      free(*resp);
-      *resp = NULL;
-      conv_error = 1;
-      return status;
+    } else {
+      if (responsefd[0] != 0) {
+        dup2(responsefd[0], 0);
+        close(responsefd[0]);
+      }
+      if (requestfd[1] != 1) {
+        dup2(requestfd[1], 1);
+        close(requestfd[1]);
+      }
     }
+
+    execl(authproto_executable, authproto_executable, NULL);
+    LogErrno("execl");
+    sleep(2);  // Reduce log spam or other effects from failed execl.
+    exit(EXIT_FAILURE);
   }
 
-  // We're returning to PAM, so let's show the processing prompt. Unless PAM
-  // displayed its own explanation of why it is waiting, in which case we let
-  // that stand.
-  if (last_message_was_prompt) {
-    display_string("Processing...", "", 0);
-  }
-
-  return PAM_SUCCESS;
-}
-
-/*! \brief Perform a single PAM operation with retrying logic.
- */
-int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
-                          pam_handle_t *pam, int flags) {
-  int attempt = 0;
+  // Otherwise, we're in the parent process.
+  close(requestfd[1]);
+  close(responsefd[0]);
   for (;;) {
-    conv_error = 0;
-
-    // We're entering PAM, so let's show a processing prompt.
-    // This one is shown unconditionally, as the PAM conversation starts here.
-    display_string("Processing...", "", 0);
-
-    int status = pam_call(pam, flags);
-    if (conv_error) {  // Timeout or escape.
-      return status;
-    }
-    switch (status) {
-      // Never retry these:
-      case PAM_ABORT:             // This is fine.
-      case PAM_MAXTRIES:          // D'oh.
-      case PAM_NEW_AUTHTOK_REQD:  // hunter2 no longer good enough.
-      case PAM_SUCCESS:           // Duh.
-        return status;
-      default:
-        // Let's try again then.
-        ++attempt;
-        if (attempt >= 3) {
-          return status;
-        }
+    char *message;
+    char *response;
+    char type = ReadPacket(requestfd[0], &message, 1);
+    switch (type) {
+      case PTYPE_INFO_MESSAGE:
+        display_string("PAM says", message);
+        free(message);
+        wait_for_keypress(1);
         break;
+      case PTYPE_ERROR_MESSAGE:
+        display_string("Error", message);
+        free(message);
+        wait_for_keypress(1);
+        break;
+      case PTYPE_PROMPT_LIKE_USERNAME:
+        if (prompt(message, &response, 1)) {
+          WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_USERNAME, response);
+          free(response);
+        } else {
+          WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
+        }
+        free(message);
+        display_string("Processing...", "");
+        break;
+      case PTYPE_PROMPT_LIKE_PASSWORD:
+        if (prompt(message, &response, 0)) {
+          WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_PASSWORD, response);
+          free(response);
+        } else {
+          WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
+        }
+        free(message);
+        display_string("Processing...", "");
+        break;
+      case 0:
+        goto done;
+      default:
+        Log("Unknown message type %02x", (int)type);
+        free(message);
+        goto done;
     }
   }
-}
-
-/*! \brief Perform PAM authentication.
- *
- * \param username The user name to authenticate as.
- * \param hostname The host name to authenticate on.
- * \param conv The PAM conversation handler.
- * \param pam The PAM handle will be returned here.
- * \return The PAM status (PAM_SUCCESS after successful authentication, or
- *   anything else in case of error).
- */
-int authenticate(struct pam_conv *conv, pam_handle_t **pam) {
-  const char *service_name =
-      GetStringSetting("XSECURELOCK_PAM_SERVICE", PAM_SERVICE_NAME);
-  int status = pam_start(service_name, username, conv, pam);
-  if (status != PAM_SUCCESS) {
-    Log("pam_start: %d",
-        status);  // Or can one call pam_strerror on a NULL handle?
-    return status;
-  }
-
-  status = pam_set_item(*pam, PAM_RHOST, hostname);
-  if (status != PAM_SUCCESS) {
-    Log("pam_set_item: %s", pam_strerror(*pam, status));
-    return status;
-  }
-  status = pam_set_item(*pam, PAM_RUSER, username);
-  if (status != PAM_SUCCESS) {
-    Log("pam_set_item: %s", pam_strerror(*pam, status));
-    return status;
-  }
-  const char *display = getenv("DISPLAY");
-  status = pam_set_item(*pam, PAM_TTY, display);
-  if (status != PAM_SUCCESS) {
-    Log("pam_set_item: %s", pam_strerror(*pam, status));
-    return status;
-  }
-
-  status = call_pam_with_retries(pam_authenticate, *pam, 0);
-  if (status != PAM_SUCCESS) {
-    if (!conv_error) {
-      Log("pam_authenticate: %s", pam_strerror(*pam, status));
-    }
-    return status;
-  }
-
-  int status2 = call_pam_with_retries(pam_acct_mgmt, *pam, 0);
-  if (status2 == PAM_NEW_AUTHTOK_REQD) {
-    status2 =
-        call_pam_with_retries(pam_chauthtok, *pam, PAM_CHANGE_EXPIRED_AUTHTOK);
-#ifdef PAM_CHECK_ACCOUNT_TYPE
-    if (status2 != PAM_SUCCESS) {
-      if (!conv_error) {
-        Log("pam_chauthtok: %s", pam_strerror(*pam, status2));
+done:
+  close(requestfd[0]);
+  close(responsefd[1]);
+  for (;;) {
+    int status;
+    pid_t pid = waitpid(childpid, &status, 0);
+    if (pid < 0) {
+      switch (errno) {
+        case ECHILD:
+          // The process is dead. Bad.
+          return 1;
+        case EINTR:
+          // Waitpid was interrupted. Need to retry.
+          break;
+        default:
+          // Assume the child still lives. Shouldn't ever happen.
+          LogErrno("waitpid");
+          break;
       }
-      return status2;
+    } else if (pid == childpid) {
+      if (WIFEXITED(status) || WIFSIGNALED(status)) {
+        // Auth proto child exited.
+        if (WIFSIGNALED(status)) {
+          Log("Authproto child killed by signal %d", WTERMSIG(status));
+          return 1;
+        }
+        if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
+          // This error usually means wrong password; thus the inconsistent
+          // text. It is the "normal" error.
+          Log("Authentication failed with status %d", WEXITSTATUS(status));
+          return 1;
+        }
+        return 0;
+      }
+      // Otherwise it was suspended or whatever. We need to keep waiting.
+    } else if (pid != 0) {
+      Log("Unexpectedly woke up for PID %d", (int)pid);
+    } else {
+      Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
     }
-#else
-    (void)status2;
-#endif
+    // Otherwise, we're still alive.
   }
-
-#ifdef PAM_CHECK_ACCOUNT_TYPE
-  if (status2 != PAM_SUCCESS) {
-    // If this one is true, it must be coming from pam_acct_mgmt, as
-    // pam_chauthtok's result already has been checked against PAM_SUCCESS.
-    if (!conv_error) {
-      Log("pam_acct_mgmt: %s", pam_strerror(*pam, status2));
-    }
-    return status2;
-  }
-#endif
-
-  return status;
+  Log("Shouldn't ever get here; fix the logic!");
+  return 42;
 }
 
 /*! \brief The main program.
  *
- * Usage: XSCREENSAVER_WINDOW=window_id ./auth_pam_x11; status=$?
+ * Usage: XSCREENSAVER_WINDOW=window_id ./auth_x11; status=$?
  *
  * \return 0 if authentication successful, anything else otherwise.
  */
@@ -1050,6 +1015,9 @@ int main() {
 
   // This is used by displaymarker only (no security relevance of the RNG).
   srand(time(NULL));
+
+  authproto_executable =
+      GetExecutablePathSetting("XSECURELOCK_AUTHPROTO", AUTHPROTO_EXECUTABLE, 0);
 
   // Unless disabled, we shift the login prompt randomly around by a few
   // pixels. This should mostly mitigate burn-in effects from the prompt
@@ -1089,38 +1057,16 @@ int main() {
                         &xkb_major_version, &xkb_minor_version);
 #endif
 
-  char hostname_storage[256];
-  if (gethostname(hostname_storage, sizeof(hostname_storage))) {
-    LogErrno("gethostname");
+  if (!GetHostName(hostname, sizeof(hostname))) {
     return 1;
   }
-  hostname_storage[sizeof(hostname_storage) - 1] = 0;
-  hostname = hostname_storage;
-
-  struct passwd *pwd = NULL;
-  struct passwd pwd_storage;
-  char *pwd_buf;
-  long pwd_bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
-  if (pwd_bufsize < 0) {
-    pwd_bufsize = 1 << 20;
-  }
-  pwd_buf = malloc((size_t)pwd_bufsize);
-  if (!pwd_buf) {
-    LogErrno("malloc(pwd_bufsize)");
+  if (!GetUserName(username, sizeof(username))) {
     return 1;
   }
-  getpwuid_r(getuid(), &pwd_storage, pwd_buf, (size_t)pwd_bufsize, &pwd);
-  if (!pwd) {
-    LogErrno("getpwuid_r");
-    free(pwd_buf);
-    return 1;
-  }
-  username = pwd->pw_name;
 
   window = ReadWindowID();
   if (window == None) {
     Log("Invalid/no window ID in XSCREENSAVER_WINDOW");
-    free(pwd_buf);
     return 1;
   }
 
@@ -1217,28 +1163,10 @@ int main() {
   SelectMonitorChangeEvents(display, window);
   num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
 
-  struct pam_conv conv;
-  conv.conv = converse;
-  conv.appdata_ptr = NULL;
-
-  pam_handle_t *pam;
-  int status = authenticate(&conv, &pam);
-  int status2 = pam_end(pam, status);
+  int status = authenticate();
 
   // Clear any possible processing message.
-  display_string("", "", 0);
+  display_string("", "");
 
-  // Done with PAM, so we can free the getpwuid_r buffer now.
-  free(pwd_buf);
-
-  if (status != PAM_SUCCESS) {
-    // The caller already displayed an error.
-    return 1;
-  }
-  if (status2 != PAM_SUCCESS) {
-    Log("pam_end: %s", pam_strerror(pam, status2));
-    return 1;
-  }
-
-  return 0;
+  return status;
 }

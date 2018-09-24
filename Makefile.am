@@ -18,6 +18,7 @@ macros = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
 	-DDOCS_PATH=\"$(docdir)\" \
 	-DAUTH_EXECUTABLE=\"@auth_executable@\" \
+	-DAUTHPROTO_EXECUTABLE=\"@authproto_executable@\" \
 	-DGLOBAL_SAVER_EXECUTABLE=\"@global_saver_executable@\" \
 	-DSAVER_EXECUTABLE=\"@saver_executable@\" \
 	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
@@ -69,7 +70,7 @@ helpers_SCRIPTS = \
 	helpers/saver_blank
 if HAVE_HTPASSWD
 helpers_SCRIPTS += \
-	helpers/auth_htpasswd
+	helpers/authproto_htpasswd
 endif
 if HAVE_MPLAYER
 helpers_SCRIPTS += \
@@ -81,7 +82,7 @@ helpers_SCRIPTS += \
 endif
 if HAVE_PAMTESTER
 helpers_SCRIPTS += \
-	helpers/auth_pamtester
+	helpers/authproto_pamtester
 endif
 if HAVE_XSCREENSAVER
 helpers_SCRIPTS += \
@@ -119,18 +120,31 @@ until_nonidle_SOURCES = \
 until_nonidle_CPPFLAGS = $(macros)
 endif
 
-if HAVE_PAM
 helpers_PROGRAMS += \
-	auth_pam_x11
-auth_pam_x11_SOURCES = \
+	auth_x11
+auth_x11_SOURCES = \
+	env_info.c env_info.h \
 	env_settings.c env_settings.h \
-	helpers/auth_pam_x11.c \
+	helpers/authproto.c helpers/authproto.h \
+	helpers/auth_x11.c \
 	helpers/monitors.c helpers/monitors.h \
 	logging.c logging.h \
 	mlock_page.h \
 	xscreensaver_api.c xscreensaver_api.h
-auth_pam_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS)
-auth_pam_x11_LDADD = $(XFT_LIBS)
+auth_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS)
+auth_x11_LDADD = $(XFT_LIBS)
+
+if HAVE_PAM
+helpers_PROGRAMS += \
+	authproto_pam
+authproto_pam_SOURCES = \
+	env_info.c env_info.h \
+	env_settings.c env_settings.h \
+	helpers/authproto.c helpers/authproto.h \
+	helpers/authproto_pam.c \
+	logging.c logging.h \
+	mlock_page.h
+authproto_pam_CPPFLAGS = $(macros)
 endif
 
 docsdir = $(docdir)
