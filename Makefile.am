@@ -154,7 +154,11 @@ docs_DATA = \
 	README.md
 
 # Some tools that we sure don't wan to install
-noinst_PROGRAMS = nvidia_break_compositor get_compositor remap_all
+noinst_PROGRAMS = cat_authproto nvidia_break_compositor get_compositor remap_all
+cat_authproto_SOURCES = \
+	logging.c logging.h \
+	helpers/authproto.c helpers/authproto.h \
+	test/cat_authproto.c
 nvidia_break_compositor_SOURCES = \
 	test/nvidia_break_compositor.c
 nvidia_break_compositor_CPPFLAGS = $(macros)
