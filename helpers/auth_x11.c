@@ -14,17 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>     // for None, Atom, Success, GCBackground
-#include <X11/Xlib.h>  // for DefaultScreen, Screen, XCreateGC
-#include <errno.h>
+#include <X11/X.h>       // for Success, None, Atom, GCBackground
+#include <X11/Xlib.h>    // for DefaultScreen, Screen, True, XCr...
+#include <errno.h>       // for ECHILD, EINTR, errno
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE
-#include <signal.h>      // for kill, SIGTERM, sigemptyset, sigprocmask
-#include <stdlib.h>      // for rand, free, mblen, size_t, exit
-#include <string.h>      // for strlen, memcpy, memset, size_t
+#include <stdlib.h>      // for free, rand, mblen, size_t, exit
+#include <string.h>      // for strlen, memcpy, memset, strcspn
 #include <sys/select.h>  // for timeval, select, fd_set, FD_SET
-#include <sys/wait.h>    // for WEXITSTATUS, WIFEXITED, WIFSIGNALED
-#include <time.h>        // for time
-#include <unistd.h>      // for gethostname, getuid, read, sysconf
+#include <sys/wait.h>    // for waitpid
+#include <time.h>        // for time, time_t
+#include <unistd.h>      // for close, dup2, pipe, dup, execl, fork
 
 #ifdef HAVE_XFT_EXT
 #include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftFontOpenName
@@ -38,13 +37,13 @@ limitations under the License.
 #include <X11/extensions/XKBstr.h>  // for XkbStateRec, _XkbDesc, _XkbNamesRec
 #endif
 
-#include "../env_info.h"
+#include "../env_info.h"          // for GetHostName, GetUserName
 #include "../env_settings.h"      // for GetIntSetting, GetStringSetting
 #include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
 #include "../xscreensaver_api.h"  // for ReadWindowID
-#include "authproto.h"
-#include "monitors.h"  // for Monitor, GetMonitors, IsMonitorC...
+#include "authproto.h"            // for WritePacket, ReadPacket, PTYPE_R...
+#include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
 
 //! The authproto helper to use.
 const char *authproto_executable;
@@ -294,7 +293,7 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
   *p = 0;
   return have_output ? buf : "";
 #else
-  *warning = *warning;  // Shut up clang-analyzer.
+  *warning = *warning;                              // Shut up clang-analyzer.
   *have_multiple_layouts = *have_multiple_layouts;  // Shut up clang-analyzer.
   return "";
 #endif
@@ -1016,8 +1015,8 @@ int main() {
   // This is used by displaymarker only (no security relevance of the RNG).
   srand(time(NULL));
 
-  authproto_executable =
-      GetExecutablePathSetting("XSECURELOCK_AUTHPROTO", AUTHPROTO_EXECUTABLE, 0);
+  authproto_executable = GetExecutablePathSetting("XSECURELOCK_AUTHPROTO",
+                                                  AUTHPROTO_EXECUTABLE, 0);
 
   // Unless disabled, we shift the login prompt randomly around by a few
   // pixels. This should mostly mitigate burn-in effects from the prompt

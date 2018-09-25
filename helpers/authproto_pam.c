@@ -14,20 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <locale.h>
-#include <pwd.h>                // for getpwuid_r, passwd
-#include <security/pam_appl.h>  // for pam_end, pam_start, pam_acct_mgmt
-#include <stdlib.h>             // for rand, free, mblen, size_t, exit
-#include <string.h>             // for strlen, memcpy, memset, size_t
-#include <sys/select.h>         // for timeval, select, fd_set, FD_SET
-#include <time.h>               // for time
-#include <unistd.h>             // for gethostname, getuid, read, sysconf
+#include <locale.h>               // for NULL, setlocale, LC_CTYPE
+#include <security/_pam_types.h>  // for PAM_SUCCESS, pam_strerror, pam_set_...
+#include <security/pam_appl.h>    // for pam_end, pam_start, pam_acct_mgmt
+#include <stdlib.h>               // for free, calloc, exit, getenv
 
 #include "../env_info.h"      // for GetHostName, GetUserName
-#include "../env_settings.h"  // for GetIntSetting, GetStringSetting
-#include "../logging.h"       // for Log, LogErrno
-#include "../mlock_page.h"    // for MLOCK_PAGE
-#include "authproto.h"        // for ReadPacket, WritePacket
+#include "../env_settings.h"  // for GetStringSetting
+#include "../logging.h"       // for Log
+#include "authproto.h"        // for WritePacket, ReadPacket, PTYPE_ERRO...
 
 //! Set if a conversation error has happened during the last PAM call.
 static int conv_error = 0;

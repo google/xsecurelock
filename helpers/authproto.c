@@ -16,11 +16,12 @@ limitations under the License.
 
 #include "authproto.h"
 
-#include <errno.h>
-#include <stdlib.h>  // for rand, free, mblen, size_t, exit
-#include <string.h>
+#include <errno.h>   // for errno
+#include <stdlib.h>  // for malloc, size_t
+#include <string.h>  // for strlen
+#include <unistd.h>  // for read, write, ssize_t
 
-#include "../logging.h"     // for Log, LogErrno
+#include "../logging.h"     // for LogErrno, Log
 #include "../mlock_page.h"  // for MLOCK_PAGE
 
 void WritePacket(int fd, char type, const char *message) {
