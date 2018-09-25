@@ -19,14 +19,13 @@ limitations under the License.
 
 // Packet format:
 //
-//   <ptype> <len_hi> <len_lo> <message...>
+//   <ptype> <SPC> <len> <NEWLINE> <message> <NEWLINE>
 //
 // where
 //
 //   ptype = one of the below characters.
-//   len_hi = high 8 bits of message length.
-//   len_lo = low 8 bits of message length.
-//   message = (len_hi * 256 + len_lo) bytes that shall be shown to the user.
+//   len = message length encoded in decimal ASCII.
+//   message = len bytes that shall be shown to the user.
 //
 // By convention, uppercase packet types expect a reply and lowercase packet
 // types are "terminal".
