@@ -16,6 +16,16 @@ AC_INIT([xsecurelock],[1.1],[rpolzer@google.com])
 AM_INIT_AUTOMAKE([-Wall subdir-objects foreign])
 AC_PROG_CC
 
+dnl We only detect libraries globally, but not all binaries need all of them.
+dnl So we use --as-needed to work around.
+AC_MSG_CHECKING([whether the linker supports --as-needed])
+saved_LDFLAGS=$LDFLAGS
+LDFLAGS="$LDFLAGS -Wl,--as-needed"
+AC_LINK_IFELSE([AC_LANG_PROGRAM([])],
+               [AC_MSG_RESULT([yes])],
+               [AC_MSG_RESULT([no])
+                LDFLAGS=$saved_LDFLAGS])
+
 AC_CHECK_HEADER(X11/Xlib.h,
                 [], [AC_ERROR([X includes not found.])])
 AC_CHECK_LIB(X11, XOpenDisplay,
