@@ -120,14 +120,23 @@ have_len:
     // worse.
     LogErrno("mlock");
   }
-  errno = 0;
-  if (read(fd, *message, len) != (ssize_t)len) {
-    if (errno != 0) {
-      LogErrno("read");
-    } else {
-      Log("read: unexpected end of file");
+  int have = 0;
+  while (have < len) {
+    errno = 0;
+    ssize_t got = read(fd, *message + have, len - have);
+    if (got > len - have) {
+      Log("read: overlong read (should never happen)");
+      return 0;
     }
-    return 0;
+    if (got <= 0) {
+      if (errno != 0) {
+        LogErrno("read");
+      } else {
+        Log("read: unexpected end of file");
+      }
+      return 0;
+    }
+    have += got;
   }
   (*message)[len] = 0;
   if (!readchar(fd, &c, 0)) {
