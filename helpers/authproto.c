@@ -25,6 +25,26 @@ limitations under the License.
 #include "../logging.h"     // for LogErrno, Log
 #include "../mlock_page.h"  // for MLOCK_PAGE
 
+static size_t writechars(int fd, const char *buf, size_t n) {
+  size_t total = 0;
+  while (total < n) {
+    ssize_t got = write(fd, buf + total, n - total);
+    if (got < 0) {
+      LogErrno("write");
+      return 0;
+    }
+    if (got == 0) {
+      Log("write: could not write anything, send buffer full");
+      return 0;
+    }
+    if ((size_t)got > n - total) {
+      Log("write: overlong write (should never happen)");
+    }
+    total += got;
+  }
+  return total;
+}
+
 void WritePacket(int fd, char type, const char *message) {
   size_t len_s = strlen(message);
   if (len_s >= 0xFFFF) {
@@ -44,33 +64,43 @@ void WritePacket(int fd, char type, const char *message) {
   }
   // Yes, we're wasting syscalls here. This doesn't need to be fast though, and
   // this way we can avoid an extra buffer.
-  if (write(fd, prefix, prefixlen) != prefixlen) {
-    LogErrno("write");
+  if (!writechars(fd, prefix, prefixlen)) {
+    return;
   }
-  if (write(fd, message, len) != (ssize_t)len) {
-    LogErrno("write");
+  if (len != 0 && !writechars(fd, message, len)) {
+    return;
   }
-  if (write(fd, "\n", 1) != 1) {
-    LogErrno("write");
+  if (!writechars(fd, "\n", 1)) {
+    return;
   }
 }
 
-static int readchar(int fd, char *c, int eof_permitted) {
-  errno = 0;
-  if (read(fd, c, 1) != 1) {
-    if (errno != 0) {
-      LogErrno("read");
-    } else if (!eof_permitted) {
-      Log("read: unexpected end of file");
+static size_t readchars(int fd, char *buf, size_t n, int eof_permitted) {
+  size_t total = 0;
+  while (total < n) {
+    ssize_t got = read(fd, buf + total, n - total);
+    if (got < 0) {
+        LogErrno("read");
+        return 0;
     }
-    return 0;
+    if (got == 0) {
+      if (!eof_permitted) {
+        Log("read: unexpected end of file");
+        return 0;
+      }
+      break;
+    }
+    if ((size_t)got > n - total) {
+      Log("read: overlong read (should never happen)");
+    }
+    total += got;
   }
-  return 1;
+  return total;
 }
 
 char ReadPacket(int fd, char **message, int eof_permitted) {
   char type;
-  if (!readchar(fd, &type, eof_permitted)) {
+  if (!readchars(fd, &type, 1, eof_permitted)) {
     return 0;
   }
   if (type == 0) {
@@ -78,7 +108,7 @@ char ReadPacket(int fd, char **message, int eof_permitted) {
     return 0;
   }
   char c;
-  if (!readchar(fd, &c, 0)) {
+  if (!readchars(fd, &c, 1, 0)) {
     return 0;
   }
   if (c != ' ') {
@@ -88,7 +118,7 @@ char ReadPacket(int fd, char **message, int eof_permitted) {
   int len = 0;
   for (;;) {
     errno = 0;
-    if (!readchar(fd, &c, 0)) {
+    if (!readchars(fd, &c, 1, 0)) {
       return 0;
     }
     switch (c) {
@@ -120,26 +150,11 @@ have_len:
     // worse.
     LogErrno("mlock");
   }
-  int have = 0;
-  while (have < len) {
-    errno = 0;
-    ssize_t got = read(fd, *message + have, len - have);
-    if (got > len - have) {
-      Log("read: overlong read (should never happen)");
-      return 0;
-    }
-    if (got <= 0) {
-      if (errno != 0) {
-        LogErrno("read");
-      } else {
-        Log("read: unexpected end of file");
-      }
-      return 0;
-    }
-    have += got;
+  if (len != 0 && !readchars(fd, *message, len, 0)) {
+    return 0;
   }
   (*message)[len] = 0;
-  if (!readchar(fd, &c, 0)) {
+  if (!readchars(fd, &c, 1, 0)) {
     return 0;
   }
   if (c != '\n') {
