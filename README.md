@@ -327,9 +327,14 @@ location: `/usr/local/libexec/xsecurelock/helpers`).
 In order to achieve maximum possible security against screen lock bypass
 exploits, the following measures are taken:
 
-*   Both authentication and screen saving are done using separate processes.
-    Therefore a crash of these processes will not unlock the screen, which means
-    that these processes are allowed to do "possibly dangerous" things.
+*   Authentication dialog, authentication checking and screen saving are done
+    using separate processes. Therefore a crash of these processes will not
+    unlock the screen, which means that these processes are allowed to do
+    "possibly dangerous" things.
+*   This also means that on operating systems where authentication checking
+    requires special privileges (such as FreeBSD), only that module can be set
+    to run at elevated privileges, unlike most other screen lockers which in
+    this scenario also run graphical user interface code as root.
 *   The main process is kept minimal and only uses C, POSIX and X11 APIs. This
     limits the possible influence from bugs in external libraries, and allows
     for easy auditing.
