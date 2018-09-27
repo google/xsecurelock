@@ -51,8 +51,34 @@ cd xsecurelock
 sh autogen.sh
 ./configure --with-pam-service-name=SERVICE-NAME
 make
-make install
+sudo make install
 ```
+
+## Special notes for FreeBSD
+
+On FreeBSD, in order to authenticate with PAM, you must be root so you can read
+the shadow password database. The `authproto_pam` binary can be made to acquire
+these required privileges like this:
+
+```
+chmod +s /usr/local/libexec/xsecurelock/authproto_pam
+```
+
+## Special notes for OpenBSD
+
+On OpenBSD, in order to authenticate with PAM, you must be in the `auth` group
+so you can run a setuid helper called `login_passwd` that can read the shadow
+password database. The `authproto_pam` binary can be made to acquire these
+required privileges like this:
+
+```
+chgrp auth /usr/local/libexec/xsecurelock/authproto_pam
+chmod g+s /usr/local/libexec/xsecurelock/authproto_pam
+```
+
+Note that this adds substantially less attack surface than adding your own user
+to the `auth` group, as the `login_passwd` binary can try out passwords of any
+user, while `authproto_pam` is restricted to trying your own user.
 
 # Setup
 
