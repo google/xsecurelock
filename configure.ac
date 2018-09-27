@@ -35,8 +35,6 @@ AC_CHECK_LIB(Xmuu, XmuClientWindow,
              [], [AC_ERROR([Xmuu or Xmu library not found.])])])
 AC_CHECK_LIB(m, sqrt,
              [], [AC_ERROR([Math library not found.])])
-AC_CHECK_LIB(rt, timer_settime,
-             [], [AC_ERROR([Timer library not found.])])
 
 # RP_SEARCH_LIBS(sym, lib, macro, flag, default, description)
 AC_DEFUN([RP_SEARCH_LIBS], [
