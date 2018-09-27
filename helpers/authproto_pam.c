@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 #include <locale.h>               // for NULL, setlocale, LC_CTYPE
-#include <security/_pam_types.h>  // for PAM_SUCCESS, pam_strerror, pam_set_...
 #include <security/pam_appl.h>    // for pam_end, pam_start, pam_acct_mgmt
 #include <stdlib.h>               // for free, calloc, exit, getenv
 
