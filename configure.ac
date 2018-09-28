@@ -123,7 +123,7 @@ RP_CHECK_MODULE(XFT, [xft],
                 [HAVE_XFT_EXT], [xft], [check],
                 [Use the Xft extension for nicer fonts (requires Xrender too)])
 
-# Querying the keyboard LEDs (and layout name) makes auth_pam_x11 more user
+# Querying the keyboard LEDs (and layout name) makes auth_x11 more user
 # friendly.
 RP_SEARCH_LIBS(XkbGetIndicatorState, X11,
                [HAVE_XKB_EXT], [xkb], [check],
@@ -155,7 +155,7 @@ RP_SEARCH_PROG(mpv, [$PATH],
 
 RP_SEARCH_PROG(pamtester, [$PATH],
                [HAVE_PAMTESTER], [pamtester], [check],
-               [Install auth_pamtester (specify --with-pamtester=/usr/bin to set the path to use)])
+               [Install authproto_pamtester (specify --with-pamtester=/usr/bin to set the path to use)])
 
 RP_SEARCH_PROG(slidescreen, /usr/lib/xscreensaver,
                [HAVE_XSCREENSAVER], [xscreensaver], [check],
@@ -196,26 +196,38 @@ AC_ARG_WITH([default_auth_module],
                            [The default authentication module to use when none
                             was specified. Can be overridden via the
                             XSECURELOCK_AUTH environment variable or a command
-                            line argument. By default this is autodetected to be
-                            one of the supported authentication modules that
-                            require no setup.]),
+                            line argument.]),
                             [auth_executable=$withval],
-                            [
-                             auth_executable=
-                             AS_IF([test x$have_pamtester = xtrue],
-                                   [auth_executable=auth_pamtester])
-                             AS_IF([test x$have_pam = xtrue],
-                                   [auth_executable=auth_pam_x11])
-                             AS_IF([test -z "$auth_executable"],
-                                   [AC_MSG_ERROR([No auth executable found.])])
-                            ])
+                            [auth_executable=auth_x11])
 
 AC_MSG_NOTICE([Configured default auth module: $auth_executable])
+
+AC_ARG_WITH([default_authproto_module],
+            AC_HELP_STRING([--with-default-authproto-module],
+                           [The default authentication protocol module to use when none was
+                            specified. Can be overridden via the
+                            XSECURELOCK_AUTHPROTO environment variable. By
+                            default this is autodetected to be one of the
+                            supported authentication modules.]),
+                            [authproto_executable=$withval],
+                            [
+                             authproto_executable=
+                             AS_IF([test x$have_htpasswd = xtrue],
+                                   [authproto_executable=authproto_htpasswd])
+                             AS_IF([test x$have_pamtester = xtrue],
+                                   [authproto_executable=authproto_pamtester])
+                             AS_IF([test x$have_pam = xtrue],
+                                   [authproto_executable=authproto_pam])
+                             AS_IF([test -z "$authproto_executable"],
+                                   [AC_MSG_ERROR([No authproto executable found.])])
+                            ])
+
+AC_MSG_NOTICE([Configured default authproto module: $authproto_executable])
 
 AC_ARG_WITH([default_global_saver_module],
             AC_HELP_STRING([--with-default-global-saver-module],
                            [The default global saver module to use when none was
-                            pecified. Can be overridden via the
+                            specified. Can be overridden via the
                             XSECURELOCK_GLOBAL_SAVER environment variable.]),
                             [global_saver_executable=$withval],
                             [global_saver_executable=saver_multiplex])
@@ -226,7 +238,7 @@ AC_MSG_NOTICE([Configured default global saver module: ]dnl
 AC_ARG_WITH([default_saver_module],
             AC_HELP_STRING([--with-default-saver-module],
                            [The default per-screen saver module to use when none
-                            was pecified. Can be overridden via the
+                            was specified. Can be overridden via the
                             XSECURELOCK_SAVER environment variable.]),
                             [saver_executable=$withval],
                             [saver_executable=saver_blank])
@@ -235,13 +247,13 @@ AC_MSG_NOTICE([Configured default saver module: $saver_executable])
 
 AC_SUBST(pam_service_name)
 AC_SUBST(auth_executable)
+AC_SUBST(authproto_executable)
 AC_SUBST(global_saver_executable)
 AC_SUBST(saver_executable)
-AC_SUBST(with_htpasswd)
-AC_SUBST(with_mplayer)
-AC_SUBST(with_mpv)
-AC_SUBST(with_pamtester)
-AC_SUBST(with_xscreensaver)
+AC_SUBST(path_to_htpasswd)
+AC_SUBST(path_to_mplayer)
+AC_SUBST(path_to_mpv)
+AC_SUBST(path_to_pamtester)
 AC_SUBST(path_to_xscreensaver)
 AM_CONDITIONAL([PAM_CHECK_ACCOUNT_TYPE],
                [test x$enable_pam_check_account_type = xyes])
@@ -249,10 +261,10 @@ AM_CONDITIONAL([HAVE_IDLE_TIMER],
                [test x$have_xss = xtrue -o x$have_xsync = xtrue])
 
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([helpers/auth_htpasswd],
-                [chmod +x helpers/auth_htpasswd])
-AC_CONFIG_FILES([helpers/auth_pamtester],
-                [chmod +x helpers/auth_pamtester])
+AC_CONFIG_FILES([helpers/authproto_htpasswd],
+                [chmod +x helpers/authproto_htpasswd])
+AC_CONFIG_FILES([helpers/authproto_pamtester],
+                [chmod +x helpers/authproto_pamtester])
 AC_CONFIG_FILES([helpers/saver_mplayer],
                 [chmod +x helpers/saver_mplayer])
 AC_CONFIG_FILES([helpers/saver_mpv],

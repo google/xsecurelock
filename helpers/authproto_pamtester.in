@@ -14,8 +14,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-echo "Enter password:" |\
-  display -window "$XSCREENSAVER_WINDOW" TEXT:-
+echo "P 15"
+echo "Enter password:"
+read -r ptype len
+case "$ptype" in
+  p)
+    # Trick: reading len+1 characters get the password and the terminating
+    # newline - just what we need here.
+    if head -c "$((len+1))" |\
+        @path_to_pamtester@ @pam_service_name@ "$USER" authenticate \
+          >/dev/null 2>&1; then
+      echo "i 11"
+      echo "I know you."
+      exit 0
+    else
+      echo "e 17"
+      echo "Invalid password."
+      exit 1
+    fi
+    ;;
+  x)
+    exit 1
+    ;;
+  *)
+    echo >&2 "Unexpected packet type."
+    exit 1
+    ;;
+esac
 
-exec >/dev/null 2>&1
-exec @with_htpasswd@ -v ~/.xsecurelock.pw "$USER"
+# Shouldn't get here.
+exit 42

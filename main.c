@@ -220,6 +220,8 @@ void usage(const char *me) {
       "\n"
       "Default auth module: " AUTH_EXECUTABLE
       "\n"
+      "Default authproto module: " AUTHPROTO_EXECUTABLE
+      "\n"
       "Default global saver module: " GLOBAL_SAVER_EXECUTABLE
       "\n"
       "Default per-screen saver module: " SAVER_EXECUTABLE

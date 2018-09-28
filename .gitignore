@@ -13,8 +13,8 @@
 /config.status
 /configure
 /depcomp
-/helpers/auth_htpasswd
-/helpers/auth_pamtester
+/helpers/authproto_htpasswd
+/helpers/authproto_pamtester
 /helpers/saver_mplayer
 /helpers/saver_mpv
 /helpers/saver_xscreensaver
@@ -25,7 +25,8 @@
 *.o
 
 # Binaries.
-/auth_pam_x11
+/auth_x11
+/authproto_pam
 /dimmer
 /get_compositor
 /nvidia_break_compositor

@@ -65,7 +65,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
         }
       } else if (pid == saver_child_pid[index]) {
         if (WIFEXITED(status) || WIFSIGNALED(status)) {
-          // Auth child exited.
+          // Saver child exited.
           if (should_be_running) {
             // To be sure, let's also kill its process group before we restart
             // it (no need to do this if we already did above).
