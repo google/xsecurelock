@@ -85,11 +85,17 @@ int show_username;
 // shown in full and not cut at the first dot.
 int show_hostname;
 
+//! If set, data and time will be shown.
+int show_datetime;
+
 //! The local hostname.
 char hostname[256];
 
 //! The username to authenticate as.
 char username[256];
+
+//! Local date time buffer
+char datetime[80];
 
 //! The X11 display.
 Display *display;
@@ -452,6 +458,18 @@ void display_string(const char *title, const char *str) {
   int len_switch_user = strlen(switch_user);
   int tw_switch_user = TextWidth(switch_user, len_switch_user);
 
+  if (show_datetime) {
+    time_t rawtime;
+    struct tm * timeinfo;
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    strftime(datetime, sizeof(datetime), "%c", timeinfo);
+  }
+
+  int len_datetime = strlen(datetime);
+  int tw_datetime = TextWidth(datetime, len_datetime);
+
   // Compute the region we will be using, relative to cx and cy.
   int box_w = tw_full_title;
   if (box_w < tw_str) {
@@ -467,7 +485,7 @@ void display_string(const char *title, const char *str) {
     box_w = tw_switch_user;
   }
   int border = TEXT_BORDER + burnin_mitigation_max_offset_change;
-  int box_h = (4 + have_multiple_layouts + have_switch_user_command) * th;
+  int box_h = (4 + have_multiple_layouts + have_switch_user_command + show_datetime * 2) * th;
   if (region_w < box_w + 2 * border) {
     region_w = box_w + 2 * border;
   }
@@ -524,6 +542,11 @@ void display_string(const char *title, const char *str) {
                    cx + region_x, cy + region_y,  //
                    region_w - 1, region_h - 1);
 #endif
+
+    if (show_datetime) {
+      DrawString(cx - tw_datetime / 2, y, 0, datetime, len_datetime);
+      y += th * 2;
+    }
 
     DrawString(cx - tw_full_title / 2, y, 0, full_title, len_full_title);
     y += th * 2;
@@ -1059,6 +1082,7 @@ int main() {
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
+  show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
   have_switch_user_command =
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
 
