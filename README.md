@@ -78,7 +78,7 @@ location by specifying something like `--prefix=/opt/xsecurelock` in the
 `./configure` call. You can then run XSecureLock as
 `/opt/xsecurelock/bin/xsecurelock`.
 
-ALso, in order to authenticate with PAM on OpenBSD, you must be in the `auth`
+Also, in order to authenticate with PAM on OpenBSD, you must be in the `auth`
 group so you can run a setuid helper called `login_passwd` that can read the
 shadow password database. The `authproto_pam` binary can be made to acquire
 these required privileges like this:
