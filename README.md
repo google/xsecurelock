@@ -56,24 +56,36 @@ sudo make install
 
 ## Special notes for FreeBSD
 
-On FreeBSD, in order to authenticate with PAM, you must be root so you can read
-the shadow password database. The `authproto_pam` binary can be made to acquire
-these required privileges like this:
+First of all, on BSD systems, `/usr/local` is owned by the ports system, so
+unless you are creating a port, it is recommended to install to a separate
+location by specifying something like `--prefix=/opt/xsecurelock` in the
+`./configure` call. You can then run XSecureLock as
+`/opt/xsecurelock/bin/xsecurelock`.
+
+Also, in order to authenticate with PAM on FreeBSD, you must be root so you can
+read the shadow password database. The `authproto_pam` binary can be made to
+acquire these required privileges like this:
 
 ```
-chmod +s /usr/local/libexec/xsecurelock/authproto_pam
+chmod +s /opt/xsecurelock/libexec/xsecurelock/authproto_pam
 ```
 
 ## Special notes for OpenBSD
 
-On OpenBSD, in order to authenticate with PAM, you must be in the `auth` group
-so you can run a setuid helper called `login_passwd` that can read the shadow
-password database. The `authproto_pam` binary can be made to acquire these
-required privileges like this:
+First of all, on BSD systems, `/usr/local` is owned by the ports system, so
+unless you are creating a port, it is recommended to install to a separate
+location by specifying something like `--prefix=/opt/xsecurelock` in the
+`./configure` call. You can then run XSecureLock as
+`/opt/xsecurelock/bin/xsecurelock`.
+
+ALso, in order to authenticate with PAM on OpenBSD, you must be in the `auth`
+group so you can run a setuid helper called `login_passwd` that can read the
+shadow password database. The `authproto_pam` binary can be made to acquire
+these required privileges like this:
 
 ```
-chgrp auth /usr/local/libexec/xsecurelock/authproto_pam
-chmod g+s /usr/local/libexec/xsecurelock/authproto_pam
+chgrp auth /opt/xsecurelock/libexec/xsecurelock/authproto_pam
+chmod g+s /opt/xsecurelock/libexec/xsecurelock/authproto_pam
 ```
 
 Note that this adds substantially less attack surface than adding your own user
