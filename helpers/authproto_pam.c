@@ -17,6 +17,7 @@ limitations under the License.
 #include <locale.h>               // for NULL, setlocale, LC_CTYPE
 #include <security/pam_appl.h>    // for pam_end, pam_start, pam_acct_mgmt
 #include <stdlib.h>               // for free, calloc, exit, getenv
+#include <string.h>               // for strchr
 
 #include "../env_info.h"      // for GetHostName, GetUserName
 #include "../env_settings.h"  // for GetStringSetting
@@ -137,6 +138,16 @@ int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
 int authenticate(struct pam_conv *conv, pam_handle_t **pam) {
   const char *service_name =
       GetStringSetting("XSECURELOCK_PAM_SERVICE", PAM_SERVICE_NAME);
+  if (strchr(service_name, '/')) {
+    // As this binary might be running with setuid privileges, we should better
+    // refuse potentially dangerous parameters. This works around PAM
+    // implementations being potentially vulnerable to someone passing
+    // "../shadow" as service name and then getting an error message containing
+    // the encrypted root password. I am not aware of any implementations that
+    // do fall for that - nevertheless let's better be safe.
+    Log("PAM service name (%s) contains a slash - refusing", service_name);
+    return 1;
+  }
   char username[256];
   if (!GetUserName(username, sizeof(username))) {
     return 1;
