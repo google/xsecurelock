@@ -310,7 +310,7 @@ int main(int argc, char **argv) {
   // Create a simple screen-filling window.
   int w = DisplayWidth(display, DefaultScreen(display));
   int h = DisplayHeight(display, DefaultScreen(display));
-  XSetWindowAttributes dimattrs;
+  XSetWindowAttributes dimattrs = {0};
   dimattrs.save_under = 1;
   dimattrs.override_redirect = 1;
   unsigned long dimmask = CWSaveUnder | CWOverrideRedirect;

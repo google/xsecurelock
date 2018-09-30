@@ -524,7 +524,7 @@ int main(int argc, char **argv) {
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
   Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
-  XSetWindowAttributes coverattrs;
+  XSetWindowAttributes coverattrs = {0};
   coverattrs.background_pixel = black.pixel;
   coverattrs.save_under = 1;
   coverattrs.override_redirect = 1;

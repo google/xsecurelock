@@ -887,20 +887,31 @@ int authenticate() {
       // program - but nevertheless let's handle it.
       // At least this implies that no other fd is 0.
       int requestfd1 = dup(requestfd[1]);
+      if (requestfd1 == -1) {
+        LogErrno("dup");
+      }
       close(requestfd[1]);
-      dup2(responsefd[0], 0);
+      if (dup2(responsefd[0], 0) == -1) {
+        LogErrno("dup2");
+      }
       close(responsefd[0]);
       if (requestfd1 != 1) {
-        dup2(requestfd1, 1);
+        if (dup2(requestfd1, 1) == -1) {
+          LogErrno("dup2");
+        }
         close(requestfd1);
       }
     } else {
       if (responsefd[0] != 0) {
-        dup2(responsefd[0], 0);
+        if (dup2(responsefd[0], 0) == -1) {
+          LogErrno("dup2");
+        }
         close(responsefd[0]);
       }
       if (requestfd[1] != 1) {
-        dup2(requestfd[1], 1);
+        if (dup2(requestfd[1], 1) == -1) {
+          LogErrno("dup2");
+        }
         close(requestfd[1]);
       }
     }

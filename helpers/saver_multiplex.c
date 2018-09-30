@@ -60,7 +60,7 @@ static void WatchSavers(void) {
 }
 
 static void SpawnSavers(Window parent, int argc, char* const* argv) {
-  XSetWindowAttributes attrs;
+  XSetWindowAttributes attrs = {0};
   attrs.background_pixel = BlackPixel(display, DefaultScreen(display));
   size_t i;
   for (i = 0; i < num_monitors; ++i) {

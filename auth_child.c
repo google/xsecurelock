@@ -154,7 +154,9 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         ExportWindowID(w);
         close(pc[1]);
         if (pc[0] != 0) {
-          dup2(pc[0], 0);
+          if (dup2(pc[0], 0) == -1) {
+            LogErrno("dup2");
+          }
           close(pc[0]);
         }
         execl(executable,  // Path to binary.
