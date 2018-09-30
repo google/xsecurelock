@@ -27,6 +27,7 @@
 # Binaries.
 /auth_x11
 /authproto_pam
+/cat_authproto
 /dimmer
 /get_compositor
 /nvidia_break_compositor
