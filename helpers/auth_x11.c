@@ -889,15 +889,18 @@ int authenticate() {
       int requestfd1 = dup(requestfd[1]);
       if (requestfd1 == -1) {
         LogErrno("dup");
+        exit(EXIT_FAILURE);
       }
       close(requestfd[1]);
       if (dup2(responsefd[0], 0) == -1) {
         LogErrno("dup2");
+        exit(EXIT_FAILURE);
       }
       close(responsefd[0]);
       if (requestfd1 != 1) {
         if (dup2(requestfd1, 1) == -1) {
           LogErrno("dup2");
+          exit(EXIT_FAILURE);
         }
         close(requestfd1);
       }
@@ -905,12 +908,14 @@ int authenticate() {
       if (responsefd[0] != 0) {
         if (dup2(responsefd[0], 0) == -1) {
           LogErrno("dup2");
+          exit(EXIT_FAILURE);
         }
         close(responsefd[0]);
       }
       if (requestfd[1] != 1) {
         if (dup2(requestfd[1], 1) == -1) {
           LogErrno("dup2");
+          exit(EXIT_FAILURE);
         }
         close(requestfd[1]);
       }

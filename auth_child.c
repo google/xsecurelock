@@ -156,6 +156,7 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         if (pc[0] != 0) {
           if (dup2(pc[0], 0) == -1) {
             LogErrno("dup2");
+            exit(EXIT_FAILURE);
           }
           close(pc[0]);
         }
