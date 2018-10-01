@@ -54,7 +54,7 @@ make
 sudo make install
 ```
 
-## Special notes for FreeBSD
+## Special notes for FreeBSD and NetBSD
 
 First of all, on BSD systems, `/usr/local` is owned by the ports system, so
 unless you are creating a port, it is recommended to install to a separate
@@ -62,9 +62,9 @@ location by specifying something like `--prefix=/opt/xsecurelock` in the
 `./configure` call. You can then run XSecureLock as
 `/opt/xsecurelock/bin/xsecurelock`.
 
-Also, in order to authenticate with PAM on FreeBSD, you must be root so you can
-read the shadow password database. The `authproto_pam` binary can be made to
-acquire these required privileges like this:
+Also, in order to authenticate with PAM on FreeBSD and NetBSD, you must be root
+so you can read the shadow password database. The `authproto_pam` binary can be
+made to acquire these required privileges like this:
 
 ```
 chmod +s /opt/xsecurelock/libexec/xsecurelock/authproto_pam
