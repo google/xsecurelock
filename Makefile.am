@@ -61,6 +61,7 @@ xsecurelock_SOURCES = \
 	main.c \
 	saver_child.c saver_child.h \
 	unmap_all.c unmap_all.h \
+	version.c version.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 xsecurelock_CPPFLAGS = $(macros)
@@ -170,6 +171,18 @@ remap_all_SOURCES= \
 	unmap_all.c unmap_all.h
 remap_all_CPPFLAGS = $(macros)
 
+FORCE:
+version.c: FORCE
+	if git describe --always --long >/dev/null 2>&1; then \
+		echo "const char *const git_version = \"` \
+			git describe --always --dirty --long \
+		`\";" > version.c; \
+	else \
+		: version.c must exist in non-git builds.; \
+		cat version.c; \
+	fi
+.PRECIOUS: version.c  # Old one is better than none.
+
 EXTRA_DIST = \
 	CONTRIBUTING \
 	LICENSE \
@@ -177,7 +190,8 @@ EXTRA_DIST = \
 	autogen.sh \
 	helpers/saver_blank \
 	run-linters.sh \
-	test
+	test \
+	version.c
 
 if HAVE_DOXYGEN
 doxyfile.stamp:

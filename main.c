@@ -59,6 +59,7 @@ limitations under the License.
 #include "mlock_page.h"     // for MLOCK_PAGE
 #include "saver_child.h"    // for WatchSaverChild
 #include "unmap_all.h"      // for ClearUnmapAllWindowsState
+#include "version.h"        // for git_version
 #include "wm_properties.h"  // for SetWMProperties
 
 /*! \brief How often (in times per second) to watch child processes.
@@ -196,6 +197,17 @@ int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
   return 0;
 }
 
+/*! \brief Print a version message.
+ */
+void version(void) {
+  printf("XSecureLock - X11 screen lock utility designed for security.\n");
+  if (*git_version) {
+    printf("Version: %s\n", git_version);
+  } else {
+    printf("Version unknown.\n");
+  }
+}
+
 /*! \brief Print an usage message.
  *
  * A message is shown explaining how to use XSecureLock.
@@ -203,7 +215,9 @@ int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
  * \param me The name this executable was invoked as.
  */
 void usage(const char *me) {
+  version();
   printf(
+      "\n"
       "Usage:\n"
       "  env [variables...] %s [-- command to run when locked]\n"
       "\n"
@@ -251,7 +265,7 @@ void load_defaults() {
   force_grab = GetIntSetting("XSECURELOCK_FORCE_GRAB", 0);
 }
 
-/*! \brief Parse the command line arguments.
+/*! \brief Parse the command line arguments, or exit in case of failure.
  *
  * This accepts saver_* or auth_* arguments, and puts them in their respective
  * global variable.
@@ -260,10 +274,8 @@ void load_defaults() {
  * environment variables instead!
  *
  * Possible errors will be printed on stderr.
- *
- * \return true if everything is OK, false otherwise.
  */
-int parse_arguments(int argc, char **argv) {
+void parse_arguments_or_exit(int argc, char **argv) {
   int i;
   for (i = 1; i < argc; ++i) {
     if (!strncmp(argv[i], "auth_", 5)) {
@@ -282,11 +294,19 @@ int parse_arguments(int argc, char **argv) {
       notify_command = argv + i + 1;
       break;
     }
+    if (!strcmp(argv[i], "--help")) {
+      usage(argv[0]);
+      exit(0);
+    }
+    if (!strcmp(argv[i], "--version")) {
+      version();
+      exit(0);
+    }
     // If we get here, the argument is unrecognized. Exit, then.
     Log("Unrecognized argument: %s", argv[i]);
-    return 0;
+    usage(argv[0]);
+    exit(0);
   }
-  return 1;
 }
 
 /*! \brief Check the settings.
@@ -479,10 +499,7 @@ int main(int argc, char **argv) {
 
   // Parse and verify arguments.
   load_defaults();
-  if (!parse_arguments(argc, argv)) {
-    usage(argv[0]);
-    return 1;
-  }
+  parse_arguments_or_exit(argc, argv);
   if (!check_settings()) {
     usage(argv[0]);
     return 1;
