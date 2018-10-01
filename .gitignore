@@ -20,6 +20,7 @@
 /helpers/saver_xscreensaver
 /install-sh
 /missing
+/version.c
 
 # Object files.
 *.o
