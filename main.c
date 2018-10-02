@@ -143,35 +143,36 @@ enum WatchChildrenState {
  * \param stdinbuf Key presses to send to the auth child, if set.
  * \return If true, authentication was successful and the program should exit.
  */
-int WatchChildren(Display *dpy, Window w, enum WatchChildrenState state,
-                  const char *stdinbuf) {
-  int auth_running = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
+int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
+                  enum WatchChildrenState state, const char *stdinbuf) {
+  int want_auth = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
+  int auth_running;
 
-  // Note: auth_running is true whenever we WANT to run authentication, or it is
+  // Note: want_auth is true whenever we WANT to run authentication, or it is
   // already running. It may have recently terminated, which we will notice
   // later.
-  if (auth_running) {
-    // Make sure the saver is shut down to not interfere with the screen.
-    WatchSaverChild(dpy, w, 0, saver_executable, 0);
-
+  if (want_auth) {
     // Actually start the auth child, or notice termination.
-    if (WatchAuthChild(dpy, w, auth_executable,
+    if (WatchAuthChild(dpy, auth_win, auth_executable,
                        state == WATCH_CHILDREN_FORCE_AUTH, stdinbuf,
                        &auth_running)) {
       // Auth performed successfully. Terminate the other children.
-      WatchSaverChild(dpy, w, 0, saver_executable, 0);
+      WatchSaverChild(dpy, saver_win, 0, saver_executable, 0);
       // Now terminate the screen lock.
       return 1;
     }
   }
 
-  // No auth child is running, either because we don't have any running and
-  // didn't start one, or because it just terminated.
-  // Show the screen saver.
-  if (!auth_running) {
-    WatchSaverChild(dpy, w, 0, saver_executable,
-                    state != WATCH_CHILDREN_SAVER_DISABLED);
+  // If we wanted auth, but it's not running, auth just terminated. Unmap the
+  // auth window and poke the screensaver so that it can reset any timeouts.
+  if (!auth_running && want_auth) {
+    XUnmapWindow(dpy, auth_win);
+    WatchSaverChild(dpy, saver_win, 0, saver_executable, 0);
   }
+
+  // Show the screen saver.
+  WatchSaverChild(dpy, saver_win, 0, saver_executable,
+                  state != WATCH_CHILDREN_SAVER_DISABLED);
 
   // Do not terminate the screen lock.
   return 0;
@@ -181,8 +182,10 @@ int WatchChildren(Display *dpy, Window w, enum WatchChildrenState state,
  *
  * \return If true, authentication was successful, and the program should exit.
  */
-int WakeUp(Display *dpy, Window w, const char *stdinbuf) {
-  return WatchChildren(dpy, w, WATCH_CHILDREN_FORCE_AUTH, stdinbuf);
+int WakeUp(Display *dpy, Window auth_win, Window saver_win,
+           const char *stdinbuf) {
+  return WatchChildren(dpy, auth_win, saver_win, WATCH_CHILDREN_FORCE_AUTH,
+                       stdinbuf);
 }
 
 /*! \brief An X11 error handler that merely logs errors to stderr.
@@ -605,12 +608,13 @@ int main(int argc, char **argv) {
   }
 #endif
 
-  // Create the two windows.
+  // Create the windows.
   // background_window is the outer window which exists for security reasons (in
   // case a subprocess may turn its window transparent or something).
-  // saver_window is the "visible" window that the saver and auth children will
-  // draw on. These windows are separated because XScreenSaver's savers might
-  // XUngrabKeyboard on their window.
+  // saver_window is the "visible" window that the saver child will draw on.
+  // auth_window is a window exclusively used by the auth child. It will only be
+  // mapped during auth, and hidden otherwise. These windows are separated
+  // because XScreenSaver's savers might XUngrabKeyboard on their window.
   Window background_window = XCreateWindow(
       display, parent_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent, CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
@@ -623,6 +627,12 @@ int main(int argc, char **argv) {
                     InputOutput, CopyFromParent, CWBackPixel, &coverattrs);
   SetWMProperties(display, saver_window, "xsecurelock", "saver", argc, argv);
   my_windows[n_my_windows++] = saver_window;
+
+  Window auth_window =
+      XCreateWindow(display, saver_window, 0, 0, w, h, 0, CopyFromParent,
+                    InputOutput, CopyFromParent, CWBackPixel, &coverattrs);
+  SetWMProperties(display, auth_window, "xsecurelock", "auth", argc, argv);
+  my_windows[n_my_windows++] = auth_window;
 
   // Let's get notified if we lose visibility, so we can self-raise.
 #ifdef HAVE_XCOMPOSITE_EXT
@@ -639,12 +649,15 @@ int main(int argc, char **argv) {
                StructureNotifyMask | VisibilityChangeMask);
   XSelectInput(display, saver_window,
                StructureNotifyMask | VisibilityChangeMask);
+  XSelectInput(display, auth_window,
+               StructureNotifyMask | VisibilityChangeMask);
 
   // Make sure we stay always on top.
   XWindowChanges coverchanges;
   coverchanges.stack_mode = Above;
   XConfigureWindow(display, background_window, CWStackMode, &coverchanges);
   XConfigureWindow(display, saver_window, CWStackMode, &coverchanges);
+  XConfigureWindow(display, auth_window, CWStackMode, &coverchanges);
 
   // We're OverrideRedirect anyway, but setting this hint may help compositors
   // leave our window alone.
@@ -693,10 +706,10 @@ int main(int argc, char **argv) {
     };
     size_t i;
     for (i = 0; i < sizeof(input_styles) / sizeof(input_styles[0]); ++i) {
-      // Note: we draw XIM stuff in saver_window so it's above the saver/auth
+      // Note: we draw XIM stuff in auth_window so it's above the saver/auth
       // child. However, we receive events for the grab window.
       xic = XCreateIC(xim, XNInputStyle, input_styles[i], XNClientWindow,
-                      saver_window, XNFocusWindow, background_window, NULL);
+                      auth_window, XNFocusWindow, background_window, NULL);
       if (xic != NULL) {
         break;
       }
@@ -796,8 +809,9 @@ int main(int argc, char **argv) {
     xss_sleep_lock_fd = -1;
   }
 
-  int background_window_mapped = 0, saver_window_mapped = 0,
-      need_to_reinstate_grabs = 0, xss_lock_notified = 0;
+  int background_window_mapped = 0, auth_window_mapped = 0,
+      saver_window_mapped = 0, need_to_reinstate_grabs = 0,
+      xss_lock_notified = 0;
   for (;;) {
     // Watch children WATCH_CHILDREN_HZ times per second.
     fd_set in_fds;
@@ -808,7 +822,8 @@ int main(int argc, char **argv) {
     tv.tv_usec = 1000000 / WATCH_CHILDREN_HZ;
     tv.tv_sec = 0;
     select(x11_fd + 1, &in_fds, 0, 0, &tv);
-    if (WatchChildren(display, saver_window, requested_saver_state, NULL)) {
+    if (WatchChildren(display, auth_window, saver_window, requested_saver_state,
+                      NULL)) {
       goto done;
     }
 
@@ -828,6 +843,9 @@ int main(int argc, char **argv) {
     }
 
 #ifdef AUTO_RAISE
+    if (auth_window_mapped) {
+      MaybeRaiseWindow(display, auth_window, 0);
+    }
     MaybeRaiseWindow(display, saver_window, 0);
     MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
@@ -904,7 +922,9 @@ int main(int argc, char **argv) {
           }
           // Also, whatever window has been reconfigured, should also be raised
           // to make sure.
-          if (priv.ev.xconfigure.window == saver_window) {
+          if (priv.ev.xconfigure.window == auth_window) {
+            MaybeRaiseWindow(display, auth_window, 0);
+          } else if (priv.ev.xconfigure.window == saver_window) {
             MaybeRaiseWindow(display, saver_window, 0);
           } else if (priv.ev.xconfigure.window == background_window) {
             MaybeRaiseWindow(display, background_window, 0);
@@ -924,8 +944,13 @@ int main(int argc, char **argv) {
           if (priv.ev.xvisibility.state != VisibilityUnobscured) {
             // If something else shows an OverrideRedirect window, we want to
             // stay on top.
-            if (priv.ev.xvisibility.window == saver_window) {
-              Log("Someone overlapped the saver window. Undoing that");
+            if (priv.ev.xvisibility.window == auth_window) {
+              Log("Someone overlapped the auth window. Undoing that");
+              MaybeRaiseWindow(display, auth_window, 1);
+            } else if (priv.ev.xvisibility.window == saver_window &&
+                       !auth_window_mapped) {
+              Log("Someone overlapped the saver window (and it wasn't auth). "
+                  "Undoing that");
               MaybeRaiseWindow(display, saver_window, 1);
             } else if (priv.ev.xvisibility.window == background_window) {
               Log("Someone overlapped the background window. Undoing that");
@@ -953,7 +978,7 @@ int main(int argc, char **argv) {
         case MotionNotify:
         case ButtonPress:
           // Mouse events launch the auth child.
-          if (WakeUp(display, saver_window, NULL)) {
+          if (WakeUp(display, auth_window, saver_window, NULL)) {
             goto done;
           }
           break;
@@ -1018,7 +1043,7 @@ int main(int argc, char **argv) {
             priv.buf[0] = 0;
           }
           // In any case, the saver will be activated.
-          if (WakeUp(display, saver_window, priv.buf)) {
+          if (WakeUp(display, auth_window, saver_window, priv.buf)) {
             goto done;
           }
           // Clear out keypress data immediately.
@@ -1035,7 +1060,9 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_EVENTS
           Log("MapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
-          if (priv.ev.xmap.window == saver_window) {
+          if (priv.ev.xmap.window == auth_window) {
+            auth_window_mapped = 1;
+          } else if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 1;
           } else if (priv.ev.xmap.window == background_window) {
             background_window_mapped = 1;
@@ -1050,7 +1077,9 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_EVENTS
           Log("UnmapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
-          if (priv.ev.xmap.window == saver_window) {
+          if (priv.ev.xmap.window == auth_window) {
+            auth_window_mapped = 0;
+          } else if (priv.ev.xmap.window == saver_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the saver window. Undoing that");
             saver_window_mapped = 0;

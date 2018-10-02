@@ -840,6 +840,9 @@ int prompt(const char *msg, char **response, int echo) {
       if (IsMonitorChangeEvent(display, priv.ev.type)) {
         num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
         XClearWindow(display, window);
+        int w = DisplayWidth(display, DefaultScreen(display));
+        int h = DisplayHeight(display, DefaultScreen(display));
+        XMoveResizeWindow(display, window, 0, 0, w, h);
       }
     }
   }
@@ -1174,9 +1177,13 @@ int main() {
 #endif
 
   XSetWindowBackground(display, window, Background);
+  XMapRaised(display, window);
 
   SelectMonitorChangeEvents(display, window);
   num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
+  int w = DisplayWidth(display, DefaultScreen(display));
+  int h = DisplayHeight(display, DefaultScreen(display));
+  XMoveResizeWindow(display, window, 0, 0, w, h);
 
   int status = authenticate();
 

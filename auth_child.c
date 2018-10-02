@@ -116,8 +116,6 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         kill(-auth_child_pid, SIGTERM);
         auth_child_pid = 0;
         close(auth_child_fd);
-        // Now is the time to remove anything the child may have displayed.
-        XClearWindow(dpy, w);
         // If auth child exited with success status, stop the screen saver.
         if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS) {
           *auth_running = 0;
