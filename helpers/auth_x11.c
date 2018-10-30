@@ -88,14 +88,14 @@ int show_hostname;
 //! If set, data and time will be shown.
 int show_datetime;
 
+//! The date format to display.
+const char *datetime_format = "%c";
+
 //! The local hostname.
 char hostname[256];
 
 //! The username to authenticate as.
 char username[256];
-
-//! Local date time buffer
-char datetime[80];
 
 //! The X11 display.
 Display *display;
@@ -458,13 +458,19 @@ void display_string(const char *title, const char *str) {
   int len_switch_user = strlen(switch_user);
   int tw_switch_user = TextWidth(switch_user, len_switch_user);
 
+  char datetime[80];
   if (show_datetime) {
     time_t rawtime;
-    struct tm * timeinfo;
+    struct tm *timeinfo;
 
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-    strftime(datetime, sizeof(datetime), "%c", timeinfo);
+    if (strftime(datetime, sizeof(datetime), datetime_format, timeinfo) == 0) {
+      // The datetime buffer was too small to fit the time format, and in this
+      // case the buffer contents are undefined. Let's just make it a valid
+      // empty string then so all else will go well.
+      datetime[0] = 0;
+    }
   }
 
   int len_datetime = strlen(datetime);
@@ -485,7 +491,9 @@ void display_string(const char *title, const char *str) {
     box_w = tw_switch_user;
   }
   int border = TEXT_BORDER + burnin_mitigation_max_offset_change;
-  int box_h = (4 + have_multiple_layouts + have_switch_user_command + show_datetime * 2) * th;
+  int box_h = (4 + have_multiple_layouts + have_switch_user_command +
+               show_datetime * 2) *
+              th;
   if (region_w < box_w + 2 * border) {
     region_w = box_w + 2 * border;
   }
@@ -1053,6 +1061,7 @@ done:
  */
 int main() {
   setlocale(LC_CTYPE, "");
+  setlocale(LC_TIME, "");
 
   // This is used by displaymarker only (no security relevance of the RNG).
   srand(time(NULL));
@@ -1083,6 +1092,7 @@ int main() {
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
   show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
+  datetime_format = GetStringSetting("XSECURELOCK_DATETIME_FORMAT", "%c");
   have_switch_user_command =
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
 

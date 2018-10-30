@@ -225,6 +225,8 @@ Options to XSecureLock can be passed by environment variables:
     prevent compositors from unredirecting as it's 1 pixel smaller than the
     screen from every side, and should otherwise be harmless, so it's enabled
     by default.
+*   `XSECURELOCK_DATETIME_FORMAT`: the date format to show. Defaults to the
+    locale settings.
 *   `XSECURELOCK_DIM_ALPHA`: Linear-space opacity to fade the screen to.
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming
@@ -260,7 +262,8 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_x11` hide the password
     length.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
-*   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the login
+*   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
+    login. Enabled by default.
 *   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
     screen of `auth_x11`. Possible values are 0 for not showing the
     hostname, 1 for showing the short form, and 2 for showing the long form.
