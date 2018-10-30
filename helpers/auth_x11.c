@@ -1063,7 +1063,7 @@ int main() {
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
-  show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
+  show_datetime = !!GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
   have_switch_user_command =
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
 
