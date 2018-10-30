@@ -85,8 +85,8 @@ static int ContainsNonControl(const char *buf) {
   return 0;
 }
 
-int WatchAuthChild(Display *dpy, Window w, const char *executable,
-                   int force_auth, const char *stdinbuf, int *auth_running) {
+int WatchAuthChild(Window w, const char *executable, int force_auth,
+                   const char *stdinbuf, int *auth_running) {
   if (auth_child_pid != 0) {
     // Check if auth child returned.
     int status;

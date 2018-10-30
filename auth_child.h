@@ -30,7 +30,6 @@ int WantAuthChild(int force_auth);
 
 /*! \brief Starts or stops the authentication child process.
  *
- * \param dpy The X11 display.
  * \param w The screen saver window. Will get cleared after auth child
  *   execution.
  * \param executable What binary to spawn for authentication. No arguments will
@@ -44,7 +43,7 @@ int WantAuthChild(int force_auth);
  * \return true if authentication was successful, i.e. if the auth child exited
  *   with status zero.
  */
-int WatchAuthChild(Display *dpy, Window w, const char *executable,
-                   int force_auth, const char *stdinbuf, int *auth_running);
+int WatchAuthChild(Window w, const char *executable, int force_auth,
+                   const char *stdinbuf, int *auth_running);
 
 #endif

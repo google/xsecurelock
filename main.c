@@ -153,7 +153,7 @@ int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
   // later.
   if (want_auth) {
     // Actually start the auth child, or notice termination.
-    if (WatchAuthChild(dpy, auth_win, auth_executable,
+    if (WatchAuthChild(auth_win, auth_executable,
                        state == WATCH_CHILDREN_FORCE_AUTH, stdinbuf,
                        &auth_running)) {
       // Auth performed successfully. Terminate the other children.
@@ -634,7 +634,7 @@ int main(int argc, char **argv) {
   SetWMProperties(display, auth_window, "xsecurelock", "auth", argc, argv);
   my_windows[n_my_windows++] = auth_window;
 
-  // Let's get notified if we lose visibility, so we can self-raise.
+// Let's get notified if we lose visibility, so we can self-raise.
 #ifdef HAVE_XCOMPOSITE_EXT
   if (composite_window != None) {
     XSelectInput(display, composite_window,
@@ -683,9 +683,9 @@ int main(int argc, char **argv) {
                     32, PropModeReplace, (const unsigned char *)&dont_composite,
                     1);
   }
-  // Note: NOT setting this on the obscurer window, as this is a fallback and
-  // actually should be composited to make sure the compositor never draws
-  // anything "interesting".
+// Note: NOT setting this on the obscurer window, as this is a fallback and
+// actually should be composited to make sure the compositor never draws
+// anything "interesting".
 #endif
 
   // Initialize XInput so we can get multibyte key events.
