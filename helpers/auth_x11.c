@@ -838,11 +838,11 @@ int prompt(const char *msg, char **response, int echo) {
     // Handle X11 events that queued up.
     while (!done && XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
       if (IsMonitorChangeEvent(display, priv.ev.type)) {
+        XWindowAttributes xwa;
+        XGetWindowAttributes(display, DefaultRootWindow(display), &xwa);
+        XMoveResizeWindow(display, window, 0, 0, xwa.width, xwa.height);
         num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
         XClearWindow(display, window);
-        int w = DisplayWidth(display, DefaultScreen(display));
-        int h = DisplayHeight(display, DefaultScreen(display));
-        XMoveResizeWindow(display, window, 0, 0, w, h);
       }
     }
   }
@@ -1180,10 +1180,10 @@ int main() {
   XMapRaised(display, window);
 
   SelectMonitorChangeEvents(display, window);
-  num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
   int w = DisplayWidth(display, DefaultScreen(display));
   int h = DisplayHeight(display, DefaultScreen(display));
   XMoveResizeWindow(display, window, 0, 0, w, h);
+  num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
 
   int status = authenticate();
 

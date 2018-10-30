@@ -132,9 +132,9 @@ static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
 }
 
 #ifdef HAVE_XRANDR_EXT
-static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy,
-                               Monitor* out_monitors, size_t* out_num_monitors,
-                               size_t max_monitors) {
+static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy, int ww,
+                               int wh, Monitor* out_monitors,
+                               size_t* out_num_monitors, size_t max_monitors) {
   XRRScreenResources* screenres = XRRGetScreenResources(dpy, w);
   if (screenres == NULL) {
     return 0;
@@ -156,10 +156,10 @@ static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy,
           (output->crtc ? output->crtc : output->ncrtc ? output->crtcs[0] : 0);
       XRRCrtcInfo* info = (crtc ? XRRGetCrtcInfo(dpy, screenres, crtc) : 0);
       if (info != NULL) {
-        int x = info->x - wx;
-        int y = info->y - wy;
-        int w = info->x + (int)info->width - (wx + x);
-        int h = info->y + (int)info->height - (wy + y);
+        int x = CLAMP(info->x, wx, wx + ww) - wx;
+        int y = CLAMP(info->y, wy, wy + wh) - wy;
+        int w = CLAMP(info->x + (int)info->width, wx + x, wx + ww) - (wx + x);
+        int h = CLAMP(info->y + (int)info->height, wy + y, wy + wh) - (wy + y);
         AddMonitor(out_monitors, out_num_monitors, max_monitors, x, y, w, h);
         XRRFreeCrtcInfo(info);
       }
@@ -171,9 +171,9 @@ static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy,
 }
 
 #ifdef HAVE_XRANDR15_EXT
-static int GetMonitorsXRandR15(Display* dpy, Window w, int wx, int wy,
-                               Monitor* out_monitors, size_t* out_num_monitors,
-                               size_t max_monitors) {
+static int GetMonitorsXRandR15(Display* dpy, Window w, int wx, int wy, int ww,
+                               int wh, Monitor* out_monitors,
+                               size_t* out_num_monitors, size_t max_monitors) {
   if (!have_xrandr15_ext) {
     return 0;
   }
@@ -185,10 +185,10 @@ static int GetMonitorsXRandR15(Display* dpy, Window w, int wx, int wy,
   int i;
   for (i = 0; i < num_rrmonitors; ++i) {
     XRRMonitorInfo* info = &rrmonitors[i];
-    int x = info->x - wx;
-    int y = info->y - wy;
-    int w = info->x + info->width - (wx + x);
-    int h = info->y + info->height - (wy + y);
+    int x = CLAMP(info->x, wx, wx + ww) - wx;
+    int y = CLAMP(info->y, wy, wy + wh) - wy;
+    int w = CLAMP(info->x + info->width, wx + x, wx + ww) - (wx + x);
+    int h = CLAMP(info->y + info->height, wy + y, wy + wh) - (wy + y);
     AddMonitor(out_monitors, out_num_monitors, max_monitors, x, y, w, h);
   }
   XRRFreeMonitors(rrmonitors);
@@ -215,14 +215,14 @@ static int GetMonitorsXRandR(Display* dpy, Window w,
   }
 
 #ifdef HAVE_XRANDR15_EXT
-  if (GetMonitorsXRandR15(dpy, w, wx, wy, out_monitors, out_num_monitors,
-                          max_monitors)) {
+  if (GetMonitorsXRandR15(dpy, w, wx, wy, xwa->width, xwa->height, out_monitors,
+                          out_num_monitors, max_monitors)) {
     return 1;
   }
 #endif
 
-  return GetMonitorsXRandR12(dpy, w, wx, wy, out_monitors, out_num_monitors,
-                             max_monitors);
+  return GetMonitorsXRandR12(dpy, w, wx, wy, xwa->width, xwa->height,
+                             out_monitors, out_num_monitors, max_monitors);
 }
 #endif
 
