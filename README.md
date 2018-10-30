@@ -220,7 +220,7 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_COMPOSITE_OBSCURER`: create a second full-screen window to
     obscure window content in case a running compositor unmaps its own window.
     Helps with some instances of bad compositor behavior (such as compositor
-    crashes/restarts, but also compton has been caught at drawing notifcation
+    crashes/restarts, but also compton has been caught at drawing notification
     icons above the screen locker when not using the GLX backend), should
     prevent compositors from unredirecting as it's 1 pixel smaller than the
     screen from every side, and should otherwise be harmless, so it's enabled
