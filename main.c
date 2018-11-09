@@ -60,6 +60,7 @@ limitations under the License.
 #include "saver_child.h"    // for WatchSaverChild
 #include "unmap_all.h"      // for ClearUnmapAllWindowsState
 #include "version.h"        // for git_version
+#include "wait_pgrp.h"      // for WaitPgrp
 #include "wm_properties.h"  // for SetWMProperties
 
 /*! \brief How often (in times per second) to watch child processes.
@@ -115,6 +116,18 @@ int force_grab = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
+
+static void handle_sigterm(int signo) {
+  KillAllSaverChildrenSigHandler();  // Dirty, but quick.
+  KillAuthChildSigHandler();         // More dirty.
+  raise(signo);
+}
+
+static void handle_sigchld(int unused_signo) {
+  // No handling needed - we just want to interrupt the select() in the main
+  // loop.
+  (void)unused_signo;
+}
 
 enum WatchChildrenState {
   //! Request saver child.
@@ -461,7 +474,7 @@ void NotifyOfLock(int xss_sleep_lock_fd) {
       // Child process.
       execvp(notify_command[0], notify_command);
       LogErrno("execvp");
-      exit(EXIT_FAILURE);
+      _exit(EXIT_FAILURE);
     } else {
       // Parent process after successful fork.
       notify_command_pid = pid;
@@ -789,13 +802,22 @@ int main(int argc, char **argv) {
   // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
   XSetErrorHandler(IgnoreErrorsHandler);
 
-  // Ignore SIGPIPE, as the auth child is explicitly allowed to close its
-  // standard input file descriptor.
   struct sigaction sa;
-  sa.sa_handler = SIG_IGN;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
-  sigaction(SIGPIPE, &sa, NULL);
+  sa.sa_handler = SIG_IGN;  // Don't die if auth child closes stdin.
+  if (sigaction(SIGPIPE, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGPIPE)");
+  }
+  sa.sa_handler = handle_sigchld;  // To interrupt select().
+  if (sigaction(SIGCHLD, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGCHLD)");
+  }
+  sa.sa_flags = SA_RESETHAND;  // It re-raises to suicide.
+  sa.sa_handler = handle_sigterm;  // To kill children.
+  if (sigaction(SIGTERM, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGTERM)");
+  }
 
   // Need to flush the display so savers sure can access the window.
   XFlush(display);
@@ -856,37 +878,10 @@ int main(int argc, char **argv) {
 #endif
 
     // Take care of zombies.
-    // TODO(divVerent): Refactor waitpid handling as callers mostly do the same
-    // handling anyway.
     if (notify_command_pid != 0) {
       int status;
-      pid_t pid = waitpid(notify_command_pid, &status, WNOHANG);
-      if (pid < 0) {
-        switch (errno) {
-          case ECHILD:
-            // The process is dead. Fine.
-            notify_command_pid = 0;
-            break;
-          case EINTR:
-            // Waitpid was interrupted. Fine, assume it's still running.
-            break;
-          default:
-            // Assume the child still lives. Shouldn't ever happen.
-            LogErrno("waitpid");
-            break;
-        }
-      } else if (pid == notify_command_pid) {
-        if (WIFEXITED(status)) {
-          // Done notifying.
-          if (WEXITSTATUS(status) != EXIT_SUCCESS) {
-            Log("Notification command failed with status %d",
-                WEXITSTATUS(status));
-          }
-          notify_command_pid = 0;
-        }
-        // Otherwise it was suspended or whatever. We need to keep waiting.
-      } else if (pid != 0) {
-        Log("Unexpectedly woke up for PID %d", (int)pid);
+      if (WaitPgrp("notify", notify_command_pid, 0, 0, &status)) {
+        notify_command_pid = 0;
       }
       // Otherwise, we're still alive. Re-check next time.
     }

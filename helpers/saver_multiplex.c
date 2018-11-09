@@ -30,11 +30,9 @@ limitations under the License.
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "monitors.h"             // for IsMonitorChangeEvent, Monitor, Sele...
 
-volatile sig_atomic_t sigterm = 0;
-
-static void handle_sigterm(int unused_signo) {
-  (void)unused_signo;
-  sigterm = 1;
+static void handle_sigterm(int signo) {
+  KillAllSaverChildrenSigHandler();  // Dirty, but quick.
+  raise(signo); // Destroys windows we created anyway.
 }
 
 static void handle_sigchld(int unused_signo) {
@@ -121,39 +119,24 @@ int main(int argc, char** argv) {
 
   SpawnSavers(parent, argc, argv);
 
-  // We're using non-blocking X11 event handling and pselect() so we can
-  // reliably catch SIGTERM and exit the loop. Also, SIGCHLD (screen saver
-  // dies) will interrupt the select() as well and let WatchSavers() respawn
-  // that saver.
-  sigset_t added_sigmask, old_sigmask;
-  sigemptyset(&added_sigmask);
-  sigaddset(&added_sigmask, SIGTERM);
-  sigaddset(&added_sigmask, SIGCHLD);
-  sigemptyset(&old_sigmask);
-  if (sigprocmask(SIG_BLOCK, &added_sigmask, &old_sigmask) == 0) {
-    // Only when we could actually block the signals, install the handlers.
-    struct sigaction sa;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sa.sa_handler = handle_sigterm;
-    if (sigaction(SIGTERM, &sa, NULL) != 0) {
-      LogErrno("sigaction(SIGTERM)");
-    }
-    sa.sa_handler = handle_sigchld;
-    if (sigaction(SIGCHLD, &sa, NULL) != 0) {
-      LogErrno("sigaction(SIGCHLD)");
-    }
-  } else {
-    LogErrno("sigprocmask failed; not installing signal handlers");
+  struct sigaction sa;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  sa.sa_handler = handle_sigchld;  // To interrupt select().
+  if (sigaction(SIGCHLD, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGCHLD)");
   }
+  sa.sa_flags = SA_RESETHAND;  // It re-raises to suicide.
+  sa.sa_handler = handle_sigterm;  // To kill children.
+  if (sigaction(SIGTERM, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGTERM)");
+  }
+
   for (;;) {
     fd_set in_fds;
     FD_ZERO(&in_fds);
     FD_SET(x11_fd, &in_fds);
-    pselect(x11_fd + 1, &in_fds, 0, 0, NULL, &old_sigmask);
-    if (sigterm) {
-      break;
-    }
+    select(x11_fd + 1, &in_fds, 0, 0, NULL);
     WatchSavers();
     XEvent ev;
     while (XPending(display) && (XNextEvent(display, &ev), 1)) {
@@ -171,10 +154,6 @@ int main(int argc, char** argv) {
       }
     }
   }
-  sigprocmask(SIG_SETMASK, &old_sigmask, NULL);
-
-  // Kill all the savers when exiting.
-  KillSavers();
 
   return 0;
 }

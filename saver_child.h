@@ -22,6 +22,12 @@ limitations under the License.
 
 #define MAX_SAVERS 16
 
+/*! \brief Kill all saver children.
+ *
+ * This can be used from a signal handler.
+ */
+void KillAllSaverChildrenSigHandler(void);
+
 /*! \brief Starts or stops the screen saver child process.
  *
  * \param dpy The X11 display.

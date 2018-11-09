@@ -49,6 +49,7 @@ limitations under the License.
 
 #include "../env_settings.h"  // for GetIntSetting, GetStringSetting
 #include "../logging.h"       // for Log, LogErrno
+#include "../wait_pgrp.h"     // for KillPgrp
 
 #ifdef HAVE_XSCREENSAVER_EXT
 int have_xscreensaver_ext;
@@ -64,6 +65,15 @@ XSyncSystemCounter *xsync_counters;
 #define MAX_TIMERS 16
 size_t num_timers;
 const char *timers[MAX_TIMERS];
+
+pid_t childpid = 0;
+
+static void handle_sigterm(int signo) {
+  if (childpid != 0) {
+    KillPgrp(childpid);  // Dirty, but quick.
+  }
+  raise(signo);
+}
 
 uint64_t GetIdleTimeForSingleTimer(Display *display, Window w,
                                    const char *timer) {
@@ -177,7 +187,7 @@ int main(int argc, char **argv) {
   }
 
   // Start the subprocess.
-  pid_t childpid = fork();
+  childpid = fork();
   if (childpid == -1) {
     LogErrno("fork");
     return 1;
@@ -187,10 +197,18 @@ int main(int argc, char **argv) {
     setsid();
     execvp(argv[1], argv + 1);
     LogErrno("execl");
-    exit(1);
+    _exit(EXIT_FAILURE);
   }
 
   // Parent process.
+  struct sigaction sa;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESETHAND;  // It re-raises to suicide.
+  sa.sa_handler = handle_sigterm;  // To kill children.
+  if (sigaction(SIGTERM, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGTERM)");
+  }
+
   struct timeval start_time;
   gettimeofday(&start_time, NULL);
   int still_idle = 1;
@@ -211,55 +229,13 @@ int main(int argc, char **argv) {
         still_idle && (active_ms <= dim_time_ms + wait_time_ms);
 
     if (!should_be_running) {
-      // Kill the whole process group.
-      kill(childpid, SIGTERM);
-      kill(-childpid, SIGTERM);
+      KillPgrp(childpid);
     }
-    do {
-      int status;
-      pid_t pid = waitpid(childpid, &status, should_be_running ? WNOHANG : 0);
-      if (pid < 0) {
-        switch (errno) {
-          case ECHILD:
-            // The process is dead. Fine.
-            if (should_be_running) {
-              kill(-childpid, SIGTERM);
-            }
-            childpid = 0;
-            break;
-          case EINTR:
-            // Waitpid was interrupted. Need to retry.
-            break;
-          default:
-            // Assume the child still lives. Shouldn't ever happen.
-            LogErrno("waitpid");
-            break;
-        }
-      } else if (pid == childpid) {
-        if (WIFEXITED(status) || WIFSIGNALED(status)) {
-          // Auth child exited.
-          if (should_be_running) {
-            // To be sure, let's also kill its process group before we finish
-            // (no need to do this if we already did above).
-            kill(-childpid, SIGTERM);
-          }
-          childpid = 0;
-          if (WIFSIGNALED(status) &&
-              (should_be_running || WTERMSIG(status) != SIGTERM)) {
-            Log("Dimmer child killed by signal %d", WTERMSIG(status));
-          }
-          if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
-            Log("Dimmer child failed with status %d", WEXITSTATUS(status));
-          }
-        }
-        // Otherwise it was suspended or whatever. We need to keep waiting.
-      } else if (pid != 0) {
-        Log("Unexpectedly woke up for PID %d", (int)pid);
-      } else if (!should_be_running) {
-        Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
-      }
-      // Otherwise, we're still alive.
-    } while (!should_be_running && childpid != 0);
+    int status;
+    if (WaitPgrp("idle", childpid, !should_be_running, !should_be_running,
+                 &status)) {
+      childpid = 0;
+    }
   }
 
   // This is the point where we can exit.

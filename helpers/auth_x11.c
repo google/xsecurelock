@@ -41,6 +41,7 @@ limitations under the License.
 #include "../env_settings.h"      // for GetIntSetting, GetStringSetting
 #include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
+#include "../wait_pgrp.h"         // for WaitPgrp
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "authproto.h"            // for WritePacket, ReadPacket, PTYPE_R...
 #include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
@@ -923,18 +924,18 @@ int authenticate() {
       int requestfd1 = dup(requestfd[1]);
       if (requestfd1 == -1) {
         LogErrno("dup");
-        exit(EXIT_FAILURE);
+        _exit(EXIT_FAILURE);
       }
       close(requestfd[1]);
       if (dup2(responsefd[0], 0) == -1) {
         LogErrno("dup2");
-        exit(EXIT_FAILURE);
+        _exit(EXIT_FAILURE);
       }
       close(responsefd[0]);
       if (requestfd1 != 1) {
         if (dup2(requestfd1, 1) == -1) {
           LogErrno("dup2");
-          exit(EXIT_FAILURE);
+          _exit(EXIT_FAILURE);
         }
         close(requestfd1);
       }
@@ -942,14 +943,14 @@ int authenticate() {
       if (responsefd[0] != 0) {
         if (dup2(responsefd[0], 0) == -1) {
           LogErrno("dup2");
-          exit(EXIT_FAILURE);
+          _exit(EXIT_FAILURE);
         }
         close(responsefd[0]);
       }
       if (requestfd[1] != 1) {
         if (dup2(requestfd[1], 1) == -1) {
           LogErrno("dup2");
-          exit(EXIT_FAILURE);
+          _exit(EXIT_FAILURE);
         }
         close(requestfd[1]);
       }
@@ -958,7 +959,7 @@ int authenticate() {
     execl(authproto_executable, authproto_executable, NULL);
     LogErrno("execl");
     sleep(2);  // Reduce log spam or other effects from failed execl.
-    exit(EXIT_FAILURE);
+    _exit(EXIT_FAILURE);
   }
 
   // Otherwise, we're in the parent process.
@@ -1010,47 +1011,12 @@ int authenticate() {
 done:
   close(requestfd[0]);
   close(responsefd[1]);
-  for (;;) {
-    int status;
-    pid_t pid = waitpid(childpid, &status, 0);
-    if (pid < 0) {
-      switch (errno) {
-        case ECHILD:
-          // The process is dead. Bad.
-          return 1;
-        case EINTR:
-          // Waitpid was interrupted. Need to retry.
-          break;
-        default:
-          // Assume the child still lives. Shouldn't ever happen.
-          LogErrno("waitpid");
-          break;
-      }
-    } else if (pid == childpid) {
-      if (WIFEXITED(status) || WIFSIGNALED(status)) {
-        // Auth proto child exited.
-        if (WIFSIGNALED(status)) {
-          Log("Authproto child killed by signal %d", WTERMSIG(status));
-          return 1;
-        }
-        if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
-          // This error usually means wrong password; thus the inconsistent
-          // text. It is the "normal" error.
-          Log("Authentication failed with status %d", WEXITSTATUS(status));
-          return 1;
-        }
-        return 0;
-      }
-      // Otherwise it was suspended or whatever. We need to keep waiting.
-    } else if (pid != 0) {
-      Log("Unexpectedly woke up for PID %d", (int)pid);
-    } else {
-      Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
-    }
-    // Otherwise, we're still alive.
+  int status;
+  if (!WaitPgrp("authproto", childpid, 1, 0, &status)) {
+    Log("WaitPgrp returned false but we were blocking");
+    abort();
   }
-  Log("Shouldn't ever get here; fix the logic!");
-  return 42;
+  return status != 0;
 }
 
 /*! \brief The main program.

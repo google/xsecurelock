@@ -62,6 +62,7 @@ xsecurelock_SOURCES = \
 	saver_child.c saver_child.h \
 	unmap_all.c unmap_all.h \
 	version.c version.h \
+	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 xsecurelock_CPPFLAGS = $(macros)
@@ -98,6 +99,7 @@ saver_multiplex_SOURCES = \
 	helpers/saver_multiplex.c \
 	logging.c logging.h \
 	saver_child.c saver_child.h \
+	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 saver_multiplex_CPPFLAGS = $(macros)
@@ -117,7 +119,8 @@ helpers_PROGRAMS += \
 until_nonidle_SOURCES = \
 	env_settings.c env_settings.h \
 	helpers/until_nonidle.c \
-	logging.c logging.h
+	logging.c logging.h \
+	wait_pgrp.c wait_pgrp.h
 until_nonidle_CPPFLAGS = $(macros)
 endif
 
@@ -131,6 +134,7 @@ auth_x11_SOURCES = \
 	helpers/monitors.c helpers/monitors.h \
 	logging.c logging.h \
 	mlock_page.h \
+	wait_pgrp.c wait_pgrp.h \
 	xscreensaver_api.c xscreensaver_api.h
 auth_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS)
 auth_x11_LDADD = $(XFT_LIBS)
