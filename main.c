@@ -84,7 +84,7 @@ limitations under the License.
  * shines through. As a workaround, this enables raising the grab window
  * periodically.
  */
-#define AUTO_RAISE
+#undef AUTO_RAISE
 
 /*! \brief Exhaustive list of all mouse related X11 events.
  *
