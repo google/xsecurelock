@@ -858,9 +858,12 @@ int main(int argc, char **argv) {
     need_to_reinstate_grabs = 1;
 #endif
     if (need_to_reinstate_grabs) {
-      if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                       coverattrs.cursor, 0, 0)) {
-        need_to_reinstate_grabs = 0;
+      need_to_reinstate_grabs = 0;
+      if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
+                        coverattrs.cursor, 0, 0)) {
+        Log("Critical: could not reacquire grabs. The screen is now UNLOCKED! "
+            "Trying again next frame.");
+        need_to_reinstate_grabs = 1;
       }
     }
 
@@ -1112,9 +1115,14 @@ int main(int argc, char **argv) {
 #endif
           if (priv.ev.xfocus.window == root_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
-            Log("WARNING: lost grab, trying to grab again");
+            // Not logging this - this is a normal occurrence if invoking the
+            // screen lock from a key combination, as the press event may
+            // launch xsecurelock while the release event releases a passive
+            // grab. We still immediately try to reacquire grabs here, though.
             if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
                               coverattrs.cursor, 0, 0)) {
+              Log("Critical: could not reacquire grabs after NotifyUngrab. The "
+                  "screen is now UNLOCKED! Trying again next frame.");
               need_to_reinstate_grabs = 1;
             }
           }
