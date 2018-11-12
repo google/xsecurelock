@@ -75,7 +75,7 @@ limitations under the License.
  * appears to be required with some XScreenSaver hacks that cause XSecureLock to
  * lose MotionNotify events, but nothing else.
  */
-#define ALWAYS_REINSTATE_GRABS
+#undef ALWAYS_REINSTATE_GRABS
 
 /*! \brief Try to bring the grab window to foreground in regular intervals.
  *
