@@ -813,7 +813,7 @@ int main(int argc, char **argv) {
   if (sigaction(SIGCHLD, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGCHLD)");
   }
-  sa.sa_flags = SA_RESETHAND;  // It re-raises to suicide.
+  sa.sa_flags = SA_RESETHAND;      // It re-raises to suicide.
   sa.sa_handler = handle_sigterm;  // To kill children.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
