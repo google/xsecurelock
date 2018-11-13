@@ -208,10 +208,9 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
     XkbFreeClientMap(xkb, 0, True);
     return "";
   }
-  if (XkbGetNames(
-          display,
-          XkbIndicatorNamesMask | XkbGroupNamesMask | XkbSymbolsNameMask,
-          xkb) != Success) {
+  if (XkbGetNames(display, XkbIndicatorNamesMask | XkbGroupNamesMask |
+                               XkbSymbolsNameMask,
+                  xkb) != Success) {
     Log("XkbGetNames failed");
     XkbFreeClientMap(xkb, 0, True);
     return "";
@@ -1142,15 +1141,14 @@ int main() {
   if (core_font != NULL) {
     gcattrs.font = core_font->fid;
   }
-  gc = XCreateGC(display, window,
-                 GCFunction | GCForeground | GCBackground |
-                     (core_font != NULL ? GCFont : 0),
+  gc = XCreateGC(display, window, GCFunction | GCForeground | GCBackground |
+                                      (core_font != NULL ? GCFont : 0),
                  &gcattrs);
   gcattrs.foreground = Warning;
-  gc_warning = XCreateGC(display, window,
-                         GCFunction | GCForeground | GCBackground |
-                             (core_font != NULL ? GCFont : 0),
-                         &gcattrs);
+  gc_warning =
+      XCreateGC(display, window, GCFunction | GCForeground | GCBackground |
+                                     (core_font != NULL ? GCFont : 0),
+                &gcattrs);
 
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
