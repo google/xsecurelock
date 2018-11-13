@@ -18,6 +18,6 @@ limitations under the License.
 #define VERSION_H
 
 //! The git version; empty string if not built from git.
-const char *const git_version;
+extern const char *const git_version;
 
 #endif
