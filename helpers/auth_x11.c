@@ -458,14 +458,16 @@ void display_string(const char *title, const char *str) {
   int len_switch_user = strlen(switch_user);
   int tw_switch_user = TextWidth(switch_user, len_switch_user);
 
-  char datetime[80];
+  char datetime[80] = "";
   if (show_datetime) {
     time_t rawtime;
+    struct tm timeinfo_buf;
     struct tm *timeinfo;
 
     time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    if (strftime(datetime, sizeof(datetime), datetime_format, timeinfo) == 0) {
+    timeinfo = localtime_r(&rawtime, &timeinfo_buf);
+    if (timeinfo == NULL ||
+        strftime(datetime, sizeof(datetime), datetime_format, timeinfo) == 0) {
       // The datetime buffer was too small to fit the time format, and in this
       // case the buffer contents are undefined. Let's just make it a valid
       // empty string then so all else will go well.
