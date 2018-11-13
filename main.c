@@ -535,7 +535,7 @@ int main(int argc, char **argv) {
   }
 
   // My windows.
-  Window my_windows[3];
+  Window my_windows[4];
   unsigned int n_my_windows = 0;
 
   // Who's the root?
