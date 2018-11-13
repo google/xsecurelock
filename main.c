@@ -159,13 +159,13 @@ enum WatchChildrenState {
 int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
                   enum WatchChildrenState state, const char *stdinbuf) {
   int want_auth = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
-  int auth_running;
 
   // Note: want_auth is true whenever we WANT to run authentication, or it is
   // already running. It may have recently terminated, which we will notice
   // later.
   if (want_auth) {
     // Actually start the auth child, or notice termination.
+    int auth_running;
     if (WatchAuthChild(auth_win, auth_executable,
                        state == WATCH_CHILDREN_FORCE_AUTH, stdinbuf,
                        &auth_running)) {
@@ -174,13 +174,13 @@ int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
       // Now terminate the screen lock.
       return 1;
     }
-  }
 
-  // If we wanted auth, but it's not running, auth just terminated. Unmap the
-  // auth window and poke the screensaver so that it can reset any timeouts.
-  if (!auth_running && want_auth) {
-    XUnmapWindow(dpy, auth_win);
-    WatchSaverChild(dpy, saver_win, 0, saver_executable, 0);
+    // If we wanted auth, but it's not running, auth just terminated. Unmap the
+    // auth window and poke the screensaver so that it can reset any timeouts.
+    if (!auth_running) {
+      XUnmapWindow(dpy, auth_win);
+      WatchSaverChild(dpy, saver_win, 0, saver_executable, 0);
+    }
   }
 
   // Show the screen saver.
