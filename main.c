@@ -489,6 +489,17 @@ void NotifyOfLock(int xss_sleep_lock_fd) {
 int main(int argc, char **argv) {
   setlocale(LC_CTYPE, "");
 
+  // Do not try "locking" a Wayland session. Although everything we do appears
+  // to work on XWayland, our grab will only affect X11 and not Wayland
+  // clients, and therefore the lock will not be effective. If you need to get
+  // around this check for testing, just unset the WAYLAND_DISPLAY environment
+  // variable before starting XSecureLock. But really, this won't be secure in
+  // any way...
+  if (*GetStringSetting("WAYLAND_DISPLAY")) {
+    Log("Wayland detected. This is an X11 screen locker. Cannot lock.");
+    return 1;
+  }
+
   int xss_sleep_lock_fd = GetIntSetting("XSS_SLEEP_LOCK_FD", -1);
   if (xss_sleep_lock_fd != -1) {
     // Children processes should not inherit the sleep lock
