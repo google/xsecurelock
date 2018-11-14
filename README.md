@@ -18,18 +18,26 @@ The following packages need to be installed; their names depend on your Linux
 distribution of choice, but will be similar:
 
 *   apache2-utils (for the `auth_htpasswd` module)
-*   automake
+*   autotools-dev
 *   binutils
 *   gcc
 *   libc6-dev
 *   libpam-dev (for the `authproto_pam` module)
 *   libx11-dev
+*   libxcomposite-dev
+*   libxext-dev
+*   libxfixes-dev
+*   libxft-dev
+*   libxmuu-dev
+*   libxrandr-dev
 *   libxss-dev
 *   make
 *   mplayer (for the `saver_mplayer` module)
 *   mpv (for the `saver_mpv` module)
 *   pamtester (for the `authproto_pamtester` module)
+*   pkg-config
 *   x11-xserver-utils (for the `saver_blank` module)
+*   x11proto-core-dev
 *   xscreensaver (for the `saver_xscreensaver` module)
 
 # Installation
