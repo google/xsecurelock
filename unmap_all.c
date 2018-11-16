@@ -17,7 +17,6 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
   state->windows = NULL;
   state->n_windows = 0;
 
-  XClassHint cls;
   Window unused_root_return, unused_parent_return;
   XQueryTree(state->display, state->root_window, &unused_root_return,
              &unused_parent_return, &state->windows, &state->n_windows);
@@ -45,6 +44,7 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
     if (state->windows[i] == None) {
       continue;
     }
+    XClassHint cls;
     if (XGetClassHint(state->display, state->windows[i], &cls)) {
       // If any window has my window class, we better not proceed with
       // unmapping as doing so could accidentally unlock the screen or
@@ -60,11 +60,11 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
       if (!strcmp(cls.res_class, "Bspwm")) {
         state->windows[i] = None;
       }
+      XFree(cls.res_class);
+      cls.res_class = NULL;
+      XFree(cls.res_name);
+      cls.res_name = NULL;
     }
-    XFree(cls.res_class);
-    cls.res_class = NULL;
-    XFree(cls.res_name);
-    cls.res_name = NULL;
   }
   return should_proceed;
 }
