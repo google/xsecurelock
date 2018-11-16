@@ -20,6 +20,7 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
   Window unused_root_return, unused_parent_return;
   XQueryTree(state->display, state->root_window, &unused_root_return,
              &unused_parent_return, &state->windows, &state->n_windows);
+  state->first_unmapped_window = state->n_windows;  // That means none unmapped.
   unsigned int i;
   for (i = 0; i < state->n_windows; ++i) {
     XWindowAttributes xwa;
@@ -69,22 +70,37 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
   return should_proceed;
 }
 
-void UnmapAllWindows(UnmapAllWindowsState* state) {
+int UnmapAllWindows(UnmapAllWindowsState* state,
+                    int (*just_unmapped_can_we_stop)(Window w, void* arg),
+                    void* arg) {
+  if (state->first_unmapped_window == 0) {  // Already all unmapped.
+    return 0;
+  }
   unsigned int i;
-  for (i = 0; i < state->n_windows; ++i) {
+  for (i = state->first_unmapped_window - 1;; --i) {  // Top-to-bottom order!
     if (state->windows[i] != None) {
       XUnmapWindow(state->display, state->windows[i]);
+      state->first_unmapped_window = i;
+      int ret;
+      if (just_unmapped_can_we_stop != NULL &&
+          (ret = just_unmapped_can_we_stop(state->windows[i], arg))) {
+        return ret;
+      }
+    }
+    if (i == 0) {
+      return 0;
     }
   }
 }
 
 void RemapAllWindows(UnmapAllWindowsState* state) {
   unsigned int i;
-  for (i = 0; i < state->n_windows; ++i) {
+  for (i = state->first_unmapped_window; i < state->n_windows; ++i) {
     if (state->windows[i] != None) {
       XMapWindow(state->display, state->windows[i]);
     }
   }
+  state->first_unmapped_window = state->n_windows;
 }
 
 void ClearUnmapAllWindowsState(UnmapAllWindowsState* state) {
@@ -93,4 +109,5 @@ void ClearUnmapAllWindowsState(UnmapAllWindowsState* state) {
   XFree(state->windows);
   state->windows = NULL;
   state->n_windows = 0;
+  state->first_unmapped_window = 0;
 }

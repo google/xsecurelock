@@ -113,6 +113,8 @@ int composite_obscurer = 0;
 int have_switch_user_command = 0;
 //! If set, we try to force grabbing by "evil" means.
 int force_grab = 0;
+//! If set, print window info about any "conflicting" windows to stderr.
+int debug_window_info = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
@@ -279,6 +281,7 @@ void load_defaults() {
   have_switch_user_command =
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
   force_grab = GetIntSetting("XSECURELOCK_FORCE_GRAB", 0);
+  debug_window_info = GetIntSetting("XSECURELOCK_DEBUG_WINDOW_INFO", 0);
 }
 
 /*! \brief Parse the command line arguments, or exit in case of failure.
@@ -351,6 +354,29 @@ int check_settings() {
   return 1;
 }
 
+/*! \brief Print some debug info about a window.
+ *
+ * Only enabled if debug_window_info is set.
+ *
+ * Spammy.
+ */
+void DebugDumpWindowInfo(Window w) {
+  if (!debug_window_info) {
+    return;
+  }
+  char buf[128];
+  // Note: process has to be backgrounded (&) because we may be within
+  // XGrabServer.
+  int buflen =
+      snprintf(buf, sizeof(buf),
+               "{ xwininfo -all -id %lu; xprop -id %lu; } >&2 &", w, w);
+  if (buflen >= 0 && (size_t)buflen >= sizeof(buf)) {
+    Log("Wow, pretty large integers you got there");
+    return;
+  }
+  system(buf);
+}
+
 /*! \brief Raise a window if necessary.
  *
  * Does not cause any events if the window is already on the top.
@@ -378,17 +404,8 @@ void MaybeRaiseWindow(Display *display, Window w, int force) {
     // Need to bring myself to the top first.
     Log("MaybeRaiseWindow hit: window %lu was above my window %lu",
         siblings[nsiblings - 1], w);
+    DebugDumpWindowInfo(siblings[nsiblings - 1]);
     XRaiseWindow(display, w);
-    /*
-    char buf[80];
-    snprintf(buf, sizeof(buf), "xwininfo -all -id %lu",
-             siblings[nsiblings - 1]);
-    buf[sizeof(buf) - 1] = 0;
-    system(buf);
-    snprintf(buf, sizeof(buf), "xwininfo -all -id %lu", w);
-    buf[sizeof(buf) - 1] = 0;
-    system(buf);
-    */
   } else if (force) {
     // When forcing, do it anyway.
     Log("MaybeRaiseWindow miss: something obscured my window %lu but I can't "
@@ -397,6 +414,41 @@ void MaybeRaiseWindow(Display *display, Window w, int force) {
     XRaiseWindow(display, w);
   }
   XFree(siblings);
+}
+
+typedef struct {
+  Display *display;
+  Window root_window;
+  Cursor cursor;
+  int silent;
+} AcquireGrabsState;
+
+int TryAcquireGrabs(Window w, void *state_voidp) {
+  AcquireGrabsState *state = state_voidp;
+  int ok = 1;
+  if (XGrabPointer(state->display, state->root_window, False,
+                   ALL_POINTER_EVENTS, GrabModeAsync, GrabModeAsync, None,
+                   state->cursor, CurrentTime) != GrabSuccess) {
+    if (!state->silent) {
+      Log("Critical: cannot grab pointer");
+    }
+    ok = 0;
+  }
+  if (XGrabKeyboard(state->display, state->root_window, False, GrabModeAsync,
+                    GrabModeAsync, CurrentTime) != GrabSuccess) {
+    if (!state->silent) {
+      Log("Critical: cannot grab keyboard");
+    }
+    ok = 0;
+  }
+  if (w != None) {
+    Log("Unmapped window %lu to force grabbing, which %s", w,
+        ok ? "succeeded" : "didn't help");
+    if (ok) {
+      DebugDumpWindowInfo(w);
+    }
+  }
+  return ok;
 }
 
 /*! \brief Acquire all necessary grabs to lock the screen.
@@ -425,25 +477,17 @@ int AcquireGrabs(Display *display, Window root_window, Window *ignored_windows,
       force = 0;
     }
   }
+  AcquireGrabsState grab_state;
+  grab_state.display = display;
+  grab_state.root_window = root_window;
+  grab_state.cursor = cursor;
+  grab_state.silent = silent;
+  int ok;
   if (force) {
     Log("Trying to force grabbing by unmapping all windows. BAD HACK");
-    UnmapAllWindows(&unmap_state);
-  }
-  int ok = 1;
-  if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
-                   GrabModeAsync, GrabModeAsync, None, cursor,
-                   CurrentTime) != GrabSuccess) {
-    if (!silent) {
-      Log("Critical: cannot grab pointer");
-    }
-    ok = 0;
-  }
-  if (XGrabKeyboard(display, root_window, False, GrabModeAsync, GrabModeAsync,
-                    CurrentTime) != GrabSuccess) {
-    if (!silent) {
-      Log("Critical: cannot grab keyboard");
-    }
-    ok = 0;
+    ok = UnmapAllWindows(&unmap_state, TryAcquireGrabs, &grab_state);
+  } else {
+    ok = TryAcquireGrabs(None, &grab_state);
   }
   if (force) {
     RemapAllWindows(&unmap_state);
@@ -979,8 +1023,8 @@ int main(int argc, char **argv) {
               XRaiseWindow(display, composite_window);
 #endif
             } else {
-              Log("Received unexpected VisibilityNotify for window %d",
-                  (int)priv.ev.xvisibility.window);
+              Log("Received unexpected VisibilityNotify for window %lu",
+                  priv.ev.xvisibility.window);
             }
           }
           break;

@@ -16,7 +16,7 @@ int main(int argc, char **unused_argv) {
   // toplevel windows.
   InitUnmapAllWindowsState(&state, display, DefaultRootWindow(display), NULL, 0,
                            NULL, NULL, argc > 1);
-  UnmapAllWindows(&state);
+  UnmapAllWindows(&state, NULL, NULL);
   RemapAllWindows(&state);
   XUngrabServer(display);
   ClearUnmapAllWindowsState(&state);

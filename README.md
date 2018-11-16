@@ -235,6 +235,9 @@ Options to XSecureLock can be passed by environment variables:
     by default.
 *   `XSECURELOCK_DATETIME_FORMAT`: the date format to show. Defaults to the
     locale settings.
+*   `XSECURELOCK_DEBUG_WINDOW_INFO`: When complaining about another window
+    misbehaving, print not just the window ID but also some info about it. Uses
+    the `xwininfo` and `xprop` tools.
 *   `XSECURELOCK_DIM_ALPHA`: Linear-space opacity to fade the screen to.
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming
