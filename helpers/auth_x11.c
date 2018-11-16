@@ -161,25 +161,27 @@ void SwitchKeyboardLayout(void) {
 
   XkbDescPtr xkb;
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
-  if (XkbGetControls(display, XkbUseCoreKbd, xkb) != Success) {
+  if (XkbGetControls(display, 0, xkb) != Success) {
     Log("XkbGetControls failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return;
   }
   if (xkb->ctrls->num_groups < 1) {
     Log("XkbGetControls returned less than 1 group");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return;
   }
   XkbStateRec state;
   if (XkbGetState(display, XkbUseCoreKbd, &state) != Success) {
     Log("XkbGetState failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return;
   }
 
   XkbLockGroup(display, XkbUseCoreKbd,
                (state.group + 1) % xkb->ctrls->num_groups);
+
+  XkbFreeKeyboard(xkb, 0, True);
 #endif
 }
 
@@ -205,26 +207,27 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
   if (XkbGetControls(display, XkbUseCoreKbd, xkb) != Success) {
     Log("XkbGetControls failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
-  if (XkbGetNames(display, XkbIndicatorNamesMask | XkbGroupNamesMask |
-                               XkbSymbolsNameMask,
-                  xkb) != Success) {
+  if (XkbGetNames(
+          display,
+          XkbIndicatorNamesMask | XkbGroupNamesMask | XkbSymbolsNameMask,
+          xkb) != Success) {
     Log("XkbGetNames failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
   XkbStateRec state;
   if (XkbGetState(display, XkbUseCoreKbd, &state) != Success) {
     Log("XkbGetState failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
   unsigned int istate;
   if (XkbGetIndicatorState(display, XkbUseCoreKbd, &istate) != Success) {
     Log("XkbGetIndicatorState failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
 
@@ -247,6 +250,7 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
   size_t n = strlen(word);
   if (n >= sizeof(buf) - (p - buf)) {
     Log("Not enough space to store intro '%s'", word);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
   memcpy(p, word, n);
@@ -258,20 +262,23 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
     layouta = xkb->names->symbols;  // Machine-readable fallback.
   }
   if (layouta != None) {
-    const char *layout = XGetAtomName(display, layouta);
+    char *layout = XGetAtomName(display, layouta);
     n = strlen(layout);
     if (n >= sizeof(buf) - (p - buf)) {
       Log("Not enough space to store layout name '%s'", layout);
+      XFree(layout);
+      XkbFreeKeyboard(xkb, 0, True);
       return "";
     }
     memcpy(p, layout, n);
+    XFree(layout);
     p += n;
     have_output = 1;
   }
 
   int i;
   for (i = 0; i < XkbNumIndicators; i++) {
-    if (!(istate & (1 << i))) {
+    if (!(istate & (1U << i))) {
       continue;
     }
     Atom namea = xkb->names->indicators[i];
@@ -286,17 +293,20 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
       memcpy(p, ", ", 2);
       p += 2;
     }
-    const char *name = XGetAtomName(display, namea);
+    char *name = XGetAtomName(display, namea);
     size_t n = strlen(name);
     if (n >= sizeof(buf) - (p - buf)) {
       Log("Not enough space to store modifier name '%s'", name);
+      XFree(name);
       break;
     }
     memcpy(p, name, n);
+    XFree(name);
     p += n;
     have_output = 1;
   }
   *p = 0;
+  XkbFreeKeyboard(xkb, 0, True);
   return have_output ? buf : "";
 #else
   *warning = *warning;                              // Shut up clang-analyzer.
@@ -1133,7 +1143,7 @@ int main() {
   }
   if (!have_font) {
     Log("Could not load a mind-bogglingly stupid font");
-    exit(1);
+    return 1;
   }
 
   XGCValues gcattrs;
@@ -1143,14 +1153,15 @@ int main() {
   if (core_font != NULL) {
     gcattrs.font = core_font->fid;
   }
-  gc = XCreateGC(display, window, GCFunction | GCForeground | GCBackground |
-                                      (core_font != NULL ? GCFont : 0),
+  gc = XCreateGC(display, window,
+                 GCFunction | GCForeground | GCBackground |
+                     (core_font != NULL ? GCFont : 0),
                  &gcattrs);
   gcattrs.foreground = Warning;
-  gc_warning =
-      XCreateGC(display, window, GCFunction | GCForeground | GCBackground |
-                                     (core_font != NULL ? GCFont : 0),
-                &gcattrs);
+  gc_warning = XCreateGC(display, window,
+                         GCFunction | GCForeground | GCBackground |
+                             (core_font != NULL ? GCFont : 0),
+                         &gcattrs);
 
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
@@ -1189,6 +1200,19 @@ int main() {
 
   // Clear any possible processing message.
   display_string("", "");
+
+#ifdef HAVE_XFT_EXT
+  if (xft_font != NULL) {
+    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
+                 DefaultColormap(display, DefaultScreen(display)),
+                 &xft_color_warning);
+    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
+                 DefaultColormap(display, DefaultScreen(display)),
+                 &xft_color);
+    XftDrawDestroy(xft_draw);
+    XftFontClose(display, xft_font);
+  }
+#endif
 
   return status;
 }
