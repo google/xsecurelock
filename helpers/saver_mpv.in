@@ -14,13 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-video=`find ~/Videos -type f | sort -R | head -n 1`
-@path_to_mpv@ \
+find ~/Videos/ -mindepth 1 -maxdepth 1 -follow -type f | @path_to_mpv@ \
   --no-input-terminal \
   --really-quiet \
   --no-stop-screensaver \
   --wid="${XSCREENSAVER_WINDOW}" \
+  --shuffle \
+  --loop-playlist=inf \
   --no-audio \
-  -- \
-  "$video" &
+  --shuffle \
+  --loop-playlist=inf \
+  --playlist=- \
+  -- &
 exec ./saver_blank
