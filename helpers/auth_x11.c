@@ -161,7 +161,7 @@ void SwitchKeyboardLayout(void) {
 
   XkbDescPtr xkb;
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
-  if (XkbGetControls(display, 0, xkb) != Success) {
+  if (XkbGetControls(display, XkbGroupsWrapMask, xkb) != Success) {
     Log("XkbGetControls failed");
     XkbFreeKeyboard(xkb, 0, True);
     return;
@@ -205,7 +205,7 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
 
   XkbDescPtr xkb;
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
-  if (XkbGetControls(display, XkbUseCoreKbd, xkb) != Success) {
+  if (XkbGetControls(display, XkbGroupsWrapMask, xkb) != Success) {
     Log("XkbGetControls failed");
     XkbFreeKeyboard(xkb, 0, True);
     return "";
