@@ -777,7 +777,7 @@ int main(int argc, char **argv) {
       // Note: we draw XIM stuff in auth_window so it's above the saver/auth
       // child. However, we receive events for the grab window.
       xic = XCreateIC(xim, XNInputStyle, input_styles[i], XNClientWindow,
-                      auth_window, XNFocusWindow, background_window, NULL);
+                      auth_window, NULL);
       if (xic != NULL) {
         break;
       }
