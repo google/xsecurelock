@@ -344,7 +344,7 @@ int main(int argc, char **argv) {
   // Wait a bit at the end (to hand over to the screen locker without
   // flickering).
   sleep_ts.tv_sec = wait_time_ms / 1000;
-  sleep_ts.tv_nsec = (sleep_time_ns % 1000) * 1000000L;
+  sleep_ts.tv_nsec = (wait_time_ms % 1000) * 1000000L;
   nanosleep(&sleep_ts, NULL);
 
   return 0;
