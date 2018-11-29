@@ -206,7 +206,12 @@ wait in dimmed state before locking.
 
 Options to XSecureLock can be passed by environment variables:
 
-*   `XSECURELOCK_AUTH`: specifies the desired authentication module.
+<!-- ENV VARIABLES START -->
+
+*   `XSECURELOCK_AUTH`: specifies the desired authentication module (the part
+    that displays the authentication prompt).
+*   `XSECURELOCK_AUTHPROTO`: specifies the desired authentication protocol
+    module (the part that talks to the system).
 *   `XSECURELOCK_AUTH_TIMEOUT`: specifies the time (in seconds) to wait for
     response to a prompt by `auth_x11` before giving up and reverting to
     the screen saver.
@@ -242,6 +247,9 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming
     effect of `dimmer`. Usually shouldn't need touching.
+*   `XSECURELOCK_DIM_OVERRIDE_COMPOSITOR_DETECTION`: When set to 1, always try
+    to use transparency for dimming; when set to 0, always use a dither
+    pattern. Default is to autodetect whether transparency will likely work.
 *   `XSECURELOCK_DIM_TIME_MS`: Milliseconds to dim for when above xss-lock
     command line with `dimmer` is used; also used by `wait_nonidle` to know when
     to assume dimming and waiting has finished and exit.
@@ -291,6 +299,10 @@ Options to XSecureLock can be passed by environment variables:
     locking) when above xss-lock command line is used. Should be at least as
     large as the period time set using "xset s". Also used by `wait_nonidle` to
     know when to assume dimming and waiting has finished and exit.
+*   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
+    installed for use by `saver_xscreensaver`.
+
+<!-- ENV VARIABLES END -->
 
 Additionally, command line arguments following a "--" argument will be executed
 via `execvp` once locking is successful; this can be used to notify a calling
