@@ -194,7 +194,7 @@ env_helpstr.inc: README.md # Autogenerate for --help.
 		grep -B 9999 'ENV VARIABLES END' |\
 		grep '^[ *]' |\
 		sed -e 's,\\\|",\\&,g; s,$$,\\n",; s,^,",;' > "$@"
-main.$(OBJEXT): env_helpstr.inc
+xsecurelock-main.$(OBJEXT): env_helpstr.inc
 
 EXTRA_DIST = \
 	CONTRIBUTING \
