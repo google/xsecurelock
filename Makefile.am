@@ -194,6 +194,7 @@ env_helpstr.inc: README.md # Autogenerate for --help.
 		grep -B 9999 'ENV VARIABLES END' |\
 		grep '^[ *]' |\
 		sed -e 's,\\\|",\\&,g; s,$$,\\n",; s,^,",;' > "$@"
+main.$(OBJEXT): env_helpstr.inc
 
 EXTRA_DIST = \
 	CONTRIBUTING \
@@ -204,8 +205,6 @@ EXTRA_DIST = \
 	run-linters.sh \
 	test \
 	version.c
-
-BUILT_SOURCES = env_helpstr.inc version.c
 
 if HAVE_DOXYGEN
 doxyfile.stamp:
