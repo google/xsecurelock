@@ -13,6 +13,7 @@
 /config.status
 /configure
 /depcomp
+/env_helpstr.inc
 /helpers/authproto_htpasswd
 /helpers/authproto_pamtester
 /helpers/saver_mplayer

@@ -239,24 +239,17 @@ void usage(const char *me) {
       "Usage:\n"
       "  env [variables...] %s [-- command to run when locked]\n"
       "\n"
-      "Environment variables:\n"
-      "  XSECURELOCK_AUTH=<auth module>\n"
-      "  XSECURELOCK_FONT=<x11 font name>\n"
-#ifdef HAVE_XCOMPOSITE_EXT
-      "  XSECURELOCK_NO_COMPOSITE=<0|1>\n"
-      "  XSECURELOCK_COMPOSITE_OBSCURER=<0|1>\n"
-#endif
-      "  XSECURELOCK_PAM_SERVICE=<PAM service name>\n"
-      "  XSECURELOCK_SAVER=<saver module>\n"
-      "  XSECURELOCK_WANT_FIRST_KEYPRESS=<0|1>\n"
+      "Environment variables you may set for XSecureLock and its modules:\n"
       "\n"
-      "Default auth module: " AUTH_EXECUTABLE
+#     include "env_helpstr.inc"
       "\n"
-      "Default authproto module: " AUTHPROTO_EXECUTABLE
+      "Configured default auth module: " AUTH_EXECUTABLE
       "\n"
-      "Default global saver module: " GLOBAL_SAVER_EXECUTABLE
+      "Configured default authproto module: " AUTHPROTO_EXECUTABLE
       "\n"
-      "Default per-screen saver module: " SAVER_EXECUTABLE
+      "Configured default global saver module: " GLOBAL_SAVER_EXECUTABLE
+      "\n"
+      "Configured default per-screen saver module: " SAVER_EXECUTABLE
       "\n"
       "\n"
       "This software is licensed under the Apache 2.0 License. Details are\n"

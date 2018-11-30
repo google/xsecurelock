@@ -65,6 +65,8 @@ xsecurelock_SOURCES = \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
+nodist_xsecurelock_SOURCES = \
+	env_helpstr.inc
 xsecurelock_CPPFLAGS = $(macros)
 
 helpersdir = $(pkglibexecdir)
@@ -187,6 +189,12 @@ version.c: FORCE
 	fi
 .PRECIOUS: version.c  # Old one is better than none.
 
+env_helpstr.inc: README.md # Autogenerate for --help.
+	grep -A 9999 'ENV VARIABLES START' "$<" |\
+		grep -B 9999 'ENV VARIABLES END' |\
+		grep '^[ *]' |\
+		sed -e 's,\\\|",\\&,g; s,$$,\\n",; s,^,",;' > "$@"
+
 EXTRA_DIST = \
 	CONTRIBUTING \
 	LICENSE \
@@ -196,6 +204,8 @@ EXTRA_DIST = \
 	run-linters.sh \
 	test \
 	version.c
+
+BUILT_SOURCES = env_helpstr.inc version.c
 
 if HAVE_DOXYGEN
 doxyfile.stamp:
