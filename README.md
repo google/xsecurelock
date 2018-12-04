@@ -117,6 +117,10 @@ env XSECURELOCK_FONT=`xlsfonts | grep '\<iso10646-1\>' | shuf | head -n 1` xsecu
 
 Just kidding about the last one :)
 
+IMPORTANT: Make sure your desktop environment does not launch any other locker,
+be it via autostart file or its own configuration, as multiple screen lockers
+may interfere with each other. You have been warned!
+
 # Automatic Locking
 
 To automatically lock the screen after some time of inactivity, use
