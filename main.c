@@ -241,7 +241,7 @@ void usage(const char *me) {
       "\n"
       "Environment variables you may set for XSecureLock and its modules:\n"
       "\n"
-#     include "env_helpstr.inc"
+#include "env_helpstr.inc"
       "\n"
       "Configured default auth module: " AUTH_EXECUTABLE
       "\n"
@@ -456,37 +456,32 @@ int TryAcquireGrabs(Window w, void *state_voidp) {
 int AcquireGrabs(Display *display, Window root_window, Window *ignored_windows,
                  unsigned int n_ignored_windows, Cursor cursor, int silent,
                  int force) {
-  UnmapAllWindowsState unmap_state;
-  if (force) {
-    // Enter critical section.
-    XGrabServer(display);
-    // Unmap all.
-    if (!InitUnmapAllWindowsState(&unmap_state, display, root_window,
-                                  ignored_windows, n_ignored_windows,
-                                  "xsecurelock", NULL, force > 1)) {
-      Log("Found XSecureLock to be already running, not forcing");
-      ClearUnmapAllWindowsState(&unmap_state);
-      XUngrabServer(display);
-      force = 0;
-    }
-  }
   AcquireGrabsState grab_state;
   grab_state.display = display;
   grab_state.root_window = root_window;
   grab_state.cursor = cursor;
   grab_state.silent = silent;
+
+  if (!force) {
+    // Easy case.
+    return TryAcquireGrabs(None, &grab_state);
+  }
+
+  XGrabServer(display);  // Critical section.
+  UnmapAllWindowsState unmap_state;
   int ok;
-  if (force) {
+  if (InitUnmapAllWindowsState(&unmap_state, display, root_window,
+                               ignored_windows, n_ignored_windows,
+                               "xsecurelock", NULL, force > 1)) {
     Log("Trying to force grabbing by unmapping all windows. BAD HACK");
     ok = UnmapAllWindows(&unmap_state, TryAcquireGrabs, &grab_state);
+    RemapAllWindows(&unmap_state);
   } else {
+    Log("Found XSecureLock to be already running, not forcing");
     ok = TryAcquireGrabs(None, &grab_state);
   }
-  if (force) {
-    RemapAllWindows(&unmap_state);
-    ClearUnmapAllWindowsState(&unmap_state);
-    XUngrabServer(display);
-  }
+  ClearUnmapAllWindowsState(&unmap_state);
+  XUngrabServer(display);
   return ok;
 }
 
