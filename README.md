@@ -286,7 +286,7 @@ Options to XSecureLock can be passed by environment variables:
     length.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 *   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
-    login. Enabled by default.
+    login. Disabled by default.
 *   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
     screen of `auth_x11`. Possible values are 0 for not showing the
     hostname, 1 for showing the short form, and 2 for showing the long form.
