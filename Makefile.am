@@ -179,7 +179,10 @@ remap_all_CPPFLAGS = $(macros)
 
 FORCE:
 version.c: FORCE
-	if git describe --always --dirty >/dev/null 2>&1; then \
+	if [ -n "$(GIT_VERSION)" ]; then \
+		echo "const char *const git_version = \"$(GIT_VERSION)\";" \
+			> version.c; \
+	elif git describe --always --dirty >/dev/null 2>&1; then \
 		echo "const char *const git_version = \"` \
 			git describe --always --dirty \
 		`\";" > version.c; \
