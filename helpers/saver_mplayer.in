@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-video=`find ~/Videos -type f | sort -R | head -n 1`
+: ${XSECURELOCK_LIST_VIDEOS_COMMAND:=find ~/Videos -type f}
+
+sh -c "$XSECURELOCK_LIST_VIDEOS_COMMAND" | shuf | head -n 256 |\
 @path_to_mplayer@ \
   -noconsolecontrols \
   -really-quiet \
@@ -23,6 +25,6 @@ video=`find ~/Videos -type f | sort -R | head -n 1`
   -wid "${XSCREENSAVER_WINDOW}" \
   -fixed-vo \
   -nosound \
-  -- \
-  "$video" &
+  -shuffle \
+  -playlist - &
 exec ./saver_blank

@@ -274,6 +274,9 @@ Options to XSecureLock can be passed by environment variables:
     XInput device index (run `xinput` to see them). If multiple time counters
     are specified, the idle time is the minimum of them all. All listed timers
     must have the same unit.
+*   `XSECURELOCK_LIST_VIDEOS_COMMAND`: shell command to list all video files to
+    potentially play by `saver_mpv` or `saver_mplayer`. Defaults to
+    `find ~/Videos -type f`.
 *   `XSECURELOCK_NO_COMPOSITE`: disables covering the composite overlay window.
     This switches to a more traditional way of locking, but may allow desktop
     notifications to be visible on top of the screen lock. Not recommended.
