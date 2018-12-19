@@ -145,11 +145,72 @@ static int burnin_mitigation_max_offset = 0;
 //! How much the offsets are allowed to change dynamically, and if so, how high.
 static int burnin_mitigation_max_offset_change = 0;
 
+//! Whether to play sounds during authentication.
+static int auth_sounds = 0;
+
 #define MAX_MONITORS 16
 static int num_monitors;
 static Monitor monitors[MAX_MONITORS];
 
 int have_xkb_ext;
+
+enum Sound { SOUND_PROMPT, SOUND_INFO, SOUND_ERROR, SOUND_SUCCESS };
+
+#define NOTE_C3 131
+#define NOTE_FS3 185
+#define NOTE_G3 196
+#define NOTE_C4 261
+#define NOTE_G4 392
+#define NOTE_C5 523
+int sounds[][2] = {
+    /* SOUND_PROMPT=  */ {NOTE_G3, NOTE_C4},
+    /* SOUND_INFO=    */ {NOTE_C4, NOTE_C4},
+    /* SOUND_ERROR=   */ {NOTE_FS3, NOTE_C3},
+    /* SOUND_SUCCESS= */ {NOTE_G4, NOTE_C5},
+};
+#define SOUND_SLEEP_MS 125
+#define SOUND_TONE_MS 100
+
+/*! \brief Play a sound sequence.
+ */
+void PlaySound(Display *display, enum Sound snd) {
+  XKeyboardState state;
+  XKeyboardControl control;
+  struct timespec sleeptime;
+
+  if (!auth_sounds) {
+    return;
+  }
+
+  XGetKeyboardControl(display, &state);
+
+  // bell_percent changes note length on Linux, so let's use the middle value
+  // to get a 1:1 mapping.
+  control.bell_percent = 50;
+  control.bell_duration = SOUND_TONE_MS;
+  control.bell_pitch = sounds[snd][0];
+  XChangeKeyboardControl(display, KBBellPercent | KBBellDuration | KBBellPitch,
+                         &control);
+  XBell(display, 0);
+
+  XFlush(display);
+
+  sleeptime.tv_sec = SOUND_SLEEP_MS / 1000;
+  sleeptime.tv_nsec = 1000000L * (SOUND_SLEEP_MS % 1000);
+  nanosleep(&sleeptime, NULL);
+
+  control.bell_pitch = sounds[snd][1];
+  XChangeKeyboardControl(display, KBBellPitch, &control);
+  XBell(display, 0);
+
+  control.bell_percent = state.bell_percent;
+  control.bell_duration = state.bell_duration;
+  control.bell_pitch = state.bell_pitch;
+  XChangeKeyboardControl(display, KBBellPercent | KBBellDuration | KBBellPitch,
+                         &control);
+
+  XFlush(display);
+}
 
 /*! \brief Switch to the next keyboard layout.
  */
@@ -702,6 +763,7 @@ int prompt(const char *msg, char **response, int echo) {
   // variable.
   int status = 0;
   int done = 0;
+  int played_sound = 0;
 
   while (!done) {
     if (echo) {
@@ -740,6 +802,11 @@ int prompt(const char *msg, char **response, int echo) {
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
     display_string(msg, priv.displaybuf);
+
+    if (!played_sound) {
+      PlaySound(display, SOUND_PROMPT);
+      played_sound = 1;
+    }
 
     // Blink the cursor.
     blink_state = !blink_state;
@@ -984,11 +1051,13 @@ int authenticate() {
       case PTYPE_INFO_MESSAGE:
         display_string("PAM says", message);
         free(message);
+        PlaySound(display, SOUND_INFO);
         wait_for_keypress(1);
         break;
       case PTYPE_ERROR_MESSAGE:
         display_string("Error", message);
         free(message);
+        PlaySound(display, SOUND_ERROR);
         wait_for_keypress(1);
         break;
       case PTYPE_PROMPT_LIKE_USERNAME:
@@ -1026,6 +1095,9 @@ done:
   if (!WaitPgrp("authproto", childpid, 1, 0, &status)) {
     Log("WaitPgrp returned false but we were blocking");
     abort();
+  }
+  if (status == 0) {
+    PlaySound(display, SOUND_SUCCESS);
   }
   return status != 0;
 }
@@ -1072,6 +1144,7 @@ int main() {
   datetime_format = GetStringSetting("XSECURELOCK_DATETIME_FORMAT", "%c");
   have_switch_user_command =
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
+  auth_sounds = GetIntSetting("XSECURELOCK_AUTH_SOUNDS", 0);
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     Log("Could not connect to $DISPLAY");
