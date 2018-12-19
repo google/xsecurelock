@@ -218,10 +218,10 @@ Options to XSecureLock can be passed by environment variables:
     module (the part that talks to the system).
 *   `XSECURELOCK_AUTH_SOUNDS`: specifies whether to play sounds during
     authentication to indicate status. Sounds are defined as follows:
-    *   Medium-pitch ascending: prompt for user input.
-    *   Medium-pitch constant: an info message was displayed.
+    *   High-pitch ascending: prompt for user input.
+    *   High-pitch constant: an info message was displayed.
     *   Low-pitch descending: an error message was displayed.
-    *   High-pitch ascending: authentication successful.
+    *   Medium-pitch ascending: authentication successful.
 *   `XSECURELOCK_AUTH_TIMEOUT`: specifies the time (in seconds) to wait for
     response to a prompt by `auth_x11` before giving up and reverting to
     the screen saver.
