@@ -210,6 +210,8 @@ void PlaySound(Display *display, enum Sound snd) {
                          &control);
 
   XFlush(display);
+
+  nanosleep(&sleeptime, NULL);
 }
 
 /*! \brief Switch to the next keyboard layout.
