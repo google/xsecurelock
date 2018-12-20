@@ -156,8 +156,8 @@ int have_xkb_ext;
 
 enum Sound { SOUND_PROMPT, SOUND_INFO, SOUND_ERROR, SOUND_SUCCESS };
 
-#define NOTE_E3 165
-#define NOTE_BF3 233
+#define NOTE_DS3 156
+#define NOTE_A3 220
 #define NOTE_DS4 311
 #define NOTE_E4 330
 #define NOTE_B4 494
@@ -165,7 +165,7 @@ enum Sound { SOUND_PROMPT, SOUND_INFO, SOUND_ERROR, SOUND_SUCCESS };
 int sounds[][2] = {
     /* SOUND_PROMPT=  */ {NOTE_B4, NOTE_E5},
     /* SOUND_INFO=    */ {NOTE_E5, NOTE_E5},
-    /* SOUND_ERROR=   */ {NOTE_BF3, NOTE_E3},
+    /* SOUND_ERROR=   */ {NOTE_A3, NOTE_DS3},
     /* SOUND_SUCCESS= */ {NOTE_DS4, NOTE_E4},
 };
 #define SOUND_SLEEP_MS 125
