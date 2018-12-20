@@ -163,10 +163,10 @@ enum Sound { SOUND_PROMPT, SOUND_INFO, SOUND_ERROR, SOUND_SUCCESS };
 #define NOTE_B4 494
 #define NOTE_E5 659
 int sounds[][2] = {
-    /* SOUND_PROMPT=  */ {NOTE_B4, NOTE_E5},   // D|T T
-    /* SOUND_INFO=    */ {NOTE_E5, NOTE_E5},   // T 2x
-    /* SOUND_ERROR=   */ {NOTE_A3, NOTE_DS3},  // D7 2x
-    /* SOUND_SUCCESS= */ {NOTE_DS4, NOTE_E4},  // D T
+    /* SOUND_PROMPT=  */ {NOTE_B4, NOTE_E5},   // V|I I
+    /* SOUND_INFO=    */ {NOTE_E5, NOTE_E5},   // I 2x
+    /* SOUND_ERROR=   */ {NOTE_A3, NOTE_DS3},  // V7 2x
+    /* SOUND_SUCCESS= */ {NOTE_DS4, NOTE_E4},  // V I
 };
 #define SOUND_SLEEP_MS 125
 #define SOUND_TONE_MS 100
