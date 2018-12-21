@@ -17,12 +17,14 @@ limitations under the License.
 #ifndef WAIT_PGRP_H
 #define WAIT_PGRP_H
 
-#include <limits.h>    // for INT_MIN
-#include <unistd.h>    // for pid_t
+#include <limits.h>  // for INT_MIN
+#include <unistd.h>  // for pid_t
 
 #define WAIT_ALREADY_DEAD INT_MIN
+#define WAIT_NONPOSITIVE_SIGNAL (INT_MIN + 1)
 
 int KillPgrp(pid_t pid);
-int WaitPgrp(const char *name, pid_t pid, int do_block, int already_killed, int *exit_status);
+int WaitPgrp(const char *name, pid_t pid, int do_block, int already_killed,
+             int *exit_status);
 
 #endif

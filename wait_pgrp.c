@@ -59,7 +59,7 @@ int WaitPgrp(const char *name, pid_t pid, int do_block, int already_killed,
         int signo = WTERMSIG(status);
         if (!already_killed || signo != SIGTERM) {
           Log("%s child killed by signal %d", name, signo);
-          *exit_status = -signo;
+          *exit_status = (signo > 0) ? -signo : WAIT_NONPOSITIVE_SIGNAL;
           return 1;
         }
       }
