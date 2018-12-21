@@ -16,16 +16,13 @@ limitations under the License.
 
 #include "auth_child.h"
 
-#include <errno.h>     // for ECHILD, EINTR, errno
-#include <signal.h>    // for kill, SIGTERM
-#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <string.h>    // for strlen
-#include <sys/wait.h>  // for WIFEXITED, WIFSIGNALED, waitpid, WEXIT...
-#include <unistd.h>    // for close, pid_t, ssize_t, dup2, execl, fork
+#include <stdlib.h>  // for NULL, EXIT_FAILURE
+#include <string.h>  // for strlen
+#include <unistd.h>  // for close, _exit, dup2, execl, fork, pipe
 
 #include "env_settings.h"      // for GetIntSetting
 #include "logging.h"           // for LogErrno, Log
-#include "wait_pgrp.h"         // for WaitPgrp
+#include "wait_pgrp.h"         // for KillPgrp, WaitPgrp
 #include "xscreensaver_api.h"  // for ExportWindowID
 
 //! The PID of a currently running saver child, or 0 if none is running.
@@ -110,7 +107,7 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
 
       // Handle success; this will exit the screen lock.
       if (status == 0) {
-        *auth_running = 0 ;
+        *auth_running = 0;
         return 1;
       }
 

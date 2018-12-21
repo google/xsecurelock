@@ -16,14 +16,13 @@ limitations under the License.
 
 #include "wait_pgrp.h"
 
-#include <errno.h>     // for ECHILD, EINTR, errno
+#include <errno.h>     // for errno, ECHILD, EINTR, ESRCH
 #include <signal.h>    // for kill, SIGTERM
-#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <string.h>    // for strlen
-#include <sys/wait.h>  // for WIFEXITED, WIFSIGNALED, waitpid, WEXIT...
-#include <unistd.h>    // for close, pid_t, ssize_t, dup2, execl, fork
+#include <stdlib.h>    // for EXIT_SUCCESS, WEXITSTATUS, WIFEXITED, WIFSIGNALED
+#include <sys/wait.h>  // for waitpid, WNOHANG
+#include <unistd.h>    // for pid_t
 
-#include "logging.h"  // for LogErrno, Log
+#include "logging.h"  // for Log, LogErrno
 
 int KillPgrp(pid_t pid) {
   int ret = kill(-pid, SIGTERM);

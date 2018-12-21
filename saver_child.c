@@ -16,14 +16,12 @@ limitations under the License.
 
 #include "saver_child.h"
 
-#include <errno.h>     // for ECHILD, EINTR, errno
-#include <signal.h>    // for kill, SIGTERM, sigemptyset, sigprocmask
-#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <sys/wait.h>  // for WEXITSTATUS, WIFEXITED, WIFSIGNALED
-#include <unistd.h>    // for pid_t, execl, fork, setsid
+#include <signal.h>  // for sigemptyset, sigprocmask, SIG_SETMASK
+#include <stdlib.h>  // for NULL, EXIT_FAILURE
+#include <unistd.h>  // for pid_t, _exit, execl, fork, setsid, sleep
 
-#include "logging.h"           // for Log, LogErrno
-#include "wait_pgrp.h"         // for WaitPgrp
+#include "logging.h"           // for LogErrno, Log
+#include "wait_pgrp.h"         // for KillPgrp, WaitPgrp
 #include "xscreensaver_api.h"  // for ExportWindowID
 
 //! The PIDs of currently running saver children, or 0 if not running.

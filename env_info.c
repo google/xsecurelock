@@ -1,9 +1,9 @@
 #include "env_info.h"
 
-#include <stdlib.h>               // for rand, free, mblen, size_t, exit
 #include <pwd.h>     // for getpwuid_r, passwd
-#include <unistd.h>  // for gethostname, getuid, read, sysconf
+#include <stdlib.h>  // for rand, free, mblen, size_t, exit
 #include <string.h>
+#include <unistd.h>  // for gethostname, getuid, read, sysconf
 
 #include "logging.h"
 

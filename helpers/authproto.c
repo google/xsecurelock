@@ -17,8 +17,8 @@ limitations under the License.
 #include "authproto.h"
 
 #include <errno.h>   // for errno
-#include <stdlib.h>  // for malloc, size_t
 #include <stdio.h>   // for snprintf
+#include <stdlib.h>  // for malloc, size_t
 #include <string.h>  // for strlen
 #include <unistd.h>  // for read, write, ssize_t
 

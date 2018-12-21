@@ -14,27 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>       // for Success, None, Atom, GCBackground
-#include <X11/Xlib.h>    // for DefaultScreen, Screen, True, XCr...
-#include <errno.h>       // for ECHILD, EINTR, errno
-#include <locale.h>      // for NULL, setlocale, LC_CTYPE
-#include <stdlib.h>      // for free, rand, mblen, size_t, exit
+#include <X11/X.h>       // for Success, None, Atom, KBBellPitch
+#include <X11/Xlib.h>    // for DefaultScreen, Screen, XFree, True
+#include <locale.h>      // for NULL, setlocale, LC_CTYPE, LC_TIME
+#include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
 #include <string.h>      // for strlen, memcpy, memset, strcspn
 #include <sys/select.h>  // for timeval, select, fd_set, FD_SET
-#include <sys/wait.h>    // for waitpid
-#include <time.h>        // for time, time_t
-#include <unistd.h>      // for close, dup2, pipe, dup, execl, fork
+#include <time.h>        // for time, nanosleep, localtime_r
+#include <unistd.h>      // for close, _exit, dup2, pipe, dup
 
 #ifdef HAVE_XFT_EXT
-#include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftFontOpenName
+#include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftColorFree
 #include <X11/extensions/Xrender.h>  // for XRenderColor, XGlyphInfo
 #include <fontconfig/fontconfig.h>   // for FcChar8
 #endif
 
 #ifdef HAVE_XKB_EXT
-#include <X11/XKBlib.h>             // for XkbFreeClientMap, XkbGetIndicato...
-#include <X11/extensions/XKB.h>     // for XkbUseCoreKbd, XkbGroupNamesMask
-#include <X11/extensions/XKBstr.h>  // for XkbStateRec, _XkbDesc, _XkbNamesRec
+#include <X11/XKBlib.h>             // for XkbFreeKeyboard, XkbGetControls
+#include <X11/extensions/XKB.h>     // for XkbUseCoreKbd, XkbGroupsWrapMask
+#include <X11/extensions/XKBstr.h>  // for _XkbDesc, XkbStateRec, _XkbControls
 #endif
 
 #include "../env_info.h"          // for GetHostName, GetUserName

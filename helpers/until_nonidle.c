@@ -28,15 +28,13 @@ limitations under the License.
 
 #include <X11/X.h>     // for Window
 #include <X11/Xlib.h>  // for Display, XOpenDisplay, Default...
-#include <errno.h>     // for ECHILD, EINTR, errno
-#include <signal.h>    // for kill, SIGTERM
+#include <signal.h>    // for sigaction, raise, sigemptyset
 #include <stdint.h>    // for uint64_t
-#include <stdlib.h>    // for exit, size_t, EXIT_SUCCESS
-#include <string.h>    // for NULL, memcpy, strcmp, strcspn
+#include <stdlib.h>    // for NULL, size_t, EXIT_FAILURE
+#include <string.h>    // for memcpy, NULL, strcmp, strcspn
 #include <sys/time.h>  // for gettimeofday, timeval
-#include <sys/wait.h>  // for waitpid, WEXITSTATUS, WIFEXITED
 #include <time.h>      // for nanosleep, timespec
-#include <unistd.h>    // for execvp, fork, setsid, pid_t
+#include <unistd.h>    // for _exit, execvp, fork, setsid
 
 #ifdef HAVE_XSCREENSAVER_EXT
 #include <X11/extensions/scrnsaver.h>  // for XScreenSaverAllocInfo, XScreen...
@@ -49,7 +47,7 @@ limitations under the License.
 
 #include "../env_settings.h"  // for GetIntSetting, GetStringSetting
 #include "../logging.h"       // for Log, LogErrno
-#include "../wait_pgrp.h"     // for KillPgrp
+#include "../wait_pgrp.h"     // for KillPgrp, WaitPgrp
 
 #ifdef HAVE_XSCREENSAVER_EXT
 int have_xscreensaver_ext;
@@ -203,7 +201,7 @@ int main(int argc, char **argv) {
   // Parent process.
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_RESETHAND;  // It re-raises to suicide.
+  sa.sa_flags = SA_RESETHAND;      // It re-raises to suicide.
   sa.sa_handler = handle_sigterm;  // To kill children.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");

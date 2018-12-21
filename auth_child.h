@@ -17,8 +17,7 @@ limitations under the License.
 #ifndef AUTH_CHILD_H
 #define AUTH_CHILD_H
 
-#include <X11/X.h>     // for Window
-#include <X11/Xlib.h>  // for Display
+#include <X11/X.h>  // for Window
 
 /*! \brief Kill the auth child.
  *

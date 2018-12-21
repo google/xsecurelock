@@ -25,18 +25,16 @@ limitations under the License.
 #include <X11/Xatom.h>   // for XA_CARDINAL, XA_ATOM
 #include <X11/Xlib.h>    // for XEvent, XMapRaised, XSelectInput
 #include <X11/Xutil.h>   // for XLookupString
-#include <X11/keysym.h>  // for XK_BackSpace, XK_o
-#include <errno.h>       // for ECHILD, EINTR, errno
+#include <X11/keysym.h>  // for XK_BackSpace, XK_Tab, XK_o
 #include <fcntl.h>       // for fcntl, FD_CLOEXEC, F_GETFD
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE
-#include <signal.h>      // for sigaction, sigemptyset, SIGPIPE
-#include <stdio.h>       // for printf, size_t
-#include <stdlib.h>      // for exit, system, EXIT_SUCCESS
-#include <string.h>      // for memset, strncmp, strcmp
+#include <signal.h>      // for sigaction, raise, sa_handler
+#include <stdio.h>       // for printf, size_t, snprintf
+#include <stdlib.h>      // for exit, system, EXIT_FAILURE
+#include <string.h>      // for memset, strcmp, strncmp
 #include <sys/select.h>  // for select, timeval, fd_set, FD_SET
-#include <sys/wait.h>    // for waitpid, WEXITSTATUS, WIFEXITED
 #include <time.h>        // for nanosleep, timespec
-#include <unistd.h>      // for chdir, close, execvp, fork
+#include <unistd.h>      // for _exit, chdir, close, execvp
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
@@ -53,11 +51,11 @@ limitations under the License.
 #include <X11/extensions/shapeconst.h>  // for ShapeBounding
 #endif
 
-#include "auth_child.h"     // for WantAuthChild, WatchAuthChild
+#include "auth_child.h"     // for KillAuthChildSigHandler, Want...
 #include "env_settings.h"   // for GetIntSetting, GetExecutableP...
 #include "logging.h"        // for Log, LogErrno
 #include "mlock_page.h"     // for MLOCK_PAGE
-#include "saver_child.h"    // for WatchSaverChild
+#include "saver_child.h"    // for WatchSaverChild, KillAllSaver...
 #include "unmap_all.h"      // for ClearUnmapAllWindowsState
 #include "version.h"        // for git_version
 #include "wait_pgrp.h"      // for WaitPgrp
@@ -241,7 +239,7 @@ void usage(const char *me) {
       "\n"
       "Environment variables you may set for XSecureLock and its modules:\n"
       "\n"
-#include "env_helpstr.inc"
+#include "env_helpstr.inc"  // IWYU pragma: keep
       "\n"
       "Configured default auth module: " AUTH_EXECUTABLE
       "\n"

@@ -14,15 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <locale.h>               // for NULL, setlocale, LC_CTYPE
-#include <security/pam_appl.h>    // for pam_end, pam_start, pam_acct_mgmt
-#include <stdlib.h>               // for free, calloc, exit, getenv
-#include <string.h>               // for strchr
+#include <locale.h>             // for NULL, setlocale, LC_CTYPE
+#include <security/pam_appl.h>  // for pam_end, pam_start, pam_acct_mgmt
+#include <stdlib.h>             // for free, calloc, exit, getenv
+#include <string.h>             // for strchr
 
 #include "../env_info.h"      // for GetHostName, GetUserName
 #include "../env_settings.h"  // for GetStringSetting
 #include "../logging.h"       // for Log
 #include "authproto.h"        // for WritePacket, ReadPacket, PTYPE_ERRO...
+
+// IWYU pragma: no_include <security/_pam_types.h>
 
 //! Set if a conversation error has happened during the last PAM call.
 static int conv_error = 0;
