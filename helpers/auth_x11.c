@@ -171,7 +171,7 @@ int sounds[][2] = {
 
 /*! \brief Play a sound sequence.
  */
-void PlaySound(Display *display, enum Sound snd) {
+void PlaySound(enum Sound snd) {
   XKeyboardState state;
   XKeyboardControl control;
   struct timespec sleeptime;
@@ -804,7 +804,7 @@ int prompt(const char *msg, char **response, int echo) {
     display_string(msg, priv.displaybuf);
 
     if (!played_sound) {
-      PlaySound(display, SOUND_PROMPT);
+      PlaySound(SOUND_PROMPT);
       played_sound = 1;
     }
 
@@ -1051,13 +1051,13 @@ int authenticate() {
       case PTYPE_INFO_MESSAGE:
         display_string("PAM says", message);
         free(message);
-        PlaySound(display, SOUND_INFO);
+        PlaySound(SOUND_INFO);
         wait_for_keypress(1);
         break;
       case PTYPE_ERROR_MESSAGE:
         display_string("Error", message);
         free(message);
-        PlaySound(display, SOUND_ERROR);
+        PlaySound(SOUND_ERROR);
         wait_for_keypress(1);
         break;
       case PTYPE_PROMPT_LIKE_USERNAME:
@@ -1097,7 +1097,7 @@ done:
     abort();
   }
   if (status == 0) {
-    PlaySound(display, SOUND_SUCCESS);
+    PlaySound(SOUND_SUCCESS);
   }
   return status != 0;
 }

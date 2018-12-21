@@ -60,10 +60,6 @@ int num_xsync_counters;
 XSyncSystemCounter *xsync_counters;
 #endif
 
-#define MAX_TIMERS 16
-size_t num_timers;
-const char *timers[MAX_TIMERS];
-
 pid_t childpid = 0;
 
 static void handle_sigterm(int signo) {
