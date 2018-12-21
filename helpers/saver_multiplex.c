@@ -32,7 +32,7 @@ limitations under the License.
 
 static void handle_sigterm(int signo) {
   KillAllSaverChildrenSigHandler();  // Dirty, but quick.
-  raise(signo); // Destroys windows we created anyway.
+  raise(signo);                      // Destroys windows we created anyway.
 }
 
 static void handle_sigchld(int unused_signo) {
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
   if (sigaction(SIGCHLD, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGCHLD)");
   }
-  sa.sa_flags = SA_RESETHAND;  // It re-raises to suicide.
+  sa.sa_flags = SA_RESETHAND;      // It re-raises to suicide.
   sa.sa_handler = handle_sigterm;  // To kill children.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");

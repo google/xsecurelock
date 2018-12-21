@@ -80,8 +80,8 @@ static size_t readchars(int fd, char *buf, size_t n, int eof_permitted) {
   while (total < n) {
     ssize_t got = read(fd, buf + total, n - total);
     if (got < 0) {
-        LogErrno("read");
-        return 0;
+      LogErrno("read");
+      return 0;
     }
     if (got == 0) {
       if (!eof_permitted) {
@@ -122,17 +122,38 @@ char ReadPacket(int fd, char **message, int eof_permitted) {
       return 0;
     }
     switch (c) {
-      case '\n': goto have_len;
-      case '0': len = len * 10 + 0; break;
-      case '1': len = len * 10 + 1; break;
-      case '2': len = len * 10 + 2; break;
-      case '3': len = len * 10 + 3; break;
-      case '4': len = len * 10 + 4; break;
-      case '5': len = len * 10 + 5; break;
-      case '6': len = len * 10 + 6; break;
-      case '7': len = len * 10 + 7; break;
-      case '8': len = len * 10 + 8; break;
-      case '9': len = len * 10 + 9; break;
+      case '\n':
+        goto have_len;
+      case '0':
+        len = len * 10 + 0;
+        break;
+      case '1':
+        len = len * 10 + 1;
+        break;
+      case '2':
+        len = len * 10 + 2;
+        break;
+      case '3':
+        len = len * 10 + 3;
+        break;
+      case '4':
+        len = len * 10 + 4;
+        break;
+      case '5':
+        len = len * 10 + 5;
+        break;
+      case '6':
+        len = len * 10 + 6;
+        break;
+      case '7':
+        len = len * 10 + 7;
+        break;
+      case '8':
+        len = len * 10 + 8;
+        break;
+      case '9':
+        len = len * 10 + 9;
+        break;
       default:
         Log("invalid character during packet length, expecting 0-9 or newline");
         return 0;

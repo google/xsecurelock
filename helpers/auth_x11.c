@@ -1280,8 +1280,7 @@ int main() {
                  DefaultColormap(display, DefaultScreen(display)),
                  &xft_color_warning);
     XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-                 DefaultColormap(display, DefaultScreen(display)),
-                 &xft_color);
+                 DefaultColormap(display, DefaultScreen(display)), &xft_color);
     XftDrawDestroy(xft_draw);
     XftFontClose(display, xft_font);
   }
