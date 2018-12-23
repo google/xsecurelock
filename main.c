@@ -117,10 +117,10 @@ int debug_window_info = 0;
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
 
+sig_atomic_t term;
+
 static void handle_sigterm(int signo) {
-  KillAllSaverChildrenSigHandler();  // Dirty, but quick.
-  KillAuthChildSigHandler();         // More dirty.
-  raise(signo);
+  term = signo;
 }
 
 static void handle_sigchld(int unused_signo) {
@@ -855,7 +855,7 @@ int main(int argc, char **argv) {
     LogErrno("sigaction(SIGCHLD)");
   }
   sa.sa_flags = SA_RESETHAND;      // It re-raises to suicide.
-  sa.sa_handler = handle_sigterm;  // To kill children.
+  sa.sa_handler = handle_sigterm;  // To iniate clean program shutdown.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
   }
@@ -885,6 +885,11 @@ int main(int argc, char **argv) {
     tv.tv_usec = 1000000 / WATCH_CHILDREN_HZ;
     tv.tv_sec = 0;
     select(x11_fd + 1, &in_fds, 0, 0, &tv);
+    if (term) {
+      KillAllSaverChildrenSigHandler();  // Dirty, but quick.
+      KillAuthChildSigHandler();         // More dirty.
+      raise(term);
+    }
     if (WatchChildren(display, auth_window, saver_window, requested_saver_state,
                       NULL)) {
       goto done;
