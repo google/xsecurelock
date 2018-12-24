@@ -855,7 +855,7 @@ int main(int argc, char **argv) {
     LogErrno("sigaction(SIGCHLD)");
   }
   sa.sa_flags = SA_RESETHAND;      // It re-raises to suicide.
-  sa.sa_handler = handle_sigterm;  // To iniate clean program shutdown.
+  sa.sa_handler = handle_sigterm;  // To initiate clean program shutdown.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
   }
