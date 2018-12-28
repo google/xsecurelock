@@ -16,13 +16,19 @@
 
 : ${XSECURELOCK_LIST_VIDEOS_COMMAND:=find ~/Videos -type f}
 
-sh -c "$XSECURELOCK_LIST_VIDEOS_COMMAND" | shuf | head -n 256 |\
-@path_to_mpv@ \
-  --no-input-terminal \
-  --really-quiet \
-  --no-stop-screensaver \
-  --wid="${XSCREENSAVER_WINDOW}" \
-  --no-audio \
-  --shuffle \
-  --playlist=- &
+while true; do
+  sh -c "$XSECURELOCK_LIST_VIDEOS_COMMAND" | shuf | head -n 256 |\
+  @path_to_mpv@ \
+    --no-input-terminal \
+    --really-quiet \
+    --no-stop-screensaver \
+    --wid="${XSCREENSAVER_WINDOW}" \
+    --no-audio \
+    --shuffle \
+    --playlist=- &
+  # Avoid spinning if mpv exits immediately, but don't wait to restart mpv in
+  # the common case.
+  sleep 1
+  wait
+done &
 exec ./saver_blank
