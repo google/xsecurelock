@@ -286,6 +286,8 @@ Options to XSecureLock can be passed by environment variables:
     XInput device index (run `xinput` to see them). If multiple time counters
     are specified, the idle time is the minimum of them all. All listed timers
     must have the same unit.
+*   `XSECURELOCK_IMAGE_DURATION_SECONDS`: how long to show each still image
+    played by `saver_mpv`. Defaults to 1.
 *   `XSECURELOCK_LIST_VIDEOS_COMMAND`: shell command to list all video files to
     potentially play by `saver_mpv` or `saver_mplayer`. Defaults to
     `find ~/Videos -type f`.
