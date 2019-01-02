@@ -111,7 +111,7 @@ one of the following:
 ```
 xsecurelock
 env XSECURELOCK_SAVER=saver_xscreensaver xsecurelock
-env XSECURELOCK_SAVER=saver_mplayer XSECURELOCK_WANT_FIRST_KEYPRESS=1 xsecurelock
+env XSECURELOCK_SAVER=saver_mplayer XSECURELOCK_DISCARD_FIRST_KEYPRESS=0 xsecurelock
 env XSECURELOCK_FONT=`xlsfonts | grep '\<iso10646-1\>' | shuf | head -n 1` xsecurelock
 ```
 
@@ -263,6 +263,12 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_DIM_TIME_MS`: Milliseconds to dim for when above xss-lock
     command line with `dimmer` is used; also used by `wait_nonidle` to know when
     to assume dimming and waiting has finished and exit.
+*   `XSECURELOCK_DISCARD_FIRST_KEYPRESS`: If set to 0, the key pressed to stop
+    the screen saver and spawn the auth child is sent to the auth child (and
+    thus becomes part of the password entry). By default we always discard the
+    key press that started the authentication flow, to prevent users from
+    getting used to type their password on a blank screen (which could be just
+    powered off and have a chat client behind or similar).
 *   `XSECURELOCK_FONT`: X11 or FontConfig font name to use for `auth_x11`.
     You can get a list of supported font names by running `xlsfonts` and
     `fc-list`.
@@ -305,9 +311,6 @@ Options to XSecureLock can be passed by environment variables:
     `Ctrl-Alt-O` are pressed (think "_other_ user"). Typical values could be
     `lxdm -c USER_SWITCH`, `dm-tool switch-to-greeter`, `gdmflexiserver` or
     `kdmctl reserve`, depending on your desktop environment.
-*   `XSECURELOCK_WANT_FIRST_KEYPRESS`: If set to 1, the key pressed to stop the
-    screen saver and spawn the auth child is sent to the auth child (and thus
-    becomes part of the password entry).
 *   `XSECURELOCK_WAIT_TIME_MS`: Milliseconds to wait after dimming (and before
     locking) when above xss-lock command line is used. Should be at least as
     large as the period time set using "xset s". Also used by `wait_nonidle` to
