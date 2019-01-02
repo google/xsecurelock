@@ -685,7 +685,7 @@ int main(int argc, char **argv) {
   my_windows[n_my_windows++] = saver_window;
 
   Window auth_window =
-      XCreateWindow(display, saver_window, 0, 0, w, h, 0, CopyFromParent,
+      XCreateWindow(display, background_window, 0, 0, w, h, 0, CopyFromParent,
                     InputOutput, CopyFromParent, CWBackPixel, &coverattrs);
   SetWMProperties(display, auth_window, "xsecurelock", "auth", argc, argv);
   my_windows[n_my_windows++] = auth_window;
@@ -712,7 +712,6 @@ int main(int argc, char **argv) {
   XWindowChanges coverchanges;
   coverchanges.stack_mode = Above;
   XConfigureWindow(display, background_window, CWStackMode, &coverchanges);
-  XConfigureWindow(display, saver_window, CWStackMode, &coverchanges);
   XConfigureWindow(display, auth_window, CWStackMode, &coverchanges);
 
   // We're OverrideRedirect anyway, but setting this hint may help compositors
@@ -818,6 +817,7 @@ int main(int argc, char **argv) {
   // yet, thereby "confirming" the screen lock.
   XMapRaised(display, background_window);
   XMapRaised(display, saver_window);
+  XRaiseWindow(display, auth_window);  // Don't map here.
 
 #ifdef HAVE_XCOMPOSITE_EXT
   if (obscurer_window != None) {
@@ -914,7 +914,6 @@ int main(int argc, char **argv) {
     if (auth_window_mapped) {
       MaybeRaiseWindow(display, auth_window, 0);
     }
-    MaybeRaiseWindow(display, saver_window, 0);
     MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
     if (obscurer_window != None) {
@@ -963,10 +962,8 @@ int main(int argc, char **argv) {
           }
           // Also, whatever window has been reconfigured, should also be raised
           // to make sure.
-          if (priv.ev.xconfigure.window == auth_window) {
+          if (auth_window_mapped && priv.ev.xconfigure.window == auth_window) {
             MaybeRaiseWindow(display, auth_window, 0);
-          } else if (priv.ev.xconfigure.window == saver_window) {
-            MaybeRaiseWindow(display, saver_window, 0);
           } else if (priv.ev.xconfigure.window == background_window) {
             MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
@@ -985,14 +982,10 @@ int main(int argc, char **argv) {
           if (priv.ev.xvisibility.state != VisibilityUnobscured) {
             // If something else shows an OverrideRedirect window, we want to
             // stay on top.
-            if (priv.ev.xvisibility.window == auth_window) {
+            if (auth_window_mapped &&
+                priv.ev.xvisibility.window == auth_window) {
               Log("Someone overlapped the auth window. Undoing that");
               MaybeRaiseWindow(display, auth_window, 1);
-            } else if (priv.ev.xvisibility.window == saver_window &&
-                       !auth_window_mapped) {
-              Log("Someone overlapped the saver window (and it wasn't auth). "
-                  "Undoing that");
-              MaybeRaiseWindow(display, saver_window, 1);
             } else if (priv.ev.xvisibility.window == background_window) {
               Log("Someone overlapped the background window. Undoing that");
               MaybeRaiseWindow(display, background_window, 1);
@@ -1124,7 +1117,7 @@ int main(int argc, char **argv) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the saver window. Undoing that");
             saver_window_mapped = 0;
-            XMapRaised(display, saver_window);
+            XMapWindow(display, saver_window);
           } else if (priv.ev.xmap.window == background_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the background window. Undoing that");
@@ -1198,6 +1191,7 @@ done:
   memset(&priv, 0, sizeof(priv));
 
   // Free our resources, and exit.
+  XDestroyWindow(display, auth_window);
   XDestroyWindow(display, saver_window);
   XDestroyWindow(display, background_window);
 
