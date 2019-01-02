@@ -21,20 +21,21 @@ limitations under the License.
  *security.
  */
 
-#include <X11/X.h>       // for Window, None, CopyFromParent
-#include <X11/Xatom.h>   // for XA_CARDINAL, XA_ATOM
-#include <X11/Xlib.h>    // for XEvent, XMapRaised, XSelectInput
-#include <X11/Xutil.h>   // for XLookupString
-#include <X11/keysym.h>  // for XK_BackSpace, XK_Tab, XK_o
-#include <fcntl.h>       // for fcntl, FD_CLOEXEC, F_GETFD
-#include <locale.h>      // for NULL, setlocale, LC_CTYPE
-#include <signal.h>      // for sigaction, raise, sa_handler
-#include <stdio.h>       // for printf, size_t, snprintf
-#include <stdlib.h>      // for exit, system, EXIT_FAILURE
-#include <string.h>      // for memset, strcmp, strncmp
-#include <sys/select.h>  // for select, timeval, fd_set, FD_SET
-#include <time.h>        // for nanosleep, timespec
-#include <unistd.h>      // for _exit, chdir, close, execvp
+#include <X11/X.h>           // for Window, None, CopyFromParent
+#include <X11/Xatom.h>       // for XA_CARDINAL, XA_ATOM
+#include <X11/Xlib.h>        // for XEvent, XMapRaised, XSelectInput
+#include <X11/Xutil.h>       // for XLookupString
+#include <X11/cursorfont.h>  // for XC_arrow
+#include <X11/keysym.h>      // for XK_BackSpace, XK_Tab, XK_o
+#include <fcntl.h>           // for fcntl, FD_CLOEXEC, F_GETFD
+#include <locale.h>          // for NULL, setlocale, LC_CTYPE
+#include <signal.h>          // for sigaction, raise, sa_handler
+#include <stdio.h>           // for printf, size_t, snprintf
+#include <stdlib.h>          // for exit, system, EXIT_FAILURE
+#include <string.h>          // for memset, strcmp, strncmp
+#include <sys/select.h>      // for select, timeval, fd_set, FD_SET
+#include <time.h>            // for nanosleep, timespec
+#include <unistd.h>          // for _exit, chdir, close, execvp
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
@@ -600,6 +601,7 @@ int main(int argc, char **argv) {
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
   Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
+  Cursor default_cursor = XCreateFontCursor(display, XC_arrow);
   Cursor transparent_cursor =
       XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
   XSetWindowAttributes coverattrs = {0};
@@ -1097,6 +1099,10 @@ int main(int argc, char **argv) {
 #endif
           if (priv.ev.xmap.window == auth_window) {
             auth_window_mapped = 1;
+            // Actually ShowCursor...
+            XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
+                         GrabModeAsync, GrabModeAsync, None, default_cursor,
+                         CurrentTime);
           } else if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 1;
           } else if (priv.ev.xmap.window == background_window) {
@@ -1114,6 +1120,10 @@ int main(int argc, char **argv) {
 #endif
           if (priv.ev.xmap.window == auth_window) {
             auth_window_mapped = 0;
+            // Actually HideCursor...
+            XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
+                         GrabModeAsync, GrabModeAsync, None, transparent_cursor,
+                         CurrentTime);
           } else if (priv.ev.xmap.window == saver_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the saver window. Undoing that");
@@ -1207,6 +1217,7 @@ done:
 #endif
 
   XFreeCursor(display, transparent_cursor);
+  XFreeCursor(display, default_cursor);
   XFreePixmap(display, bg);
 
   XCloseDisplay(display);
