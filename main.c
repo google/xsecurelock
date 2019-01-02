@@ -177,6 +177,8 @@ int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
 
     // If we wanted auth, but it's not running, auth just terminated. Unmap the
     // auth window and poke the screensaver so that it can reset any timeouts.
+    // TODO(divVerent): Implement a nicer way to poke if supported (say,
+    // SIGUSR1).
     if (!auth_running) {
       XUnmapWindow(dpy, auth_win);
       WatchSaverChild(dpy, saver_win, 0, saver_executable, 0);
