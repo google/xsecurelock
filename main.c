@@ -600,12 +600,13 @@ int main(int argc, char **argv) {
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
   Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
+  Cursor transparent_cursor =
+      XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
   XSetWindowAttributes coverattrs = {0};
   coverattrs.background_pixel = black.pixel;
   coverattrs.save_under = 1;
   coverattrs.override_redirect = 1;
-  coverattrs.cursor =
-      XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
+  coverattrs.cursor = transparent_cursor;
 
   Window parent_window = root_window;
 
@@ -800,7 +801,7 @@ int main(int argc, char **argv) {
   int last_normal_attempt = force_grab ? 1 : 0;
   for (retries = 10; retries >= 0; --retries) {
     if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                     coverattrs.cursor,
+                     transparent_cursor,
                      /*silent=*/retries > last_normal_attempt,
                      /*force=*/retries < last_normal_attempt)) {
       break;
@@ -903,7 +904,7 @@ int main(int argc, char **argv) {
     if (need_to_reinstate_grabs) {
       need_to_reinstate_grabs = 0;
       if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                        coverattrs.cursor, 0, 0)) {
+                        transparent_cursor, 0, 0)) {
         Log("Critical: could not reacquire grabs. The screen is now UNLOCKED! "
             "Trying again next frame.");
         need_to_reinstate_grabs = 1;
@@ -1156,7 +1157,7 @@ int main(int argc, char **argv) {
             // launch xsecurelock while the release event releases a passive
             // grab. We still immediately try to reacquire grabs here, though.
             if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                              coverattrs.cursor, 0, 0)) {
+                              transparent_cursor, 0, 0)) {
               Log("Critical: could not reacquire grabs after NotifyUngrab. The "
                   "screen is now UNLOCKED! Trying again next frame.");
               need_to_reinstate_grabs = 1;
@@ -1205,7 +1206,7 @@ done:
   }
 #endif
 
-  XFreeCursor(display, coverattrs.cursor);
+  XFreeCursor(display, transparent_cursor);
   XFreePixmap(display, bg);
 
   XCloseDisplay(display);
