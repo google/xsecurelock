@@ -40,7 +40,8 @@ void KillAuthChildSigHandler(void) {
   auth_child_pid = 0;
 }
 
-/*! \brief Return whether the wake-up keypress should be part of the password.
+/*! \brief Return whether the wake-up keypress should be discarded and not be
+ * sent to the auth child.
  *
  * Sending the wake-up keypress to the auth child is usually a bad idea because
  * many people use "any" key, not their password's, to wake up the screen saver.
@@ -50,10 +51,11 @@ void KillAuthChildSigHandler(void) {
  *
  * However, it was requested by a user, so why not add it. Usage:
  *
- * XSECURELOCK_WANT_FIRST_KEYPRESS=1 xsecurelock
+ * XSECURELOCK_DISCARD_FIRST_KEYPRESS=0 xsecurelock
  */
-static int WantFirstKeypress() {
-  return GetIntSetting("XSECURELOCK_WANT_FIRST_KEYPRESS", 0);
+static int DiscardFirstKeypress() {
+  return GetIntSetting("XSECURELOCK_DISCARD_FIRST_KEYPRESS",
+                       !GetIntSetting("XSECURELOCK_WANT_FIRST_KEYPRESS", 0));
 }
 
 int WantAuthChild(int force_auth) {
@@ -150,9 +152,11 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
         auth_child_pid = pid;
 
         if (stdinbuf != NULL &&
-            !(WantFirstKeypress() && ContainsNonControl(stdinbuf))) {
+            (DiscardFirstKeypress() || !ContainsNonControl(stdinbuf))) {
           // The auth child has just been started. Do not send any keystrokes to
-          // it immediately.
+          // it immediately. Exception: when the user requested different
+          // behavior by XSECURELOCK_DISCARD_FIRST_KEYPRESS=0 and there is a
+          // printable character.
           stdinbuf = NULL;
         }
       }
