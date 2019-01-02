@@ -147,6 +147,9 @@ static int burnin_mitigation_max_offset_change = 0;
 //! Whether to play sounds during authentication.
 static int auth_sounds = 0;
 
+//! Whether we only want a single auth window.
+static int single_auth_window = 0;
+
 //! If set, we need to re-query monitor data and adjust windows.
 int per_monitor_windows_dirty = 1;
 
@@ -511,6 +514,31 @@ void UpdatePerMonitorWindows(int monitors_changed, int region_w, int region_h,
 
   if (monitors_changed) {
     num_monitors = GetMonitors(display, parent_window, monitors, MAX_WINDOWS);
+  }
+
+  if (single_auth_window) {
+    Window unused_root, unused_child;
+    int unused_root_x, unused_root_y, x, y;
+    unsigned int unused_mask;
+    XQueryPointer(display, parent_window, &unused_root, &unused_child,
+                  &unused_root_x, &unused_root_y, &x, &y, &unused_mask);
+    size_t i;
+    for (i = 0; i < num_monitors; ++i) {
+      if (x >= monitors[i].x && x < monitors[i].x + monitors[i].width &&
+          y >= monitors[i].y && y < monitors[i].y + monitors[i].height) {
+        CreateOrUpdatePerMonitorWindow(0, &monitors[i], region_w, region_h,
+                                       x_offset, y_offset);
+        return;
+      }
+    }
+    if (num_monitors > 0) {
+      CreateOrUpdatePerMonitorWindow(0, &monitors[0], region_w, region_h,
+                                     x_offset, y_offset);
+      DestroyPerMonitorWindows(1);
+    } else {
+      DestroyPerMonitorWindows(0);
+    }
+    return;
   }
 
   // 1 window per monitor.
@@ -1254,6 +1282,7 @@ int main(int argc_local, char **argv_local) {
   have_switch_user_command =
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
   auth_sounds = GetIntSetting("XSECURELOCK_AUTH_SOUNDS", 0);
+  single_auth_window = GetIntSetting("XSECURELOCK_SINGLE_AUTH_WINDOW", 0);
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     Log("Could not connect to $DISPLAY");

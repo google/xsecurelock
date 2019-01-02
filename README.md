@@ -301,6 +301,8 @@ Options to XSecureLock can be passed by environment variables:
     hostname, 1 for showing the short form, and 2 for showing the long form.
 *   `XSECURELOCK_SHOW_USERNAME`: whether to show the username on the login
     screen of `auth_x11`.
+*   `XSECURELOCK_SINGLE_AUTH_WINDOW`: whether to show only a single auth window
+    from `auth_x11`, as opposed to one per screen.
 *   `XSECURELOCK_SWITCH_USER_COMMAND`: shell command to execute when `Win-O` or
     `Ctrl-Alt-O` are pressed (think "_other_ user"). Typical values could be
     `lxdm -c USER_SWITCH`, `dm-tool switch-to-greeter`, `gdmflexiserver` or

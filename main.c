@@ -85,6 +85,15 @@ limitations under the License.
  */
 #undef AUTO_RAISE
 
+/*! \brief Show cursor during auth.
+ *
+ * If enabled, a mouse cursor is shown whenever the auth_window is mapped.
+ *
+ * Note that proper use of this also would require a way to forward click
+ * events to the auth helper, which doesn't exist yet.
+ */
+#undef SHOW_CURSOR_DURING_AUTH
+
 /*! \brief Exhaustive list of all mouse related X11 events.
  *
  * These will be selected for grab. It is important that this contains all
@@ -1099,10 +1108,12 @@ int main(int argc, char **argv) {
 #endif
           if (priv.ev.xmap.window == auth_window) {
             auth_window_mapped = 1;
+#ifdef SHOW_CURSOR_DURING_AUTH
             // Actually ShowCursor...
             XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
                          GrabModeAsync, GrabModeAsync, None, default_cursor,
                          CurrentTime);
+#endif
           } else if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 1;
           } else if (priv.ev.xmap.window == background_window) {
@@ -1120,10 +1131,12 @@ int main(int argc, char **argv) {
 #endif
           if (priv.ev.xmap.window == auth_window) {
             auth_window_mapped = 0;
+#ifdef SHOW_CURSOR_DURING_AUTH
             // Actually HideCursor...
             XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
                          GrabModeAsync, GrabModeAsync, None, transparent_cursor,
                          CurrentTime);
+#endif
           } else if (priv.ev.xmap.window == saver_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the saver window. Undoing that");
