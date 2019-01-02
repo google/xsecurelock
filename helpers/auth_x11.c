@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <X11/X.h>       // for Success, None, Atom, KBBellPitch
 #include <X11/Xlib.h>    // for DefaultScreen, Screen, XFree, True
+#include <assert.h>      // for assert
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE, LC_TIME
 #include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
 #include <string.h>      // for strlen, memcpy, memset, strcspn
@@ -43,6 +44,13 @@ limitations under the License.
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "authproto.h"            // for WritePacket, ReadPacket, PTYPE_R...
 #include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
+#include "wm_properties.h"        // for SetWMProperties
+
+//! Number of args.
+int argc;
+
+//! Args.
+char *const *argv;
 
 //! The authproto helper to use.
 const char *authproto_executable;
@@ -59,14 +67,11 @@ int prompt_timeout;
 //! Minimum distance the cursor shall move on keypress.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
 
-//! Border to clear around text (mainly a workaround for bad TextWidth results).
-#define TEXT_BORDER 0
+//! Border of the window around the text.
+#define WINDOW_BORDER 16
 
 //! Draw border rectangle (mainly for debugging).
 #undef DRAW_BORDER
-
-//! Clear the outside area too (may work around driver issues, costs CPU).
-#undef CLEAR_OUTSIDE
 
 //! Extra line spacing.
 #define LINE_SPACING 4
@@ -99,14 +104,11 @@ char username[256];
 //! The X11 display.
 Display *display;
 
-//! The X11 window to draw in. Provided from $XSCREENSAVER_WINDOW.
-Window window;
+//! The X11 window provided by main. Provided from $XSCREENSAVER_WINDOW.
+Window main_window;
 
-//! The X11 graphics context to draw with.
-GC gc;
-
-//! The X11 graphics context to draw warnings with.
-GC gc_warning;
+//! main_window's parent. Used to create per-monitor siblings.
+Window parent_window;
 
 //! The X11 core font for the PAM messages.
 XFontStruct *core_font;
@@ -115,7 +117,6 @@ XFontStruct *core_font;
 //! The Xft font for the PAM messages.
 XftColor xft_color;
 XftColor xft_color_warning;
-XftDraw *xft_draw;
 XftFont *xft_font;
 #endif
 
@@ -146,9 +147,28 @@ static int burnin_mitigation_max_offset_change = 0;
 //! Whether to play sounds during authentication.
 static int auth_sounds = 0;
 
-#define MAX_MONITORS 16
-static int num_monitors;
-static Monitor monitors[MAX_MONITORS];
+//! If set, we need to re-query monitor data and adjust windows.
+int per_monitor_windows_dirty = 1;
+
+#define MAIN_WINDOW 0
+#define MAX_WINDOWS 16
+
+//! The number of active X11 per-monitor windows.
+size_t num_windows = 0;
+
+//! The X11 per-monitor windows to draw on.
+Window windows[MAX_WINDOWS];
+
+//! The X11 graphics contexts to draw with.
+GC gcs[MAX_WINDOWS];
+
+//! The X11 graphics contexts to draw warnings with.
+GC gcs_warning[MAX_WINDOWS];
+
+#ifdef HAVE_XFT_EXT
+//! The Xft draw contexts to draw with.
+XftDraw *xft_draws[MAX_WINDOWS];
+#endif
 
 int have_xkb_ext;
 
@@ -376,6 +396,142 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
 #endif
 }
 
+void DestroyPerMonitorWindows(size_t keep_windows) {
+  size_t i;
+  for (i = keep_windows; i < num_windows; ++i) {
+#ifdef HAVE_XFT_EXT
+    XftDrawDestroy(xft_draws[i]);
+#endif
+    XFreeGC(display, gcs_warning[i]);
+    XFreeGC(display, gcs[i]);
+    if (i == MAIN_WINDOW) {
+      XUnmapWindow(display, windows[i]);
+    } else {
+      XDestroyWindow(display, windows[i]);
+    }
+  }
+  if (num_windows > keep_windows) {
+    num_windows = keep_windows;
+  }
+}
+
+void CreateOrUpdatePerMonitorWindow(size_t i, const Monitor *monitor,
+                                    int region_w, int region_h, int x_offset,
+                                    int y_offset) {
+  // Desired box.
+  int w = region_w;
+  int h = region_h;
+  int x = monitor->x + (monitor->width - w) / 2 + x_offset;
+  int y = monitor->y + (monitor->height - h) / 2 + y_offset;
+  // Clip to monitor.
+  if (x < 0) {
+    w += x;
+    x = 0;
+  }
+  if (y < 0) {
+    h += y;
+    y = 0;
+  }
+  if (x + w > monitor->x + monitor->width) {
+    w = monitor->x + monitor->width - x;
+  }
+  if (y + h > monitor->y + monitor->height) {
+    h = monitor->y + monitor->height - y;
+  }
+
+  if (i < num_windows) {
+    // Move the existing window.
+    XMoveResizeWindow(display, windows[i], x, y, w, h);
+    return;
+  }
+
+  if (i > num_windows) {
+    // Need to add windows in ]num_windows..i[ first.
+    Log("Unreachable code - can't create monitor sequences with holes");
+    abort();
+  }
+
+  // Add a new window.
+  if (i == MAIN_WINDOW) {
+    // Reuse the main_window (so this window gets protected from overlap by
+    // main).
+    XMoveResizeWindow(display, main_window, x, y, w, h);
+    windows[i] = main_window;
+  } else {
+    // Create a new window.
+    XSetWindowAttributes attrs = {0};
+    attrs.background_pixel = Background;
+    windows[i] =
+        XCreateWindow(display, parent_window, x, y, w, h, 0, CopyFromParent,
+                      InputOutput, CopyFromParent, CWBackPixel, &attrs);
+    SetWMProperties(display, windows[i], "xsecurelock", "auth_x11_screen", argc,
+                    argv);
+    // We should always make sure that main_window stays on top of all others.
+    // I.e. our auth sub-windows shall between "sandwiched" between auth and
+    // saver window. That way, main.c's protections of the auth window can stay
+    // effective.
+    Window stacking_order[2];
+    stacking_order[0] = main_window;
+    stacking_order[1] = windows[i];
+    XRestackWindows(display, stacking_order, 2);
+  }
+
+  // Create its data structures.
+  XGCValues gcattrs;
+  gcattrs.function = GXcopy;
+  gcattrs.foreground = Foreground;
+  gcattrs.background = Background;
+  if (core_font != NULL) {
+    gcattrs.font = core_font->fid;
+  }
+  gcs[i] = XCreateGC(display, windows[i],
+                     GCFunction | GCForeground | GCBackground |
+                         (core_font != NULL ? GCFont : 0),
+                     &gcattrs);
+  gcattrs.foreground = Warning;
+  gcs_warning[i] = XCreateGC(display, windows[i],
+                             GCFunction | GCForeground | GCBackground |
+                                 (core_font != NULL ? GCFont : 0),
+                             &gcattrs);
+#ifdef HAVE_XFT_EXT
+  xft_draws[i] = XftDrawCreate(
+      display, windows[i], DefaultVisual(display, DefaultScreen(display)),
+      DefaultColormap(display, DefaultScreen(display)));
+#endif
+
+  // This window is now ready to use.
+  XMapWindow(display, windows[i]);
+  num_windows = i + 1;
+}
+
+void UpdatePerMonitorWindows(int monitors_changed, int region_w, int region_h,
+                             int x_offset, int y_offset) {
+  static size_t num_monitors = 0;
+  static Monitor monitors[MAX_WINDOWS];
+
+  if (monitors_changed) {
+    num_monitors = GetMonitors(display, parent_window, monitors, MAX_WINDOWS);
+  }
+
+  // 1 window per monitor.
+  size_t new_num_windows = num_monitors;
+
+  // Update or create everything.
+  size_t i;
+  for (i = 0; i < new_num_windows; ++i) {
+    CreateOrUpdatePerMonitorWindow(i, &monitors[i], region_w, region_h,
+                                   x_offset, y_offset);
+  }
+
+  // Kill all the old stuff.
+  DestroyPerMonitorWindows(new_num_windows);
+
+  if (num_windows != new_num_windows) {
+    Log("Unreachable code - expected to get %d windows, got %d",
+        (int)new_num_windows, (int)num_windows);
+  }
+}
+
 int TextAscent(void) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
@@ -427,7 +583,8 @@ int TextWidth(const char *string, int len) {
   return XTextWidth(core_font, string, len);
 }
 
-void DrawString(int x, int y, int is_warning, const char *string, int len) {
+void DrawString(int monitor, int x, int y, int is_warning, const char *string,
+                int len) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
     // HACK: Query text extents here to make the text fit into the specified
@@ -437,13 +594,16 @@ void DrawString(int x, int y, int is_warning, const char *string, int len) {
     XGlyphInfo extents;
     XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
                        &extents);
-    XftDrawStringUtf8(xft_draw, is_warning ? &xft_color_warning : &xft_color,
-                      xft_font, x + XGlyphInfoExpandAmount(&extents), y,
+    XftDrawStringUtf8(xft_draws[monitor],
+                      is_warning ? &xft_color_warning : &xft_color, xft_font,
+                      x + XGlyphInfoExpandAmount(&extents), y,
                       (const FcChar8 *)string, len);
     return;
   }
 #endif
-  XDrawString(display, window, is_warning ? gc_warning : gc, x, y, string, len);
+  XDrawString(display, windows[monitor],
+              is_warning ? gcs_warning[monitor] : gcs[monitor], x, y, string,
+              len);
 }
 
 void StrAppend(char **output, size_t *output_size, const char *input,
@@ -494,11 +654,6 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  * \param str The message itself.
  */
 void display_string(const char *title, const char *str) {
-  static int region_x;
-  static int region_y;
-  static int region_w = 0;
-  static int region_h = 0;
-
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
 
@@ -551,6 +706,9 @@ void display_string(const char *title, const char *str) {
 
   // Compute the region we will be using, relative to cx and cy.
   int box_w = tw_full_title;
+  if (box_w < tw_datetime) {
+    box_w = tw_datetime;
+  }
   if (box_w < tw_str) {
     box_w = tw_str;
   }
@@ -563,18 +721,11 @@ void display_string(const char *title, const char *str) {
   if (box_w < tw_switch_user) {
     box_w = tw_switch_user;
   }
-  int border = TEXT_BORDER + burnin_mitigation_max_offset_change;
   int box_h = (4 + have_multiple_layouts + have_switch_user_command +
                show_datetime * 2) *
               th;
-  if (region_w < box_w + 2 * border) {
-    region_w = box_w + 2 * border;
-  }
-  region_x = -region_w / 2;
-  if (region_h < box_h + 2 * border) {
-    region_h = box_h + 2 * border;
-  }
-  region_y = -region_h / 2;
+  int region_w = box_w + 2 * WINDOW_BORDER;
+  int region_h = box_h + 2 * WINDOW_BORDER;
 
   if (burnin_mitigation_max_offset_change > 0) {
     x_offset += rand() % (2 * burnin_mitigation_max_offset_change + 1) -
@@ -595,91 +746,50 @@ void display_string(const char *title, const char *str) {
     }
   }
 
-  int i;
-  for (i = 0; i < num_monitors; ++i) {
-    int cx = monitors[i].x + monitors[i].width / 2 + x_offset;
-    int cy = monitors[i].y + monitors[i].height / 2 + y_offset;
+  UpdatePerMonitorWindows(per_monitor_windows_dirty, region_w, region_h,
+                          x_offset, y_offset);
+  per_monitor_windows_dirty = 0;
+
+  size_t i;
+  for (i = 0; i < num_windows; ++i) {
+    int cx = region_w / 2;
+    int cy = region_h / 2;
     int y = cy + to - box_h / 2;
 
-    // Clip all following output to the bounds of this monitor.
-    XRectangle rect;
-    rect.x = monitors[i].x;
-    rect.y = monitors[i].y;
-    rect.width = monitors[i].width;
-    rect.height = monitors[i].height;
-    XSetClipRectangles(display, gc, 0, 0, &rect, 1, YXBanded);
-
-    // Clear the region last written to.
-    XClearArea(display, window,               //
-               cx + region_x, cy + region_y,  //
-               region_w, region_h,            //
-               False);
+    XClearWindow(display, windows[i]);
 
 #ifdef DRAW_BORDER
-    XDrawRectangle(display, window, gc,             //
+    XDrawRectangle(display, windows[i], gcs[i],     //
                    cx - box_w / 2, cy - box_h / 2,  //
                    box_w - 1, box_h - 1);
-    XDrawRectangle(display, window, gc,           //
-                   cx + region_x, cy + region_y,  //
-                   region_w - 1, region_h - 1);
 #endif
 
     if (show_datetime) {
-      DrawString(cx - tw_datetime / 2, y, 0, datetime, len_datetime);
+      DrawString(i, cx - tw_datetime / 2, y, 0, datetime, len_datetime);
       y += th * 2;
     }
 
-    DrawString(cx - tw_full_title / 2, y, 0, full_title, len_full_title);
+    DrawString(i, cx - tw_full_title / 2, y, 0, full_title, len_full_title);
     y += th * 2;
 
-    DrawString(cx - tw_str / 2, y, 0, str, len_str);
+    DrawString(i, cx - tw_str / 2, y, 0, str, len_str);
     y += th;
 
-    DrawString(cx - tw_indicators / 2, y, indicators_warning, indicators,
+    DrawString(i, cx - tw_indicators / 2, y, indicators_warning, indicators,
                len_indicators);
     y += th;
 
     if (have_multiple_layouts) {
-      DrawString(cx - tw_switch_layout / 2, y, 0, switch_layout,
+      DrawString(i, cx - tw_switch_layout / 2, y, 0, switch_layout,
                  len_switch_layout);
       y += th;
     }
 
     if (have_switch_user_command) {
-      DrawString(cx - tw_switch_user / 2, y, 0, switch_user, len_switch_user);
+      DrawString(i, cx - tw_switch_user / 2, y, 0, switch_user,
+                 len_switch_user);
       // y += th;
     }
-
-#ifdef CLEAR_OUTSIDE
-    // Clear everything else last. This minimizes flicker.
-    if (cy + region_y - rect.y > 0) {
-      XClearArea(display, window,                     //
-                 rect.x, rect.y,                      //
-                 rect.width, cy + region_y - rect.y,  //
-                 False);
-    }
-    if (cx + region_x - rect.x > 0) {
-      XClearArea(display, window,                   //
-                 rect.x, cy + region_y,             //
-                 cx + region_x - rect.x, region_h,  //
-                 False);
-    }
-    if (rect.x + rect.width - cx - region_x - region_w > 0) {
-      XClearArea(display, window,                                           //
-                 cx + region_x + region_w, cy + region_y,                   //
-                 rect.x + rect.width - cx - region_x - region_w, region_h,  //
-                 False);
-    }
-    if (rect.y + rect.height - cy - region_y - region_h > 0) {
-      XClearArea(display, window,                                  //
-                 rect.x, cy + region_y + region_h, rect.width,     //
-                 rect.y + rect.height - cy - region_y - region_h,  //
-                 False);
-    }
-#endif
-
-    // Disable clipping again.
-    XSetClipMask(display, gc, None);
   }
 
   // Make the things just drawn appear on the screen as soon as possible.
@@ -948,11 +1058,7 @@ int prompt(const char *msg, char **response, int echo) {
     // Handle X11 events that queued up.
     while (!done && XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
       if (IsMonitorChangeEvent(display, priv.ev.type)) {
-        XWindowAttributes xwa;
-        XGetWindowAttributes(display, DefaultRootWindow(display), &xwa);
-        XMoveResizeWindow(display, window, 0, 0, xwa.width, xwa.height);
-        num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
-        XClearWindow(display, window);
+        per_monitor_windows_dirty = 1;
       }
     }
   }
@@ -1108,7 +1214,10 @@ done:
  *
  * \return 0 if authentication successful, anything else otherwise.
  */
-int main() {
+int main(int argc_local, char **argv_local) {
+  argc = argc_local;
+  argv = argv_local;
+
   setlocale(LC_CTYPE, "");
   setlocale(LC_TIME, "");
 
@@ -1166,11 +1275,17 @@ int main() {
     return 1;
   }
 
-  window = ReadWindowID();
-  if (window == None) {
+  main_window = ReadWindowID();
+  if (main_window == None) {
     Log("Invalid/no window ID in XSCREENSAVER_WINDOW");
     return 1;
   }
+  Window unused_root;
+  Window *unused_children = NULL;
+  unsigned int unused_nchildren;
+  XQueryTree(display, main_window, &unused_root, &parent_window,
+             &unused_children, &unused_nchildren);
+  XFree(unused_children);
 
   Background = BlackPixel(display, DefaultScreen(display));
   Foreground = WhitePixel(display, DefaultScreen(display));
@@ -1219,29 +1334,8 @@ int main() {
     return 1;
   }
 
-  XGCValues gcattrs;
-  gcattrs.function = GXcopy;
-  gcattrs.foreground = Foreground;
-  gcattrs.background = Background;
-  if (core_font != NULL) {
-    gcattrs.font = core_font->fid;
-  }
-  gc = XCreateGC(display, window,
-                 GCFunction | GCForeground | GCBackground |
-                     (core_font != NULL ? GCFont : 0),
-                 &gcattrs);
-  gcattrs.foreground = Warning;
-  gc_warning = XCreateGC(display, window,
-                         GCFunction | GCForeground | GCBackground |
-                             (core_font != NULL ? GCFont : 0),
-                         &gcattrs);
-
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
-    xft_draw = XftDrawCreate(display, window,
-                             DefaultVisual(display, DefaultScreen(display)),
-                             DefaultColormap(display, DefaultScreen(display)));
-
     XRenderColor xrcolor;
     xrcolor.red = 65535;
     xrcolor.green = 65535;
@@ -1260,19 +1354,12 @@ int main() {
   }
 #endif
 
-  XSetWindowBackground(display, window, Background);
-  XMapRaised(display, window);
-
-  SelectMonitorChangeEvents(display, window);
-  int w = DisplayWidth(display, DefaultScreen(display));
-  int h = DisplayHeight(display, DefaultScreen(display));
-  XMoveResizeWindow(display, window, 0, 0, w, h);
-  num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
+  SelectMonitorChangeEvents(display, main_window);
 
   int status = authenticate();
 
-  // Clear any possible processing message.
-  display_string("", "");
+  // Clear any possible processing message by closing our windows.
+  DestroyPerMonitorWindows(0);
 
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
@@ -1281,7 +1368,6 @@ int main() {
                  &xft_color_warning);
     XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
                  DefaultColormap(display, DefaultScreen(display)), &xft_color);
-    XftDrawDestroy(xft_draw);
     XftFontClose(display, xft_font);
   }
 #endif

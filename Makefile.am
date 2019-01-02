@@ -137,6 +137,7 @@ auth_x11_SOURCES = \
 	logging.c logging.h \
 	mlock_page.h \
 	wait_pgrp.c wait_pgrp.h \
+	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 auth_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS)
 auth_x11_LDADD = $(XFT_LIBS)
