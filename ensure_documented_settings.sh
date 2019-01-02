@@ -30,11 +30,18 @@ internal_settings='
 XSECURELOCK_INSIDE_SAVER_MULTIPLEX
 '
 
+# List of deprecated settings. These shall not be documented.
+deprecated_settings='
+XSECURELOCK_WANT_FIRST_KEYPRESS
+'
+
 public_settings=$(
 	{
 		echo "$all_settings"
 		echo "$internal_settings"
 		echo "$internal_settings"
+		echo "$deprecated_settings"
+		echo "$deprecated_settings"
 	} | sort | uniq -u
 )
 
