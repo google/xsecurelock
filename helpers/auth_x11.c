@@ -41,10 +41,10 @@ limitations under the License.
 #include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
 #include "../wait_pgrp.h"         // for WaitPgrp
+#include "../wm_properties.h"     // for SetWMProperties
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "authproto.h"            // for WritePacket, ReadPacket, PTYPE_R...
 #include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
-#include "wm_properties.h"        // for SetWMProperties
 
 //! Number of args.
 int argc;

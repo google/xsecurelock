@@ -278,16 +278,16 @@ size_t GetMonitors(Display* dpy, Window window, Monitor* out_monitors,
   return num_monitors;
 }
 
-void SelectMonitorChangeEvents(Display* dpy, Window w) {
+void SelectMonitorChangeEvents(Display* dpy, Window window) {
 #ifdef HAVE_XRANDR_EXT
   if (MaybeInitXRandR(dpy)) {
-    XRRSelectInput(dpy, w,
+    XRRSelectInput(dpy, window,
                    RRScreenChangeNotifyMask | RRCrtcChangeNotifyMask |
                        RROutputChangeNotifyMask);
   }
 #else
   (void)dpy;
-  (void)w;
+  (void)window;
 #endif
 }
 

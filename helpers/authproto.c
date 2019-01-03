@@ -164,7 +164,7 @@ have_len:
     Log("invalid length %d", len);
     return 0;
   }
-  *message = malloc(len + 1);
+  *message = malloc((size_t)len + 1);
   if ((type == PTYPE_RESPONSE_LIKE_PASSWORD) &&
       MLOCK_PAGE(*message, len + 1) < 0) {
     // We continue anyway, as the user being unable to unlock the screen is
