@@ -62,7 +62,7 @@ XSyncSystemCounter *xsync_counters;
 
 pid_t childpid = 0;
 
-static void handle_sigterm(int signo) {
+static void HandleSIGTERM(int signo) {
   if (childpid != 0) {
     KillPgrp(childpid);  // Dirty, but quick.
   }
@@ -197,8 +197,8 @@ int main(int argc, char **argv) {
   // Parent process.
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_RESETHAND;      // It re-raises to suicide.
-  sa.sa_handler = handle_sigterm;  // To kill children.
+  sa.sa_flags = SA_RESETHAND;     // It re-raises to suicide.
+  sa.sa_handler = HandleSIGTERM;  // To kill children.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
   }

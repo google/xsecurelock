@@ -127,13 +127,13 @@ int debug_window_info = 0;
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
 
-static void handle_sigterm(int signo) {
+static void HandleSIGTERM(int signo) {
   KillAllSaverChildrenSigHandler();  // Dirty, but quick.
   KillAuthChildSigHandler();         // More dirty.
   raise(signo);
 }
 
-static void handle_sigchld(int unused_signo) {
+static void HandleSIGCHLD(int unused_signo) {
   // No handling needed - we just want to interrupt the select() in the main
   // loop.
   (void)unused_signo;
@@ -227,7 +227,7 @@ int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
 
 /*! \brief Print a version message.
  */
-void version(void) {
+void Version(void) {
   printf("XSecureLock - X11 screen lock utility designed for security.\n");
   if (*git_version) {
     printf("Version: %s\n", git_version);
@@ -242,8 +242,8 @@ void version(void) {
  *
  * \param me The name this executable was invoked as.
  */
-void usage(const char *me) {
-  version();
+void Usage(const char *me) {
+  Version();
   printf(
       "\n"
       "Usage:\n"
@@ -272,7 +272,7 @@ void usage(const char *me) {
  *
  * These settings override what was figured out at ./configure time.
  */
-void load_defaults() {
+void LoadDefaults() {
   auth_executable =
       GetExecutablePathSetting("XSECURELOCK_AUTH", AUTH_EXECUTABLE, 1);
   saver_executable = GetExecutablePathSetting("XSECURELOCK_GLOBAL_SAVER",
@@ -297,7 +297,7 @@ void load_defaults() {
  *
  * Possible errors will be printed on stderr.
  */
-void parse_arguments_or_exit(int argc, char **argv) {
+void ParseArgumentsOrExit(int argc, char **argv) {
   int i;
   for (i = 1; i < argc; ++i) {
     if (!strncmp(argv[i], "auth_", 5)) {
@@ -317,16 +317,16 @@ void parse_arguments_or_exit(int argc, char **argv) {
       break;
     }
     if (!strcmp(argv[i], "--help")) {
-      usage(argv[0]);
+      Usage(argv[0]);
       exit(0);
     }
     if (!strcmp(argv[i], "--version")) {
-      version();
+      Version();
       exit(0);
     }
     // If we get here, the argument is unrecognized. Exit, then.
     Log("Unrecognized argument: %s", argv[i]);
-    usage(argv[0]);
+    Usage(argv[0]);
     exit(0);
   }
 }
@@ -341,7 +341,7 @@ void parse_arguments_or_exit(int argc, char **argv) {
  *
  * \return true if everything is OK, false otherwise.
  */
-int check_settings() {
+int CheckSettings() {
   // Flawfinder note: the access() calls here are not security relevant and just
   // prevent accidentally running with a nonexisting saver or auth executable as
   // that could make the system un-unlockable.
@@ -526,7 +526,7 @@ void NotifyOfLock(int xss_sleep_lock_fd) {
 
 /*! \brief The main program.
  *
- * Usage: see usage().
+ * Usage: see Usage().
  */
 int main(int argc, char **argv) {
   setlocale(LC_CTYPE, "");
@@ -556,10 +556,10 @@ int main(int argc, char **argv) {
   }
 
   // Parse and verify arguments.
-  load_defaults();
-  parse_arguments_or_exit(argc, argv);
-  if (!check_settings()) {
-    usage(argv[0]);
+  LoadDefaults();
+  ParseArgumentsOrExit(argc, argv);
+  if (!CheckSettings()) {
+    Usage(argv[0]);
     return 1;
   }
 
@@ -864,12 +864,12 @@ int main(int argc, char **argv) {
   if (sigaction(SIGPIPE, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGPIPE)");
   }
-  sa.sa_handler = handle_sigchld;  // To interrupt select().
+  sa.sa_handler = HandleSIGCHLD;  // To interrupt select().
   if (sigaction(SIGCHLD, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGCHLD)");
   }
-  sa.sa_flags = SA_RESETHAND;      // It re-raises to suicide.
-  sa.sa_handler = handle_sigterm;  // To kill children.
+  sa.sa_flags = SA_RESETHAND;     // It re-raises to suicide.
+  sa.sa_handler = HandleSIGTERM;  // To kill children.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
   }

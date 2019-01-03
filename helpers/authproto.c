@@ -25,7 +25,7 @@ limitations under the License.
 #include "../logging.h"     // for LogErrno, Log
 #include "../mlock_page.h"  // for MLOCK_PAGE
 
-static size_t writechars(int fd, const char *buf, size_t n) {
+static size_t WriteChars(int fd, const char *buf, size_t n) {
   size_t total = 0;
   while (total < n) {
     ssize_t got = write(fd, buf + total, n - total);
@@ -64,18 +64,18 @@ void WritePacket(int fd, char type, const char *message) {
   }
   // Yes, we're wasting syscalls here. This doesn't need to be fast though, and
   // this way we can avoid an extra buffer.
-  if (!writechars(fd, prefix, prefixlen)) {
+  if (!WriteChars(fd, prefix, prefixlen)) {
     return;
   }
-  if (len != 0 && !writechars(fd, message, len)) {
+  if (len != 0 && !WriteChars(fd, message, len)) {
     return;
   }
-  if (!writechars(fd, "\n", 1)) {
+  if (!WriteChars(fd, "\n", 1)) {
     return;
   }
 }
 
-static size_t readchars(int fd, char *buf, size_t n, int eof_permitted) {
+static size_t ReadChars(int fd, char *buf, size_t n, int eof_permitted) {
   size_t total = 0;
   while (total < n) {
     ssize_t got = read(fd, buf + total, n - total);
@@ -100,7 +100,7 @@ static size_t readchars(int fd, char *buf, size_t n, int eof_permitted) {
 
 char ReadPacket(int fd, char **message, int eof_permitted) {
   char type;
-  if (!readchars(fd, &type, 1, eof_permitted)) {
+  if (!ReadChars(fd, &type, 1, eof_permitted)) {
     return 0;
   }
   if (type == 0) {
@@ -108,7 +108,7 @@ char ReadPacket(int fd, char **message, int eof_permitted) {
     return 0;
   }
   char c;
-  if (!readchars(fd, &c, 1, 0)) {
+  if (!ReadChars(fd, &c, 1, 0)) {
     return 0;
   }
   if (c != ' ') {
@@ -118,7 +118,7 @@ char ReadPacket(int fd, char **message, int eof_permitted) {
   int len = 0;
   for (;;) {
     errno = 0;
-    if (!readchars(fd, &c, 1, 0)) {
+    if (!ReadChars(fd, &c, 1, 0)) {
       return 0;
     }
     switch (c) {
@@ -171,11 +171,11 @@ have_len:
     // worse.
     LogErrno("mlock");
   }
-  if (len != 0 && !readchars(fd, *message, len, 0)) {
+  if (len != 0 && !ReadChars(fd, *message, len, 0)) {
     return 0;
   }
   (*message)[len] = 0;
-  if (!readchars(fd, &c, 1, 0)) {
+  if (!ReadChars(fd, &c, 1, 0)) {
     return 0;
   }
   if (c != '\n') {

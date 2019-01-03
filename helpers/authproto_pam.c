@@ -36,7 +36,7 @@ static int conv_error = 0;
  * \return The PAM status (PAM_SUCCESS in case of success, or anything else in
  *   case of error).
  */
-int converse_one(const struct pam_message *msg, struct pam_response *resp) {
+int ConverseOne(const struct pam_message *msg, struct pam_response *resp) {
   resp->resp_retcode = 0;  // Unused but should be set to zero.
   switch (msg->msg_style) {
     case PAM_PROMPT_ECHO_OFF: {
@@ -69,12 +69,12 @@ int converse_one(const struct pam_message *msg, struct pam_response *resp) {
  * \return The PAM status (PAM_SUCCESS in case of success, or anything else in
  *   case of error).
  */
-int converse(int num_msg, const struct pam_message **msg,
+int Converse(int num_msg, const struct pam_message **msg,
              struct pam_response **resp, void *appdata_ptr) {
   (void)appdata_ptr;
 
   if (conv_error) {
-    Log("converse() got called again with %d messages (first: %s) after "
+    Log("Converse() got called again with %d messages (first: %s) after "
         "having failed before - this is very likely a bug in the PAM "
         "module having made the call. Bailing out",
         num_msg, num_msg <= 0 ? "(none)" : msg[0]->msg);
@@ -85,7 +85,7 @@ int converse(int num_msg, const struct pam_message **msg,
 
   int i;
   for (i = 0; i < num_msg; ++i) {
-    int status = converse_one(msg[i], &(*resp)[i]);
+    int status = ConverseOne(msg[i], &(*resp)[i]);
     if (status != PAM_SUCCESS) {
       for (i = 0; i < num_msg; ++i) {
         free((*resp)[i].resp);
@@ -102,8 +102,8 @@ int converse(int num_msg, const struct pam_message **msg,
 
 /*! \brief Perform a single PAM operation with retrying logic.
  */
-int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
-                          pam_handle_t *pam, int flags) {
+int CallPAMWithRetries(int (*pam_call)(pam_handle_t *, int), pam_handle_t *pam,
+                       int flags) {
   int attempt = 0;
   for (;;) {
     conv_error = 0;
@@ -137,7 +137,7 @@ int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
  * \return The PAM status (PAM_SUCCESS after successful authentication, or
  *   anything else in case of error).
  */
-int authenticate(struct pam_conv *conv, pam_handle_t **pam) {
+int Authenticate(struct pam_conv *conv, pam_handle_t **pam) {
   const char *service_name =
       GetStringSetting("XSECURELOCK_PAM_SERVICE", PAM_SERVICE_NAME);
   if (strchr(service_name, '/')) {
@@ -184,7 +184,7 @@ int authenticate(struct pam_conv *conv, pam_handle_t **pam) {
     return status;
   }
 
-  status = call_pam_with_retries(pam_authenticate, *pam, 0);
+  status = CallPAMWithRetries(pam_authenticate, *pam, 0);
   if (status != PAM_SUCCESS) {
     if (!conv_error) {
       Log("pam_authenticate: %s", pam_strerror(*pam, status));
@@ -192,10 +192,10 @@ int authenticate(struct pam_conv *conv, pam_handle_t **pam) {
     return status;
   }
 
-  int status2 = call_pam_with_retries(pam_acct_mgmt, *pam, 0);
+  int status2 = CallPAMWithRetries(pam_acct_mgmt, *pam, 0);
   if (status2 == PAM_NEW_AUTHTOK_REQD) {
     status2 =
-        call_pam_with_retries(pam_chauthtok, *pam, PAM_CHANGE_EXPIRED_AUTHTOK);
+        CallPAMWithRetries(pam_chauthtok, *pam, PAM_CHANGE_EXPIRED_AUTHTOK);
 #ifdef PAM_CHECK_ACCOUNT_TYPE
     if (status2 != PAM_SUCCESS) {
       if (!conv_error) {
@@ -232,11 +232,11 @@ int main() {
   setlocale(LC_CTYPE, "");
 
   struct pam_conv conv;
-  conv.conv = converse;
+  conv.conv = Converse;
   conv.appdata_ptr = NULL;
 
   pam_handle_t *pam = NULL;
-  int status = authenticate(&conv, &pam);
+  int status = Authenticate(&conv, &pam);
   int status2 = pam == NULL ? PAM_SUCCESS : pam_end(pam, status);
 
   if (status != PAM_SUCCESS) {

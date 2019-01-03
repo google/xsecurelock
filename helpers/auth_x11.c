@@ -681,7 +681,7 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  * \param title The title of the message.
  * \param str The message itself.
  */
-void display_string(const char *title, const char *str) {
+void DisplayMessage(const char *title, const char *str) {
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
 
@@ -824,7 +824,7 @@ void display_string(const char *title, const char *str) {
   XFlush(display);
 }
 
-void wait_for_keypress(int seconds) {
+void WaitForKeypress(int seconds) {
   // Sleep for up to 1 second _or_ a key press.
   struct timeval timeout;
   timeout.tv_sec = seconds;
@@ -851,7 +851,7 @@ void wait_for_keypress(int seconds) {
  *   (password entry).
  * \return 1 if successful, anything else otherwise.
  */
-int prompt(const char *msg, char **response, int echo) {
+int Prompt(const char *msg, char **response, int echo) {
   // Ask something. Return strdup'd string.
   struct {
     // The received X11 event.
@@ -887,8 +887,8 @@ int prompt(const char *msg, char **response, int echo) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    display_string("Error", "Password will not be stored securely.");
-    wait_for_keypress(1);
+    DisplayMessage("Error", "Password will not be stored securely.");
+    WaitForKeypress(1);
   }
 
   priv.pwlen = 0;
@@ -939,7 +939,7 @@ int prompt(const char *msg, char **response, int echo) {
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
-    display_string(msg, priv.displaybuf);
+    DisplayMessage(msg, priv.displaybuf);
 
     if (!played_sound) {
       PlaySound(SOUND_PROMPT);
@@ -1048,8 +1048,8 @@ int prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            display_string("Error", "Password has not been stored securely.");
-            wait_for_keypress(1);
+            DisplayMessage("Error", "Password has not been stored securely.");
+            WaitForKeypress(1);
           }
           if (priv.pwlen != 0) {
             memcpy(*response, priv.pwbuf, priv.pwlen);
@@ -1104,7 +1104,7 @@ int prompt(const char *msg, char **response, int echo) {
  *
  * \return The authentication status (0 for OK, 1 otherwise).
  */
-int authenticate() {
+int Authenticate() {
   int requestfd[2], responsefd[2];
   if (pipe(requestfd)) {
     LogErrno("pipe");
@@ -1183,36 +1183,36 @@ int authenticate() {
     char type = ReadPacket(requestfd[0], &message, 1);
     switch (type) {
       case PTYPE_INFO_MESSAGE:
-        display_string("PAM says", message);
+        DisplayMessage("PAM says", message);
         free(message);
         PlaySound(SOUND_INFO);
-        wait_for_keypress(1);
+        WaitForKeypress(1);
         break;
       case PTYPE_ERROR_MESSAGE:
-        display_string("Error", message);
+        DisplayMessage("Error", message);
         free(message);
         PlaySound(SOUND_ERROR);
-        wait_for_keypress(1);
+        WaitForKeypress(1);
         break;
       case PTYPE_PROMPT_LIKE_USERNAME:
-        if (prompt(message, &response, 1)) {
+        if (Prompt(message, &response, 1)) {
           WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_USERNAME, response);
           free(response);
         } else {
           WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
         }
         free(message);
-        display_string("Processing...", "");
+        DisplayMessage("Processing...", "");
         break;
       case PTYPE_PROMPT_LIKE_PASSWORD:
-        if (prompt(message, &response, 0)) {
+        if (Prompt(message, &response, 0)) {
           WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_PASSWORD, response);
           free(response);
         } else {
           WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
         }
         free(message);
-        display_string("Processing...", "");
+        DisplayMessage("Processing...", "");
         break;
       case 0:
         goto done;
@@ -1385,7 +1385,7 @@ int main(int argc_local, char **argv_local) {
 
   SelectMonitorChangeEvents(display, main_window);
 
-  int status = authenticate();
+  int status = Authenticate();
 
   // Clear any possible processing message by closing our windows.
   DestroyPerMonitorWindows(0);

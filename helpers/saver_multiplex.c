@@ -30,12 +30,12 @@ limitations under the License.
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "monitors.h"             // for IsMonitorChangeEvent, Monitor, Sele...
 
-static void handle_sigterm(int signo) {
+static void HandleSIGTERM(int signo) {
   KillAllSaverChildrenSigHandler();  // Dirty, but quick.
   raise(signo);                      // Destroys windows we created anyway.
 }
 
-static void handle_sigchld(int unused_signo) {
+static void HandleSIGCHLD(int unused_signo) {
   // No handling needed - we just want to interrupt the select() in the main
   // loop.
   (void)unused_signo;
@@ -122,12 +122,12 @@ int main(int argc, char** argv) {
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
-  sa.sa_handler = handle_sigchld;  // To interrupt select().
+  sa.sa_handler = HandleSIGCHLD;  // To interrupt select().
   if (sigaction(SIGCHLD, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGCHLD)");
   }
-  sa.sa_flags = SA_RESETHAND;      // It re-raises to suicide.
-  sa.sa_handler = handle_sigterm;  // To kill children.
+  sa.sa_flags = SA_RESETHAND;     // It re-raises to suicide.
+  sa.sa_handler = HandleSIGTERM;  // To kill children.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
   }
