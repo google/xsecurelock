@@ -21,20 +21,21 @@ limitations under the License.
  *security.
  */
 
-#include <X11/X.h>       // for Window, None, CopyFromParent
-#include <X11/Xatom.h>   // for XA_CARDINAL, XA_ATOM
-#include <X11/Xlib.h>    // for XEvent, XMapRaised, XSelectInput
-#include <X11/Xutil.h>   // for XLookupString
-#include <X11/keysym.h>  // for XK_BackSpace, XK_Tab, XK_o
-#include <fcntl.h>       // for fcntl, FD_CLOEXEC, F_GETFD
-#include <locale.h>      // for NULL, setlocale, LC_CTYPE
-#include <signal.h>      // for sigaction, raise, sa_handler
-#include <stdio.h>       // for printf, size_t, snprintf
-#include <stdlib.h>      // for exit, system, EXIT_FAILURE
-#include <string.h>      // for memset, strcmp, strncmp
-#include <sys/select.h>  // for select, timeval, fd_set, FD_SET
-#include <time.h>        // for nanosleep, timespec
-#include <unistd.h>      // for _exit, chdir, close, execvp
+#include <X11/X.h>           // for Window, None, CopyFromParent
+#include <X11/Xatom.h>       // for XA_CARDINAL, XA_ATOM
+#include <X11/Xlib.h>        // for XEvent, XMapRaised, XSelectInput
+#include <X11/Xutil.h>       // for XLookupString
+#include <X11/cursorfont.h>  // for XC_arrow
+#include <X11/keysym.h>      // for XK_BackSpace, XK_Tab, XK_o
+#include <fcntl.h>           // for fcntl, FD_CLOEXEC, F_GETFD
+#include <locale.h>          // for NULL, setlocale, LC_CTYPE
+#include <signal.h>          // for sigaction, raise, sa_handler
+#include <stdio.h>           // for printf, size_t, snprintf
+#include <stdlib.h>          // for exit, system, EXIT_FAILURE
+#include <string.h>          // for memset, strcmp, strncmp
+#include <sys/select.h>      // for select, timeval, fd_set, FD_SET
+#include <time.h>            // for nanosleep, timespec
+#include <unistd.h>          // for _exit, chdir, close, execvp
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
@@ -83,6 +84,15 @@ limitations under the License.
  * periodically.
  */
 #undef AUTO_RAISE
+
+/*! \brief Show cursor during auth.
+ *
+ * If enabled, a mouse cursor is shown whenever the auth_window is mapped.
+ *
+ * Note that proper use of this also would require a way to forward click
+ * events to the auth helper, which doesn't exist yet.
+ */
+#undef SHOW_CURSOR_DURING_AUTH
 
 /*! \brief Exhaustive list of all mouse related X11 events.
  *
@@ -600,12 +610,14 @@ int main(int argc, char **argv) {
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
   Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
+  Cursor default_cursor = XCreateFontCursor(display, XC_arrow);
+  Cursor transparent_cursor =
+      XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
   XSetWindowAttributes coverattrs = {0};
   coverattrs.background_pixel = black.pixel;
   coverattrs.save_under = 1;
   coverattrs.override_redirect = 1;
-  coverattrs.cursor =
-      XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
+  coverattrs.cursor = transparent_cursor;
 
   Window parent_window = root_window;
 
@@ -685,7 +697,7 @@ int main(int argc, char **argv) {
   my_windows[n_my_windows++] = saver_window;
 
   Window auth_window =
-      XCreateWindow(display, saver_window, 0, 0, w, h, 0, CopyFromParent,
+      XCreateWindow(display, background_window, 0, 0, w, h, 0, CopyFromParent,
                     InputOutput, CopyFromParent, CWBackPixel, &coverattrs);
   SetWMProperties(display, auth_window, "xsecurelock", "auth", argc, argv);
   my_windows[n_my_windows++] = auth_window;
@@ -712,7 +724,6 @@ int main(int argc, char **argv) {
   XWindowChanges coverchanges;
   coverchanges.stack_mode = Above;
   XConfigureWindow(display, background_window, CWStackMode, &coverchanges);
-  XConfigureWindow(display, saver_window, CWStackMode, &coverchanges);
   XConfigureWindow(display, auth_window, CWStackMode, &coverchanges);
 
   // We're OverrideRedirect anyway, but setting this hint may help compositors
@@ -801,7 +812,7 @@ int main(int argc, char **argv) {
   int last_normal_attempt = force_grab ? 1 : 0;
   for (retries = 10; retries >= 0; --retries) {
     if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                     coverattrs.cursor,
+                     transparent_cursor,
                      /*silent=*/retries > last_normal_attempt,
                      /*force=*/retries < last_normal_attempt)) {
       break;
@@ -818,6 +829,7 @@ int main(int argc, char **argv) {
   // yet, thereby "confirming" the screen lock.
   XMapRaised(display, background_window);
   XMapRaised(display, saver_window);
+  XRaiseWindow(display, auth_window);  // Don't map here.
 
 #ifdef HAVE_XCOMPOSITE_EXT
   if (obscurer_window != None) {
@@ -903,7 +915,7 @@ int main(int argc, char **argv) {
     if (need_to_reinstate_grabs) {
       need_to_reinstate_grabs = 0;
       if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                        coverattrs.cursor, 0, 0)) {
+                        transparent_cursor, 0, 0)) {
         Log("Critical: could not reacquire grabs. The screen is now UNLOCKED! "
             "Trying again next frame.");
         need_to_reinstate_grabs = 1;
@@ -914,7 +926,6 @@ int main(int argc, char **argv) {
     if (auth_window_mapped) {
       MaybeRaiseWindow(display, auth_window, 0);
     }
-    MaybeRaiseWindow(display, saver_window, 0);
     MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
     if (obscurer_window != None) {
@@ -963,10 +974,8 @@ int main(int argc, char **argv) {
           }
           // Also, whatever window has been reconfigured, should also be raised
           // to make sure.
-          if (priv.ev.xconfigure.window == auth_window) {
+          if (auth_window_mapped && priv.ev.xconfigure.window == auth_window) {
             MaybeRaiseWindow(display, auth_window, 0);
-          } else if (priv.ev.xconfigure.window == saver_window) {
-            MaybeRaiseWindow(display, saver_window, 0);
           } else if (priv.ev.xconfigure.window == background_window) {
             MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
@@ -985,14 +994,10 @@ int main(int argc, char **argv) {
           if (priv.ev.xvisibility.state != VisibilityUnobscured) {
             // If something else shows an OverrideRedirect window, we want to
             // stay on top.
-            if (priv.ev.xvisibility.window == auth_window) {
+            if (auth_window_mapped &&
+                priv.ev.xvisibility.window == auth_window) {
               Log("Someone overlapped the auth window. Undoing that");
               MaybeRaiseWindow(display, auth_window, 1);
-            } else if (priv.ev.xvisibility.window == saver_window &&
-                       !auth_window_mapped) {
-              Log("Someone overlapped the saver window (and it wasn't auth). "
-                  "Undoing that");
-              MaybeRaiseWindow(display, saver_window, 1);
             } else if (priv.ev.xvisibility.window == background_window) {
               Log("Someone overlapped the background window. Undoing that");
               MaybeRaiseWindow(display, background_window, 1);
@@ -1103,6 +1108,12 @@ int main(int argc, char **argv) {
 #endif
           if (priv.ev.xmap.window == auth_window) {
             auth_window_mapped = 1;
+#ifdef SHOW_CURSOR_DURING_AUTH
+            // Actually ShowCursor...
+            XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
+                         GrabModeAsync, GrabModeAsync, None, default_cursor,
+                         CurrentTime);
+#endif
           } else if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 1;
           } else if (priv.ev.xmap.window == background_window) {
@@ -1120,11 +1131,17 @@ int main(int argc, char **argv) {
 #endif
           if (priv.ev.xmap.window == auth_window) {
             auth_window_mapped = 0;
+#ifdef SHOW_CURSOR_DURING_AUTH
+            // Actually HideCursor...
+            XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
+                         GrabModeAsync, GrabModeAsync, None, transparent_cursor,
+                         CurrentTime);
+#endif
           } else if (priv.ev.xmap.window == saver_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the saver window. Undoing that");
             saver_window_mapped = 0;
-            XMapRaised(display, saver_window);
+            XMapWindow(display, saver_window);
           } else if (priv.ev.xmap.window == background_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the background window. Undoing that");
@@ -1163,7 +1180,7 @@ int main(int argc, char **argv) {
             // launch xsecurelock while the release event releases a passive
             // grab. We still immediately try to reacquire grabs here, though.
             if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                              coverattrs.cursor, 0, 0)) {
+                              transparent_cursor, 0, 0)) {
               Log("Critical: could not reacquire grabs after NotifyUngrab. The "
                   "screen is now UNLOCKED! Trying again next frame.");
               need_to_reinstate_grabs = 1;
@@ -1198,6 +1215,7 @@ done:
   memset(&priv, 0, sizeof(priv));
 
   // Free our resources, and exit.
+  XDestroyWindow(display, auth_window);
   XDestroyWindow(display, saver_window);
   XDestroyWindow(display, background_window);
 
@@ -1211,7 +1229,8 @@ done:
   }
 #endif
 
-  XFreeCursor(display, coverattrs.cursor);
+  XFreeCursor(display, transparent_cursor);
+  XFreeCursor(display, default_cursor);
   XFreePixmap(display, bg);
 
   XCloseDisplay(display);
