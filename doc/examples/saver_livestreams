@@ -1,0 +1,20 @@
+#!/bin/sh
+# This screensaver displays livestreams that are listed in the feed file located
+# at "~/.streamsaver-feeds".  The feeds are chosen by the current day of year
+# and the index of the monitor as shown in `xrandr`.  The entries started with
+# "#"-sign is ignored.
+#
+# Please install livestreamer (http://livestreamer.io) before using this saver.
+#
+# A sample feed file (~/.streamsaver-feeds):
+# > http://ustream.tv/channel/iss-hdev-payload
+# > http://ustream.tv/channel/live-iss-stream
+# > # http://ustream.tv/channel/live-mir-stream
+
+feeds=(`cat ~/.streamsaver-feeds | grep -Ev '^#'`)
+monitor_index=`xrandr | grep -wi "connected" | sort | grep -nho "$(xwininfo -id "$XSCREENSAVER_WINDOW" | awk '/^  Corners:/ { print $2 }')" | awk -F: '{ print $1; exit 0; }'`
+day=`date +%j`
+
+i=$(( ($monitor_index+$day)%${#feeds[@]} ))
+
+/usr/bin/livestreamer "${feeds[i]}" "best" --quiet --player="/usr/bin/mpv --no-input-terminal --really-quiet --no-audio --no-stop-screensaver --wid=${XSCREENSAVER_WINDOW}"
