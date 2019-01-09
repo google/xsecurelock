@@ -1109,11 +1109,11 @@ int main(int argc, char **argv) {
                     Log("Wow, pretty long keysym names you got there");
                   } else {
                     system(buf);
+                    do_wake_up = 0;
                   }
                 }
               }
             }
-            do_wake_up = 0;
           }
           // Now if so desired, wake up the login prompt, and check its
           // status.
