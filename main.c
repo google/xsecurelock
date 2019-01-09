@@ -265,7 +265,9 @@ void Usage(const char *me) {
       "This software is licensed under the Apache 2.0 License. Details are\n"
       "available at the following location:\n"
       "  " DOCS_PATH "/COPYING\n",
-      me);
+      me,
+      "%s",   // For XSECURELOCK_KEY_%s_COMMAND.
+      "%s");  // For XSECURELOCK_KEY_%s_COMMAND's description.
 }
 
 /*! \brief Load default settings from environment variables.
@@ -373,7 +375,7 @@ void DebugDumpWindowInfo(Window w) {
   int buflen =
       snprintf(buf, sizeof(buf),
                "{ xwininfo -all -id %lu; xprop -id %lu; } >&2 &", w, w);
-  if (buflen >= 0 && (size_t)buflen >= sizeof(buf)) {
+  if (buflen <= 0 || (size_t)buflen >= sizeof(buf)) {
     Log("Wow, pretty large integers you got there");
     return;
   }
@@ -1032,6 +1034,7 @@ int main(int argc, char **argv) {
           // Keyboard events launch the auth child.
           Status status = XLookupNone;
           int have_key = 1;
+          int do_wake_up = 1;
           priv.keysym = NoSymbol;
           if (xic) {
             // This uses the current locale.
@@ -1087,13 +1090,41 @@ int main(int argc, char **argv) {
           } else {
             // No new bytes. Fine.
             priv.buf[0] = 0;
+            // We do check if something external wants to handle this key,
+            // though.
+            const char *keyname = XKeysymToString(priv.keysym);
+            if (keyname != NULL) {
+              char buf[64];
+              int buflen = snprintf(buf, sizeof(buf),
+                                    "XSECURELOCK_KEY_%s_COMMAND", keyname);
+              if (buflen <= 0 || (size_t)buflen >= sizeof(buf)) {
+                Log("Wow, pretty long keysym names you got there");
+              } else {
+                const char *command = GetStringSetting(buf, "");
+                if (*command) {
+                  buflen = snprintf(buf, sizeof(buf),
+                                    "eval \"$XSECURELOCK_KEY_%s_COMMAND\" &",
+                                    keyname);
+                  if (buflen <= 0 || (size_t)buflen >= sizeof(buf)) {
+                    Log("Wow, pretty long keysym names you got there");
+                  } else {
+                    system(buf);
+                  }
+                }
+              }
+            }
+            do_wake_up = 0;
           }
-          // In any case, the saver will be activated.
-          if (WakeUp(display, auth_window, saver_window, priv.buf)) {
-            goto done;
-          }
+          // Now if so desired, wake up the login prompt, and check its
+          // status.
+          int authenticated =
+              do_wake_up ? WakeUp(display, auth_window, saver_window, priv.buf)
+                         : 0;
           // Clear out keypress data immediately.
           memset(&priv, 0, sizeof(priv));
+          if (authenticated) {
+            goto done;
+          }
         } break;
         case KeyRelease:
         case ButtonRelease:
@@ -1158,7 +1189,8 @@ int main(int argc, char **argv) {
             // This should never happen, but let's handle it anyway.
             // Compton might do this when --unredir-if-possible is set and a
             // fullscreen game launches while the screen is locked.
-            Log("Someone unmapped the composite overlay window. Undoing that");
+            Log("Someone unmapped the composite overlay window. Undoing "
+                "that");
             XMapRaised(display, composite_window);
 #endif
           } else if (priv.ev.xmap.window == root_window) {
@@ -1181,8 +1213,8 @@ int main(int argc, char **argv) {
             // grab. We still immediately try to reacquire grabs here, though.
             if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
                               transparent_cursor, 0, 0)) {
-              Log("Critical: could not reacquire grabs after NotifyUngrab. The "
-                  "screen is now UNLOCKED! Trying again next frame.");
+              Log("Critical: could not reacquire grabs after NotifyUngrab. "
+                  "The screen is now UNLOCKED! Trying again next frame.");
               need_to_reinstate_grabs = 1;
             }
           }
@@ -1192,8 +1224,8 @@ int main(int argc, char **argv) {
           Log("Event%d %lu", priv.ev.type, (unsigned long)priv.ev.xany.window);
 #endif
 #ifdef HAVE_XSCREENSAVER_EXT
-          // Handle screen saver notifications. If the screen is blanked anyway,
-          // turn off the saver child.
+          // Handle screen saver notifications. If the screen is blanked
+          // anyway, turn off the saver child.
           if (scrnsaver_event_base != 0 &&
               priv.ev.type == scrnsaver_event_base + ScreenSaverNotify) {
             if (((XScreenSaverNotifyEvent *)&priv.ev)->state == ScreenSaverOn) {

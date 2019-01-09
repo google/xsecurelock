@@ -58,7 +58,7 @@ void WritePacket(int fd, char type, const char *message) {
   }
   char prefix[16];
   int prefixlen = snprintf(prefix, sizeof(prefix), "%c %d\n", type, len);
-  if (prefixlen < 0 || (size_t)prefixlen >= sizeof(prefix)) {
+  if (prefixlen <= 0 || (size_t)prefixlen >= sizeof(prefix)) {
     Log("overlong prefix, cannot write");
     return;
   }

@@ -75,8 +75,12 @@ void Bayer(int index, int power, int *x, int *y) {
 
 int HaveCompositor(Display *display) {
   char buf[64];
-  snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", (int)DefaultScreen(display));
-  buf[sizeof(buf) - 1] = 0;
+  int buflen =
+      snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", (int)DefaultScreen(display));
+  if (buflen <= 0 || buflen >= (size_t)sizeof(buf)) {
+    Log("Wow, pretty long screen number you got there");
+    return 0;
+  }
   Atom atom = XInternAtom(display, buf, False);
   return XGetSelectionOwner(display, atom) != None;
 }

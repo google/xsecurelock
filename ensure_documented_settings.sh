@@ -20,7 +20,7 @@
 all_settings=$(
 	for file in *.[ch] */*.[ch] */auth_* */saver_*; do
 		<"$file" perl -ne '
-			print "$_\n" for /\bXSECURELOCK_\w+\b/g;
+			print "$_\n" for /\bXSECURELOCK_[A-Za-z0-9_%]+\b/g;
 		'
 	done | sort -u
 )
