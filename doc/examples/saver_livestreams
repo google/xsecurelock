@@ -13,7 +13,7 @@
 
 feeds=(`cat ~/.streamsaver-feeds | grep -Ev '^#'`)
 monitor_index=`xrandr | grep -wi "connected" | sort | grep -nho "$(xwininfo -id "$XSCREENSAVER_WINDOW" | awk '/^  Corners:/ { print $2 }')" | awk -F: '{ print $1; exit 0; }'`
-day=`date +%j`
+day=`date +"%-j"`
 
 i=$(( ($monitor_index+$day)%${#feeds[@]} ))
 
