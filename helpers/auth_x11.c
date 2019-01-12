@@ -1226,7 +1226,7 @@ done:
   close(requestfd[0]);
   close(responsefd[1]);
   int status;
-  if (!WaitPgrp("authproto", childpid, 1, 0, &status)) {
+  if (!WaitPgrp("authproto", &childpid, 1, 0, &status)) {
     Log("WaitPgrp returned false but we were blocking");
     abort();
   }

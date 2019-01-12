@@ -52,16 +52,14 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
     }
 
     int status;
-    if (WaitPgrp("saver", saver_child_pid[index], !should_be_running,
+    pid_t pgrpid = saver_child_pid[index];
+    if (WaitPgrp("saver", &saver_child_pid[index], !should_be_running,
                  !should_be_running, &status)) {
       if (should_be_running) {
         // Try taking its process group with it. Should normally not do
         // anything.
-        KillPgrp(saver_child_pid[index]);
+        KillPgrp(pgrpid);
       }
-
-      // Clean up.
-      saver_child_pid[index] = 0;
 
       // Now is the time to remove anything the child may have displayed.
       XClearWindow(dpy, w);
