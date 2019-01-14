@@ -24,7 +24,7 @@ limitations under the License.
 #define WAIT_NONPOSITIVE_SIGNAL (INT_MIN + 1)
 
 int KillPgrp(pid_t pid);
-int WaitPgrp(const char *name, pid_t pid, int do_block, int already_killed,
+int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
              int *exit_status);
 
 #endif

@@ -939,9 +939,7 @@ int main(int argc, char **argv) {
     // Take care of zombies.
     if (notify_command_pid != 0) {
       int status;
-      if (WaitPgrp("notify", notify_command_pid, 0, 0, &status)) {
-        notify_command_pid = 0;
-      }
+      WaitPgrp("notify", &notify_command_pid, 0, 0, &status);
       // Otherwise, we're still alive. Re-check next time.
     }
 

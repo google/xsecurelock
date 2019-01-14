@@ -226,10 +226,8 @@ int main(int argc, char **argv) {
       KillPgrp(childpid);
     }
     int status;
-    if (WaitPgrp("idle", childpid, !should_be_running, !should_be_running,
-                 &status)) {
-      childpid = 0;
-    }
+    WaitPgrp("idle", &childpid, !should_be_running, !should_be_running,
+                 &status);
   }
 
   // This is the point where we can exit.

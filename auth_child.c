@@ -99,13 +99,13 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
   if (auth_child_pid != 0) {
     // Check if auth child returned.
     int status;
-    if (WaitPgrp("auth", auth_child_pid, 0, 0, &status)) {
+    pid_t pgrpid = auth_child_pid;
+    if (WaitPgrp("auth", &auth_child_pid, 0, 0, &status)) {
       // Try taking its process group with it. Should normally not do anything.
-      KillPgrp(auth_child_pid);
+      KillPgrp(pgrpid);
 
       // Clean up.
       close(auth_child_fd);
-      auth_child_pid = 0;
 
       // Handle success; this will exit the screen lock.
       if (status == 0) {
