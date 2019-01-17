@@ -17,11 +17,12 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
   state->windows = NULL;
   state->n_windows = 0;
 
-  XClassHint cls;
   Window unused_root_return, unused_parent_return;
   XQueryTree(state->display, state->root_window, &unused_root_return,
              &unused_parent_return, &state->windows, &state->n_windows);
-  for (unsigned int i = 0; i < state->n_windows; ++i) {
+  state->first_unmapped_window = state->n_windows;  // That means none unmapped.
+  unsigned int i;
+  for (i = 0; i < state->n_windows; ++i) {
     XWindowAttributes xwa;
     XGetWindowAttributes(display, state->windows[i], &xwa);
     // Not mapped -> nothing to do.
@@ -35,7 +36,8 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
       state->windows[i] = XmuClientWindow(display, state->windows[i]);
     }
     // If any window we'd be unmapping is in the ignore list, skip it.
-    for (unsigned int j = 0; j < n_ignored_windows; ++j) {
+    unsigned int j;
+    for (j = 0; j < n_ignored_windows; ++j) {
       if (state->windows[i] == ignored_windows[j]) {
         state->windows[i] = None;
       }
@@ -43,6 +45,7 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
     if (state->windows[i] == None) {
       continue;
     }
+    XClassHint cls;
     if (XGetClassHint(state->display, state->windows[i], &cls)) {
       // If any window has my window class, we better not proceed with
       // unmapping as doing so could accidentally unlock the screen or
@@ -58,29 +61,46 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState* state, Display* display,
       if (!strcmp(cls.res_class, "Bspwm")) {
         state->windows[i] = None;
       }
+      XFree(cls.res_class);
+      cls.res_class = NULL;
+      XFree(cls.res_name);
+      cls.res_name = NULL;
     }
-    XFree(cls.res_class);
-    cls.res_class = NULL;
-    XFree(cls.res_name);
-    cls.res_name = NULL;
   }
   return should_proceed;
 }
 
-void UnmapAllWindows(UnmapAllWindowsState* state) {
-  for (unsigned int i = 0; i < state->n_windows; ++i) {
+int UnmapAllWindows(UnmapAllWindowsState* state,
+                    int (*just_unmapped_can_we_stop)(Window w, void* arg),
+                    void* arg) {
+  if (state->first_unmapped_window == 0) {  // Already all unmapped.
+    return 0;
+  }
+  unsigned int i;
+  for (i = state->first_unmapped_window - 1;; --i) {  // Top-to-bottom order!
     if (state->windows[i] != None) {
       XUnmapWindow(state->display, state->windows[i]);
+      state->first_unmapped_window = i;
+      int ret;
+      if (just_unmapped_can_we_stop != NULL &&
+          (ret = just_unmapped_can_we_stop(state->windows[i], arg))) {
+        return ret;
+      }
+    }
+    if (i == 0) {
+      return 0;
     }
   }
 }
 
 void RemapAllWindows(UnmapAllWindowsState* state) {
-  for (unsigned int i = 0; i < state->n_windows; ++i) {
+  unsigned int i;
+  for (i = state->first_unmapped_window; i < state->n_windows; ++i) {
     if (state->windows[i] != None) {
       XMapWindow(state->display, state->windows[i]);
     }
   }
+  state->first_unmapped_window = state->n_windows;
 }
 
 void ClearUnmapAllWindowsState(UnmapAllWindowsState* state) {
@@ -89,4 +109,5 @@ void ClearUnmapAllWindowsState(UnmapAllWindowsState* state) {
   XFree(state->windows);
   state->windows = NULL;
   state->n_windows = 0;
+  state->first_unmapped_window = 0;
 }

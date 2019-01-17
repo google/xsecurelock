@@ -16,15 +16,13 @@ limitations under the License.
 
 #include "auth_child.h"
 
-#include <errno.h>     // for ECHILD, EINTR, errno
-#include <signal.h>    // for kill, SIGTERM
-#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <string.h>    // for strlen
-#include <sys/wait.h>  // for WIFEXITED, WIFSIGNALED, waitpid, WEXIT...
-#include <unistd.h>    // for close, pid_t, ssize_t, dup2, execl, fork
+#include <stdlib.h>  // for NULL, EXIT_FAILURE
+#include <string.h>  // for strlen
+#include <unistd.h>  // for close, _exit, dup2, execl, fork, pipe
 
 #include "env_settings.h"      // for GetIntSetting
 #include "logging.h"           // for LogErrno, Log
+#include "wait_pgrp.h"         // for KillPgrp, WaitPgrp
 #include "xscreensaver_api.h"  // for ExportWindowID
 
 //! The PID of a currently running saver child, or 0 if none is running.
@@ -33,7 +31,17 @@ static pid_t auth_child_pid = 0;
 //! If auth_child_pid != 0, the FD which connects to stdin of the auth child.
 static int auth_child_fd = 0;
 
-/*! \brief Return whether the wake-up keypress should be part of the password.
+void KillAuthChildSigHandler(void) {
+  // This is a signal handler, so we're not going to make this too complicated.
+  // Just kill it.
+  if (auth_child_pid != 0) {
+    KillPgrp(auth_child_pid);
+  }
+  auth_child_pid = 0;
+}
+
+/*! \brief Return whether the wake-up keypress should be discarded and not be
+ * sent to the auth child.
  *
  * Sending the wake-up keypress to the auth child is usually a bad idea because
  * many people use "any" key, not their password's, to wake up the screen saver.
@@ -43,10 +51,11 @@ static int auth_child_fd = 0;
  *
  * However, it was requested by a user, so why not add it. Usage:
  *
- * XSECURELOCK_WANT_FIRST_KEYPRESS=1 xsecurelock
+ * XSECURELOCK_DISCARD_FIRST_KEYPRESS=0 xsecurelock
  */
-static int WantFirstKeypress() {
-  return GetIntSetting("XSECURELOCK_WANT_FIRST_KEYPRESS", 0);
+static int DiscardFirstKeypress() {
+  return GetIntSetting("XSECURELOCK_DISCARD_FIRST_KEYPRESS",
+                       !GetIntSetting("XSECURELOCK_WANT_FIRST_KEYPRESS", 0));
 }
 
 int WantAuthChild(int force_auth) {
@@ -85,58 +94,28 @@ static int ContainsNonControl(const char *buf) {
   return 0;
 }
 
-int WatchAuthChild(Display *dpy, Window w, const char *executable,
-                   int force_auth, const char *stdinbuf, int *auth_running) {
+int WatchAuthChild(Window w, const char *executable, int force_auth,
+                   const char *stdinbuf, int *auth_running) {
   if (auth_child_pid != 0) {
     // Check if auth child returned.
     int status;
-    pid_t pid = waitpid(auth_child_pid, &status, WNOHANG);
-    if (pid < 0) {
-      switch (errno) {
-        case ECHILD:
-          // The process is dead. Fine.
-          kill(-auth_child_pid, SIGTERM);
-          auth_child_pid = 0;
-          close(auth_child_fd);
-          // The auth child failed. That's ok. Just carry on.
-          // This will eventually bring back the saver child.
-          break;
-        case EINTR:
-          // Waitpid was interrupted. Fine, assume it's still running.
-          break;
-        default:
-          // Assume the child still lives. Shouldn't ever happen.
-          LogErrno("waitpid");
-          break;
+    if (WaitPgrp("auth", auth_child_pid, 0, 0, &status)) {
+      // Try taking its process group with it. Should normally not do anything.
+      KillPgrp(auth_child_pid);
+
+      // Clean up.
+      close(auth_child_fd);
+      auth_child_pid = 0;
+
+      // Handle success; this will exit the screen lock.
+      if (status == 0) {
+        *auth_running = 0;
+        return 1;
       }
-    } else if (pid == auth_child_pid) {
-      if (WIFEXITED(status) || WIFSIGNALED(status)) {
-        // Auth child exited.
-        // To be sure, let's also kill its process group.
-        kill(-auth_child_pid, SIGTERM);
-        auth_child_pid = 0;
-        close(auth_child_fd);
-        // Now is the time to remove anything the child may have displayed.
-        XClearWindow(dpy, w);
-        // If auth child exited with success status, stop the screen saver.
-        if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS) {
-          *auth_running = 0;
-          return 1;
-        }
-        // Otherwise, the auth child failed. That's the intended behavior in
-        // case of e.g. a wrong password, so don't log this. Just carry on.
-        // This will eventually bring back the saver child.
-        // Only report signals; "normal" exit is not worth logging as it usually
-        // means authentication failure anyway.
-        if (WIFSIGNALED(status)) {
-          Log("Auth child killed by signal %d", WTERMSIG(status));
-        }
-      }
-      // Otherwise, it was suspended or whatever. We need to keep waiting.
-    } else if (pid != 0) {
-      Log("Unexpectedly woke up for PID %d", (int)pid);
+
+      // To handle failure, we just fall through, as we may want to immediately
+      // launch a new auth child and send it a keypress.
     }
-    // Otherwise, we're still alive.
   }
 
   if (force_auth && auth_child_pid == 0) {
@@ -152,19 +131,20 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         // Child process.
         setsid();
         ExportWindowID(w);
+        close(pc[1]);
         if (pc[0] != 0) {
-          dup2(pc[0], 0);
+          if (dup2(pc[0], 0) == -1) {
+            LogErrno("dup2");
+            _exit(EXIT_FAILURE);
+          }
           close(pc[0]);
-        }
-        if (pc[1] != 0) {
-          close(pc[1]);
         }
         execl(executable,  // Path to binary.
               executable,  // argv[0].
               NULL);
         LogErrno("execl");
         sleep(2);  // Reduce log spam or other effects from failed execl.
-        exit(EXIT_FAILURE);
+        _exit(EXIT_FAILURE);
       } else {
         // Parent process after successful fork.
         close(pc[0]);
@@ -172,9 +152,11 @@ int WatchAuthChild(Display *dpy, Window w, const char *executable,
         auth_child_pid = pid;
 
         if (stdinbuf != NULL &&
-            !(WantFirstKeypress() && ContainsNonControl(stdinbuf))) {
+            (DiscardFirstKeypress() || !ContainsNonControl(stdinbuf))) {
           // The auth child has just been started. Do not send any keystrokes to
-          // it immediately.
+          // it immediately. Exception: when the user requested different
+          // behavior by XSECURELOCK_DISCARD_FIRST_KEYPRESS=0 and there is a
+          // printable character.
           stdinbuf = NULL;
         }
       }

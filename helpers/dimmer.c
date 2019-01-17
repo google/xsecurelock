@@ -75,8 +75,12 @@ void Bayer(int index, int power, int *x, int *y) {
 
 int HaveCompositor(Display *display) {
   char buf[64];
-  snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", (int)DefaultScreen(display));
-  buf[sizeof(buf) - 1] = 0;
+  int buflen =
+      snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", (int)DefaultScreen(display));
+  if (buflen <= 0 || buflen >= (size_t)sizeof(buf)) {
+    Log("Wow, pretty long screen number you got there");
+    return 0;
+  }
   Atom atom = XInternAtom(display, buf, False);
   return XGetSelectionOwner(display, atom) != None;
 }
@@ -310,7 +314,7 @@ int main(int argc, char **argv) {
   // Create a simple screen-filling window.
   int w = DisplayWidth(display, DefaultScreen(display));
   int h = DisplayHeight(display, DefaultScreen(display));
-  XSetWindowAttributes dimattrs;
+  XSetWindowAttributes dimattrs = {0};
   dimattrs.save_under = 1;
   dimattrs.override_redirect = 1;
   unsigned long dimmask = CWSaveUnder | CWOverrideRedirect;
@@ -330,7 +334,8 @@ int main(int argc, char **argv) {
   sleep_ts.tv_sec = sleep_time_ns / 1000000000;
   sleep_ts.tv_nsec = sleep_time_ns % 1000000000;
   XMapRaised(display, dim_window);
-  for (int i = 0; i < dimmer->frame_count; ++i) {
+  int i;
+  for (i = 0; i < dimmer->frame_count; ++i) {
     // Advance the dim pattern by one step.
     dimmer->DrawFrame(dimmer, display, dim_window, i, w, h);
     // Draw it!
@@ -343,7 +348,7 @@ int main(int argc, char **argv) {
   // Wait a bit at the end (to hand over to the screen locker without
   // flickering).
   sleep_ts.tv_sec = wait_time_ms / 1000;
-  sleep_ts.tv_nsec = (sleep_time_ns % 1000) * 1000000L;
+  sleep_ts.tv_nsec = (wait_time_ms % 1000) * 1000000L;
   nanosleep(&sleep_ts, NULL);
 
   return 0;

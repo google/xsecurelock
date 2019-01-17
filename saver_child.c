@@ -16,17 +16,28 @@ limitations under the License.
 
 #include "saver_child.h"
 
-#include <errno.h>     // for ECHILD, EINTR, errno
-#include <signal.h>    // for kill, SIGTERM, sigemptyset, sigprocmask
-#include <stdlib.h>    // for NULL, exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <sys/wait.h>  // for WEXITSTATUS, WIFEXITED, WIFSIGNALED
-#include <unistd.h>    // for pid_t, execl, fork, setsid
+#include <signal.h>  // for sigemptyset, sigprocmask, SIG_SETMASK
+#include <stdlib.h>  // for NULL, EXIT_FAILURE
+#include <unistd.h>  // for pid_t, _exit, execl, fork, setsid, sleep
 
-#include "logging.h"           // for Log, LogErrno
+#include "logging.h"           // for LogErrno, Log
+#include "wait_pgrp.h"         // for KillPgrp, WaitPgrp
 #include "xscreensaver_api.h"  // for ExportWindowID
 
 //! The PIDs of currently running saver children, or 0 if not running.
 static pid_t saver_child_pid[MAX_SAVERS] = {0};
+
+void KillAllSaverChildrenSigHandler(void) {
+  // This is a signal handler, so we're not going to make this too
+  // complicated. Just kill 'em all.
+  int i;
+  for (i = 0; i < MAX_SAVERS; ++i) {
+    if (saver_child_pid[i] != 0) {
+      KillPgrp(saver_child_pid[i]);
+    }
+    saver_child_pid[i] = 0;
+  }
+}
 
 void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
                      int should_be_running) {
@@ -37,59 +48,24 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
 
   if (saver_child_pid[index] != 0) {
     if (!should_be_running) {
-      // Kill the whole process group.
-      kill(saver_child_pid[index], SIGTERM);
-      kill(-saver_child_pid[index], SIGTERM);
+      KillPgrp(saver_child_pid[index]);
     }
-    do {
-      int status;
-      pid_t pid = waitpid(saver_child_pid[index], &status,
-                          should_be_running ? WNOHANG : 0);
-      if (pid < 0) {
-        switch (errno) {
-          case ECHILD:
-            // The process is dead. Fine.
-            if (should_be_running) {
-              kill(-saver_child_pid[index], SIGTERM);
-            }
-            saver_child_pid[index] = 0;
-            XClearWindow(dpy, w);
-            break;
-          case EINTR:
-            // Waitpid was interrupted. Need to retry.
-            break;
-          default:
-            // Assume the child still lives. Shouldn't ever happen.
-            LogErrno("waitpid");
-            break;
-        }
-      } else if (pid == saver_child_pid[index]) {
-        if (WIFEXITED(status) || WIFSIGNALED(status)) {
-          // Auth child exited.
-          if (should_be_running) {
-            // To be sure, let's also kill its process group before we restart
-            // it (no need to do this if we already did above).
-            kill(-saver_child_pid[index], SIGTERM);
-          }
-          saver_child_pid[index] = 0;
-          if (WIFSIGNALED(status) &&
-              (should_be_running || WTERMSIG(status) != SIGTERM)) {
-            Log("Saver child killed by signal %d", WTERMSIG(status));
-          }
-          if (WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS) {
-            Log("Saver child failed with status %d", WEXITSTATUS(status));
-          }
-          // Now is the time to remove anything the child may have displayed.
-          XClearWindow(dpy, w);
-        }
-        // Otherwise it was suspended or whatever. We need to keep waiting.
-      } else if (pid != 0) {
-        Log("Unexpectedly woke up for PID %d", (int)pid);
-      } else if (!should_be_running) {
-        Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
+
+    int status;
+    if (WaitPgrp("saver", saver_child_pid[index], !should_be_running,
+                 !should_be_running, &status)) {
+      if (should_be_running) {
+        // Try taking its process group with it. Should normally not do
+        // anything.
+        KillPgrp(saver_child_pid[index]);
       }
-      // Otherwise, we're still alive.
-    } while (!should_be_running && saver_child_pid[index] != 0);
+
+      // Clean up.
+      saver_child_pid[index] = 0;
+
+      // Now is the time to remove anything the child may have displayed.
+      XClearWindow(dpy, w);
+    }
   }
 
   if (should_be_running && saver_child_pid[index] == 0) {
@@ -113,7 +89,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
             NULL);
       LogErrno("execl");
       sleep(2);  // Reduce log spam or other effects from failed execl.
-      exit(EXIT_FAILURE);
+      _exit(EXIT_FAILURE);
     } else {
       // Parent process after successful fork.
       saver_child_pid[index] = pid;

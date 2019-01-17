@@ -14,35 +14,46 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>                // for None, Atom, Success, GCBackground
-#include <X11/Xlib.h>             // for DefaultScreen, Screen, XCreateGC
-#include <locale.h>               // for NULL, setlocale, LC_CTYPE
-#include <pwd.h>                  // for getpwuid_r, passwd
-#include <security/_pam_types.h>  // for pam_strerror, PAM_SUCCESS, pam_s...
-#include <security/pam_appl.h>    // for pam_end, pam_start, pam_acct_mgmt
-#include <stdlib.h>               // for rand, free, mblen, size_t, exit
-#include <string.h>               // for strlen, memcpy, memset, size_t
-#include <sys/select.h>           // for timeval, select, fd_set, FD_SET
-#include <time.h>                 // for time
-#include <unistd.h>               // for gethostname, getuid, read, sysconf
+#include <X11/X.h>       // for Success, None, Atom, KBBellPitch
+#include <X11/Xlib.h>    // for DefaultScreen, Screen, XFree, True
+#include <assert.h>      // for assert
+#include <locale.h>      // for NULL, setlocale, LC_CTYPE, LC_TIME
+#include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
+#include <string.h>      // for strlen, memcpy, memset, strcspn
+#include <sys/select.h>  // for timeval, select, fd_set, FD_SET
+#include <time.h>        // for time, nanosleep, localtime_r
+#include <unistd.h>      // for close, _exit, dup2, pipe, dup
 
 #ifdef HAVE_XFT_EXT
-#include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftFontOpenName
+#include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftColorFree
 #include <X11/extensions/Xrender.h>  // for XRenderColor, XGlyphInfo
 #include <fontconfig/fontconfig.h>   // for FcChar8
 #endif
 
 #ifdef HAVE_XKB_EXT
-#include <X11/XKBlib.h>             // for XkbFreeClientMap, XkbGetIndicato...
-#include <X11/extensions/XKB.h>     // for XkbUseCoreKbd, XkbGroupNamesMask
-#include <X11/extensions/XKBstr.h>  // for XkbStateRec, _XkbDesc, _XkbNamesRec
+#include <X11/XKBlib.h>             // for XkbFreeKeyboard, XkbGetControls
+#include <X11/extensions/XKB.h>     // for XkbUseCoreKbd, XkbGroupsWrapMask
+#include <X11/extensions/XKBstr.h>  // for _XkbDesc, XkbStateRec, _XkbControls
 #endif
 
+#include "../env_info.h"          // for GetHostName, GetUserName
 #include "../env_settings.h"      // for GetIntSetting, GetStringSetting
 #include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
+#include "../wait_pgrp.h"         // for WaitPgrp
+#include "../wm_properties.h"     // for SetWMProperties
 #include "../xscreensaver_api.h"  // for ReadWindowID
+#include "authproto.h"            // for WritePacket, ReadPacket, PTYPE_R...
 #include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
+
+//! Number of args.
+int argc;
+
+//! Args.
+char *const *argv;
+
+//! The authproto helper to use.
+const char *authproto_executable;
 
 //! The blinking interval in microseconds.
 #define BLINK_INTERVAL (250 * 1000)
@@ -56,14 +67,11 @@ int prompt_timeout;
 //! Minimum distance the cursor shall move on keypress.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
 
-//! Border to clear around text (mainly a workaround for bad TextWidth results).
-#define TEXT_BORDER 0
+//! Border of the window around the text.
+#define WINDOW_BORDER 16
 
 //! Draw border rectangle (mainly for debugging).
 #undef DRAW_BORDER
-
-//! Clear the outside area too (may work around driver issues, costs CPU).
-#undef CLEAR_OUTSIDE
 
 //! Extra line spacing.
 #define LINE_SPACING 4
@@ -81,23 +89,26 @@ int show_username;
 // shown in full and not cut at the first dot.
 int show_hostname;
 
+//! If set, data and time will be shown.
+int show_datetime;
+
+//! The date format to display.
+const char *datetime_format = "%c";
+
 //! The local hostname.
-const char *hostname;
+char hostname[256];
 
 //! The username to authenticate as.
-const char *username;
+char username[256];
 
 //! The X11 display.
 Display *display;
 
-//! The X11 window to draw in. Provided from $XSCREENSAVER_WINDOW.
-Window window;
+//! The X11 window provided by main. Provided from $XSCREENSAVER_WINDOW.
+Window main_window;
 
-//! The X11 graphics context to draw with.
-GC gc;
-
-//! The X11 graphics context to draw warnings with.
-GC gc_warning;
+//! main_window's parent. Used to create per-monitor siblings.
+Window parent_window;
 
 //! The X11 core font for the PAM messages.
 XFontStruct *core_font;
@@ -106,7 +117,6 @@ XFontStruct *core_font;
 //! The Xft font for the PAM messages.
 XftColor xft_color;
 XftColor xft_color_warning;
-XftDraw *xft_draw;
 XftFont *xft_font;
 #endif
 
@@ -118,9 +128,6 @@ unsigned long Foreground;
 
 //! The warning color (used as foreground).
 unsigned long Warning;
-
-//! Set if a conversation error has happened during the last PAM call.
-static int conv_error = 0;
 
 //! The cursor character displayed at the end of the masked password input.
 static const char cursor[] = "_";
@@ -137,14 +144,96 @@ static int burnin_mitigation_max_offset = 0;
 //! How much the offsets are allowed to change dynamically, and if so, how high.
 static int burnin_mitigation_max_offset_change = 0;
 
-//! Whether the last printed message was a prompt.
-static int last_message_was_prompt = 0;
+//! Whether to play sounds during authentication.
+static int auth_sounds = 0;
 
-#define MAX_MONITORS 16
-static int num_monitors;
-static Monitor monitors[MAX_MONITORS];
+//! Whether we only want a single auth window.
+static int single_auth_window = 0;
+
+//! If set, we need to re-query monitor data and adjust windows.
+int per_monitor_windows_dirty = 1;
+
+#define MAIN_WINDOW 0
+#define MAX_WINDOWS 16
+
+//! The number of active X11 per-monitor windows.
+size_t num_windows = 0;
+
+//! The X11 per-monitor windows to draw on.
+Window windows[MAX_WINDOWS];
+
+//! The X11 graphics contexts to draw with.
+GC gcs[MAX_WINDOWS];
+
+//! The X11 graphics contexts to draw warnings with.
+GC gcs_warning[MAX_WINDOWS];
+
+#ifdef HAVE_XFT_EXT
+//! The Xft draw contexts to draw with.
+XftDraw *xft_draws[MAX_WINDOWS];
+#endif
 
 int have_xkb_ext;
+
+enum Sound { SOUND_PROMPT, SOUND_INFO, SOUND_ERROR, SOUND_SUCCESS };
+
+#define NOTE_DS3 156
+#define NOTE_A3 220
+#define NOTE_DS4 311
+#define NOTE_E4 330
+#define NOTE_B4 494
+#define NOTE_E5 659
+int sounds[][2] = {
+    /* SOUND_PROMPT=  */ {NOTE_B4, NOTE_E5},   // V|I I
+    /* SOUND_INFO=    */ {NOTE_E5, NOTE_E5},   // I 2x
+    /* SOUND_ERROR=   */ {NOTE_A3, NOTE_DS3},  // V7 2x
+    /* SOUND_SUCCESS= */ {NOTE_DS4, NOTE_E4},  // V I
+};
+#define SOUND_SLEEP_MS 125
+#define SOUND_TONE_MS 100
+
+/*! \brief Play a sound sequence.
+ */
+void PlaySound(enum Sound snd) {
+  XKeyboardState state;
+  XKeyboardControl control;
+  struct timespec sleeptime;
+
+  if (!auth_sounds) {
+    return;
+  }
+
+  XGetKeyboardControl(display, &state);
+
+  // bell_percent changes note length on Linux, so let's use the middle value
+  // to get a 1:1 mapping.
+  control.bell_percent = 50;
+  control.bell_duration = SOUND_TONE_MS;
+  control.bell_pitch = sounds[snd][0];
+  XChangeKeyboardControl(display, KBBellPercent | KBBellDuration | KBBellPitch,
+                         &control);
+  XBell(display, 0);
+
+  XFlush(display);
+
+  sleeptime.tv_sec = SOUND_SLEEP_MS / 1000;
+  sleeptime.tv_nsec = 1000000L * (SOUND_SLEEP_MS % 1000);
+  nanosleep(&sleeptime, NULL);
+
+  control.bell_pitch = sounds[snd][1];
+  XChangeKeyboardControl(display, KBBellPitch, &control);
+  XBell(display, 0);
+
+  control.bell_percent = state.bell_percent;
+  control.bell_duration = state.bell_duration;
+  control.bell_pitch = state.bell_pitch;
+  XChangeKeyboardControl(display, KBBellPercent | KBBellDuration | KBBellPitch,
+                         &control);
+
+  XFlush(display);
+
+  nanosleep(&sleeptime, NULL);
+}
 
 /*! \brief Switch to the next keyboard layout.
  */
@@ -156,25 +245,27 @@ void SwitchKeyboardLayout(void) {
 
   XkbDescPtr xkb;
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
-  if (XkbGetControls(display, XkbUseCoreKbd, xkb) != Success) {
+  if (XkbGetControls(display, XkbGroupsWrapMask, xkb) != Success) {
     Log("XkbGetControls failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return;
   }
   if (xkb->ctrls->num_groups < 1) {
     Log("XkbGetControls returned less than 1 group");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return;
   }
   XkbStateRec state;
   if (XkbGetState(display, XkbUseCoreKbd, &state) != Success) {
     Log("XkbGetState failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return;
   }
 
   XkbLockGroup(display, XkbUseCoreKbd,
                (state.group + 1) % xkb->ctrls->num_groups);
+
+  XkbFreeKeyboard(xkb, 0, True);
 #endif
 }
 
@@ -198,9 +289,9 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
 
   XkbDescPtr xkb;
   xkb = XkbGetMap(display, 0, XkbUseCoreKbd);
-  if (XkbGetControls(display, XkbUseCoreKbd, xkb) != Success) {
+  if (XkbGetControls(display, XkbGroupsWrapMask, xkb) != Success) {
     Log("XkbGetControls failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
   if (XkbGetNames(
@@ -208,19 +299,19 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
           XkbIndicatorNamesMask | XkbGroupNamesMask | XkbSymbolsNameMask,
           xkb) != Success) {
     Log("XkbGetNames failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
   XkbStateRec state;
   if (XkbGetState(display, XkbUseCoreKbd, &state) != Success) {
     Log("XkbGetState failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
   unsigned int istate;
   if (XkbGetIndicatorState(display, XkbUseCoreKbd, &istate) != Success) {
     Log("XkbGetIndicatorState failed");
-    XkbFreeClientMap(xkb, 0, True);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
 
@@ -243,6 +334,7 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
   size_t n = strlen(word);
   if (n >= sizeof(buf) - (p - buf)) {
     Log("Not enough space to store intro '%s'", word);
+    XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
   memcpy(p, word, n);
@@ -254,20 +346,23 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
     layouta = xkb->names->symbols;  // Machine-readable fallback.
   }
   if (layouta != None) {
-    const char *layout = XGetAtomName(display, layouta);
+    char *layout = XGetAtomName(display, layouta);
     n = strlen(layout);
     if (n >= sizeof(buf) - (p - buf)) {
       Log("Not enough space to store layout name '%s'", layout);
+      XFree(layout);
+      XkbFreeKeyboard(xkb, 0, True);
       return "";
     }
     memcpy(p, layout, n);
+    XFree(layout);
     p += n;
     have_output = 1;
   }
 
   int i;
   for (i = 0; i < XkbNumIndicators; i++) {
-    if (!(istate & (1 << i))) {
+    if (!(istate & (1U << i))) {
       continue;
     }
     Atom namea = xkb->names->indicators[i];
@@ -282,22 +377,187 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
       memcpy(p, ", ", 2);
       p += 2;
     }
-    const char *name = XGetAtomName(display, namea);
+    char *name = XGetAtomName(display, namea);
     size_t n = strlen(name);
     if (n >= sizeof(buf) - (p - buf)) {
       Log("Not enough space to store modifier name '%s'", name);
+      XFree(name);
       break;
     }
     memcpy(p, name, n);
+    XFree(name);
     p += n;
     have_output = 1;
   }
   *p = 0;
+  XkbFreeKeyboard(xkb, 0, True);
   return have_output ? buf : "";
 #else
-  *warning = *warning;  // Shut up clang-analyzer.
+  *warning = *warning;                              // Shut up clang-analyzer.
+  *have_multiple_layouts = *have_multiple_layouts;  // Shut up clang-analyzer.
   return "";
 #endif
+}
+
+void DestroyPerMonitorWindows(size_t keep_windows) {
+  size_t i;
+  for (i = keep_windows; i < num_windows; ++i) {
+#ifdef HAVE_XFT_EXT
+    XftDrawDestroy(xft_draws[i]);
+#endif
+    XFreeGC(display, gcs_warning[i]);
+    XFreeGC(display, gcs[i]);
+    if (i == MAIN_WINDOW) {
+      XUnmapWindow(display, windows[i]);
+    } else {
+      XDestroyWindow(display, windows[i]);
+    }
+  }
+  if (num_windows > keep_windows) {
+    num_windows = keep_windows;
+  }
+}
+
+void CreateOrUpdatePerMonitorWindow(size_t i, const Monitor *monitor,
+                                    int region_w, int region_h, int x_offset,
+                                    int y_offset) {
+  // Desired box.
+  int w = region_w;
+  int h = region_h;
+  int x = monitor->x + (monitor->width - w) / 2 + x_offset;
+  int y = monitor->y + (monitor->height - h) / 2 + y_offset;
+  // Clip to monitor.
+  if (x < 0) {
+    w += x;
+    x = 0;
+  }
+  if (y < 0) {
+    h += y;
+    y = 0;
+  }
+  if (x + w > monitor->x + monitor->width) {
+    w = monitor->x + monitor->width - x;
+  }
+  if (y + h > monitor->y + monitor->height) {
+    h = monitor->y + monitor->height - y;
+  }
+
+  if (i < num_windows) {
+    // Move the existing window.
+    XMoveResizeWindow(display, windows[i], x, y, w, h);
+    return;
+  }
+
+  if (i > num_windows) {
+    // Need to add windows in ]num_windows..i[ first.
+    Log("Unreachable code - can't create monitor sequences with holes");
+    abort();
+  }
+
+  // Add a new window.
+  if (i == MAIN_WINDOW) {
+    // Reuse the main_window (so this window gets protected from overlap by
+    // main).
+    XMoveResizeWindow(display, main_window, x, y, w, h);
+    windows[i] = main_window;
+  } else {
+    // Create a new window.
+    XSetWindowAttributes attrs = {0};
+    attrs.background_pixel = Background;
+    windows[i] =
+        XCreateWindow(display, parent_window, x, y, w, h, 0, CopyFromParent,
+                      InputOutput, CopyFromParent, CWBackPixel, &attrs);
+    SetWMProperties(display, windows[i], "xsecurelock", "auth_x11_screen", argc,
+                    argv);
+    // We should always make sure that main_window stays on top of all others.
+    // I.e. our auth sub-windows shall between "sandwiched" between auth and
+    // saver window. That way, main.c's protections of the auth window can stay
+    // effective.
+    Window stacking_order[2];
+    stacking_order[0] = main_window;
+    stacking_order[1] = windows[i];
+    XRestackWindows(display, stacking_order, 2);
+  }
+
+  // Create its data structures.
+  XGCValues gcattrs;
+  gcattrs.function = GXcopy;
+  gcattrs.foreground = Foreground;
+  gcattrs.background = Background;
+  if (core_font != NULL) {
+    gcattrs.font = core_font->fid;
+  }
+  gcs[i] = XCreateGC(display, windows[i],
+                     GCFunction | GCForeground | GCBackground |
+                         (core_font != NULL ? GCFont : 0),
+                     &gcattrs);
+  gcattrs.foreground = Warning;
+  gcs_warning[i] = XCreateGC(display, windows[i],
+                             GCFunction | GCForeground | GCBackground |
+                                 (core_font != NULL ? GCFont : 0),
+                             &gcattrs);
+#ifdef HAVE_XFT_EXT
+  xft_draws[i] = XftDrawCreate(
+      display, windows[i], DefaultVisual(display, DefaultScreen(display)),
+      DefaultColormap(display, DefaultScreen(display)));
+#endif
+
+  // This window is now ready to use.
+  XMapWindow(display, windows[i]);
+  num_windows = i + 1;
+}
+
+void UpdatePerMonitorWindows(int monitors_changed, int region_w, int region_h,
+                             int x_offset, int y_offset) {
+  static size_t num_monitors = 0;
+  static Monitor monitors[MAX_WINDOWS];
+
+  if (monitors_changed) {
+    num_monitors = GetMonitors(display, parent_window, monitors, MAX_WINDOWS);
+  }
+
+  if (single_auth_window) {
+    Window unused_root, unused_child;
+    int unused_root_x, unused_root_y, x, y;
+    unsigned int unused_mask;
+    XQueryPointer(display, parent_window, &unused_root, &unused_child,
+                  &unused_root_x, &unused_root_y, &x, &y, &unused_mask);
+    size_t i;
+    for (i = 0; i < num_monitors; ++i) {
+      if (x >= monitors[i].x && x < monitors[i].x + monitors[i].width &&
+          y >= monitors[i].y && y < monitors[i].y + monitors[i].height) {
+        CreateOrUpdatePerMonitorWindow(0, &monitors[i], region_w, region_h,
+                                       x_offset, y_offset);
+        return;
+      }
+    }
+    if (num_monitors > 0) {
+      CreateOrUpdatePerMonitorWindow(0, &monitors[0], region_w, region_h,
+                                     x_offset, y_offset);
+      DestroyPerMonitorWindows(1);
+    } else {
+      DestroyPerMonitorWindows(0);
+    }
+    return;
+  }
+
+  // 1 window per monitor.
+  size_t new_num_windows = num_monitors;
+
+  // Update or create everything.
+  size_t i;
+  for (i = 0; i < new_num_windows; ++i) {
+    CreateOrUpdatePerMonitorWindow(i, &monitors[i], region_w, region_h,
+                                   x_offset, y_offset);
+  }
+
+  // Kill all the old stuff.
+  DestroyPerMonitorWindows(new_num_windows);
+
+  if (num_windows != new_num_windows) {
+    Log("Unreachable code - expected to get %d windows, got %d",
+        (int)new_num_windows, (int)num_windows);
+  }
 }
 
 int TextAscent(void) {
@@ -351,7 +611,8 @@ int TextWidth(const char *string, int len) {
   return XTextWidth(core_font, string, len);
 }
 
-void DrawString(int x, int y, int is_warning, const char *string, int len) {
+void DrawString(int monitor, int x, int y, int is_warning, const char *string,
+                int len) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
     // HACK: Query text extents here to make the text fit into the specified
@@ -361,13 +622,16 @@ void DrawString(int x, int y, int is_warning, const char *string, int len) {
     XGlyphInfo extents;
     XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
                        &extents);
-    XftDrawStringUtf8(xft_draw, is_warning ? &xft_color_warning : &xft_color,
-                      xft_font, x + XGlyphInfoExpandAmount(&extents), y,
+    XftDrawStringUtf8(xft_draws[monitor],
+                      is_warning ? &xft_color_warning : &xft_color, xft_font,
+                      x + XGlyphInfoExpandAmount(&extents), y,
                       (const FcChar8 *)string, len);
     return;
   }
 #endif
-  XDrawString(display, window, is_warning ? gc_warning : gc, x, y, string, len);
+  XDrawString(display, windows[monitor],
+              is_warning ? gcs_warning[monitor] : gcs[monitor], x, y, string,
+              len);
 }
 
 void StrAppend(char **output, size_t *output_size, const char *input,
@@ -416,16 +680,8 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  *
  * \param title The title of the message.
  * \param str The message itself.
- * \param is_prompt Whether the message is a prompt.
  */
-void display_string(const char *title, const char *str, int is_prompt) {
-  static int region_x;
-  static int region_y;
-  static int region_w = 0;
-  static int region_h = 0;
-
-  last_message_was_prompt = is_prompt;
-
+void DisplayMessage(const char *title, const char *str) {
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
 
@@ -456,8 +712,31 @@ void display_string(const char *title, const char *str, int is_prompt) {
   int len_switch_user = strlen(switch_user);
   int tw_switch_user = TextWidth(switch_user, len_switch_user);
 
+  char datetime[80] = "";
+  if (show_datetime) {
+    time_t rawtime;
+    struct tm timeinfo_buf;
+    struct tm *timeinfo;
+
+    time(&rawtime);
+    timeinfo = localtime_r(&rawtime, &timeinfo_buf);
+    if (timeinfo == NULL ||
+        strftime(datetime, sizeof(datetime), datetime_format, timeinfo) == 0) {
+      // The datetime buffer was too small to fit the time format, and in this
+      // case the buffer contents are undefined. Let's just make it a valid
+      // empty string then so all else will go well.
+      datetime[0] = 0;
+    }
+  }
+
+  int len_datetime = strlen(datetime);
+  int tw_datetime = TextWidth(datetime, len_datetime);
+
   // Compute the region we will be using, relative to cx and cy.
   int box_w = tw_full_title;
+  if (box_w < tw_datetime) {
+    box_w = tw_datetime;
+  }
   if (box_w < tw_str) {
     box_w = tw_str;
   }
@@ -470,16 +749,11 @@ void display_string(const char *title, const char *str, int is_prompt) {
   if (box_w < tw_switch_user) {
     box_w = tw_switch_user;
   }
-  int border = TEXT_BORDER + burnin_mitigation_max_offset_change;
-  int box_h = (4 + have_multiple_layouts + have_switch_user_command) * th;
-  if (region_w < box_w + 2 * border) {
-    region_w = box_w + 2 * border;
-  }
-  region_x = -region_w / 2;
-  if (region_h < box_h + 2 * border) {
-    region_h = box_h + 2 * border;
-  }
-  region_y = -region_h / 2;
+  int box_h = (4 + have_multiple_layouts + have_switch_user_command +
+               show_datetime * 2) *
+              th;
+  int region_w = box_w + 2 * WINDOW_BORDER;
+  int region_h = box_h + 2 * WINDOW_BORDER;
 
   if (burnin_mitigation_max_offset_change > 0) {
     x_offset += rand() % (2 * burnin_mitigation_max_offset_change + 1) -
@@ -500,93 +774,57 @@ void display_string(const char *title, const char *str, int is_prompt) {
     }
   }
 
-  int i;
-  for (i = 0; i < num_monitors; ++i) {
-    int cx = monitors[i].x + monitors[i].width / 2 + x_offset;
-    int cy = monitors[i].y + monitors[i].height / 2 + y_offset;
+  UpdatePerMonitorWindows(per_monitor_windows_dirty, region_w, region_h,
+                          x_offset, y_offset);
+  per_monitor_windows_dirty = 0;
+
+  size_t i;
+  for (i = 0; i < num_windows; ++i) {
+    int cx = region_w / 2;
+    int cy = region_h / 2;
     int y = cy + to - box_h / 2;
 
-    // Clip all following output to the bounds of this monitor.
-    XRectangle rect;
-    rect.x = monitors[i].x;
-    rect.y = monitors[i].y;
-    rect.width = monitors[i].width;
-    rect.height = monitors[i].height;
-    XSetClipRectangles(display, gc, 0, 0, &rect, 1, YXBanded);
-
-    // Clear the region last written to.
-    XClearArea(display, window,               //
-               cx + region_x, cy + region_y,  //
-               region_w, region_h,            //
-               False);
+    XClearWindow(display, windows[i]);
 
 #ifdef DRAW_BORDER
-    XDrawRectangle(display, window, gc,             //
+    XDrawRectangle(display, windows[i], gcs[i],     //
                    cx - box_w / 2, cy - box_h / 2,  //
                    box_w - 1, box_h - 1);
-    XDrawRectangle(display, window, gc,           //
-                   cx + region_x, cy + region_y,  //
-                   region_w - 1, region_h - 1);
 #endif
 
-    DrawString(cx - tw_full_title / 2, y, 0, full_title, len_full_title);
+    if (show_datetime) {
+      DrawString(i, cx - tw_datetime / 2, y, 0, datetime, len_datetime);
+      y += th * 2;
+    }
+
+    DrawString(i, cx - tw_full_title / 2, y, 0, full_title, len_full_title);
     y += th * 2;
 
-    DrawString(cx - tw_str / 2, y, 0, str, len_str);
+    DrawString(i, cx - tw_str / 2, y, 0, str, len_str);
     y += th;
 
-    DrawString(cx - tw_indicators / 2, y, indicators_warning, indicators,
+    DrawString(i, cx - tw_indicators / 2, y, indicators_warning, indicators,
                len_indicators);
     y += th;
 
     if (have_multiple_layouts) {
-      DrawString(cx - tw_switch_layout / 2, y, 0, switch_layout,
+      DrawString(i, cx - tw_switch_layout / 2, y, 0, switch_layout,
                  len_switch_layout);
       y += th;
     }
 
     if (have_switch_user_command) {
-      DrawString(cx - tw_switch_user / 2, y, 0, switch_user, len_switch_user);
-      y += th;
+      DrawString(i, cx - tw_switch_user / 2, y, 0, switch_user,
+                 len_switch_user);
+      // y += th;
     }
-
-#ifdef CLEAR_OUTSIDE
-    // Clear everything else last. This minimizes flicker.
-    if (cy + region_y - rect.y > 0) {
-      XClearArea(display, window,                     //
-                 rect.x, rect.y,                      //
-                 rect.width, cy + region_y - rect.y,  //
-                 False);
-    }
-    if (cx + region_x - rect.x > 0) {
-      XClearArea(display, window,                   //
-                 rect.x, cy + region_y,             //
-                 cx + region_x - rect.x, region_h,  //
-                 False);
-    }
-    if (rect.x + rect.width - cx - region_x - region_w > 0) {
-      XClearArea(display, window,                                           //
-                 cx + region_x + region_w, cy + region_y,                   //
-                 rect.x + rect.width - cx - region_x - region_w, region_h,  //
-                 False);
-    }
-    if (rect.y + rect.height - cy - region_y - region_h > 0) {
-      XClearArea(display, window,                                  //
-                 rect.x, cy + region_y + region_h, rect.width,     //
-                 rect.y + rect.height - cy - region_y - region_h,  //
-                 False);
-    }
-#endif
-
-    // Disable clipping again.
-    XSetClipMask(display, gc, None);
   }
 
   // Make the things just drawn appear on the screen as soon as possible.
   XFlush(display);
 }
 
-void wait_for_keypress(int seconds) {
+void WaitForKeypress(int seconds) {
   // Sleep for up to 1 second _or_ a key press.
   struct timeval timeout;
   timeout.tv_sec = seconds;
@@ -611,9 +849,9 @@ void wait_for_keypress(int seconds) {
  *   The caller is supposed to eventually free() it.
  * \param echo If true, the input will be shown; otherwise it will be hidden
  *   (password entry).
- * \return PAM_SUCCESS if successful, anything else otherwise.
+ * \return 1 if successful, anything else otherwise.
  */
-int prompt(const char *msg, char **response, int echo) {
+int Prompt(const char *msg, char **response, int echo) {
   // Ask something. Return strdup'd string.
   struct {
     // The received X11 event.
@@ -649,8 +887,8 @@ int prompt(const char *msg, char **response, int echo) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    display_string("Error", "Password will not be stored securely.", 0);
-    wait_for_keypress(1);
+    DisplayMessage("Error", "Password will not be stored securely.");
+    WaitForKeypress(1);
   }
 
   priv.pwlen = 0;
@@ -661,8 +899,9 @@ int prompt(const char *msg, char **response, int echo) {
   // Unfortunately we may have to break out of multiple loops at once here but
   // still do common cleanup work. So we have to track the return value in a
   // variable.
-  int status = PAM_CONV_ERR;
+  int status = 0;
   int done = 0;
+  int played_sound = 0;
 
   while (!done) {
     if (echo) {
@@ -700,7 +939,12 @@ int prompt(const char *msg, char **response, int echo) {
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
-    display_string(msg, priv.displaybuf, 1);
+    DisplayMessage(msg, priv.displaybuf);
+
+    if (!played_sound) {
+      PlaySound(SOUND_PROMPT);
+      played_sound = 1;
+    }
 
     // Blink the cursor.
     blink_state = !blink_state;
@@ -804,15 +1048,14 @@ int prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            display_string("Error", "Password has not been stored securely.",
-                           0);
-            wait_for_keypress(1);
+            DisplayMessage("Error", "Password has not been stored securely.");
+            WaitForKeypress(1);
           }
           if (priv.pwlen != 0) {
             memcpy(*response, priv.pwbuf, priv.pwlen);
           }
           (*response)[priv.pwlen] = 0;
-          status = PAM_SUCCESS;
+          status = 1;
           done = 1;
           break;
         default:
@@ -843,8 +1086,7 @@ int prompt(const char *msg, char **response, int echo) {
     // Handle X11 events that queued up.
     while (!done && XPending(display) && (XNextEvent(display, &priv.ev), 1)) {
       if (IsMonitorChangeEvent(display, priv.ev.type)) {
-        num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
-        XClearWindow(display, window);
+        per_monitor_windows_dirty = 1;
       }
     }
   }
@@ -858,199 +1100,160 @@ int prompt(const char *msg, char **response, int echo) {
   return status;
 }
 
-/*! \brief Perform a single PAM conversation step.
+/*! \brief Perform authentication using a helper proxy.
  *
- * \param msg The PAM message.
- * \param resp The PAM response to store the output in.
- * \return The PAM status (PAM_SUCCESS in case of success, or anything else in
- *   case of error).
+ * \return The authentication status (0 for OK, 1 otherwise).
  */
-int converse_one(const struct pam_message *msg, struct pam_response *resp) {
-  resp->resp_retcode = 0;  // Unused but should be set to zero.
-  switch (msg->msg_style) {
-    case PAM_PROMPT_ECHO_OFF:
-      return prompt(msg->msg, &resp->resp, 0);
-    case PAM_PROMPT_ECHO_ON:
-      return prompt(msg->msg, &resp->resp, 1);
-    case PAM_ERROR_MSG:
-      display_string("Error", msg->msg, 0);
-      wait_for_keypress(1);
-      return PAM_SUCCESS;
-    case PAM_TEXT_INFO:
-      display_string("PAM says", msg->msg, 0);
-      wait_for_keypress(1);
-      return PAM_SUCCESS;
-    default:
-      return PAM_CONV_ERR;
+int Authenticate() {
+  int requestfd[2], responsefd[2];
+  if (pipe(requestfd)) {
+    LogErrno("pipe");
+    return 1;
   }
-}
-
-/*! \brief Perform a PAM conversation.
- *
- * \param num_msg The number of conversation steps to execute.
- * \param msg The PAM messages.
- * \param resp The PAM responses to store the output in.
- * \param appdata_ptr Unused.
- * \return The PAM status (PAM_SUCCESS in case of success, or anything else in
- *   case of error).
- */
-int converse(int num_msg, const struct pam_message **msg,
-             struct pam_response **resp, void *appdata_ptr) {
-  (void)appdata_ptr;
-
-  if (conv_error) {
-    Log("converse() got called again with %d messages (first: %s) after "
-        "having failed before - this is very likely a bug in the PAM "
-        "module having made the call. Bailing out",
-        num_msg, num_msg <= 0 ? "(none)" : msg[0]->msg);
-    exit(1);
+  if (pipe(responsefd)) {
+    LogErrno("pipe");
+    return 1;
   }
 
-  *resp = calloc(num_msg, sizeof(struct pam_response));
+  // Use authproto_pam.
+  pid_t childpid = fork();
+  if (childpid == -1) {
+    LogErrno("fork");
+    return 1;
+  }
 
-  int i;
-  for (i = 0; i < num_msg; ++i) {
-    int status = converse_one(msg[i], &(*resp)[i]);
-    if (status != PAM_SUCCESS) {
-      for (i = 0; i < num_msg; ++i) {
-        free((*resp)[i].resp);
+  if (childpid == 0) {
+    // Child process. Just run authproto_pam.
+    // But first, move requestfd[1] to 1 and responsefd[0] to 0.
+    close(requestfd[0]);
+    close(responsefd[1]);
+
+    if (requestfd[1] == 0) {
+      // Tricky case. We don't _expect_ this to happen - after all,
+      // initially our own fd 0 should be bound to xsecurelock's main
+      // program - but nevertheless let's handle it.
+      // At least this implies that no other fd is 0.
+      int requestfd1 = dup(requestfd[1]);
+      if (requestfd1 == -1) {
+        LogErrno("dup");
+        _exit(EXIT_FAILURE);
       }
-      free(*resp);
-      *resp = NULL;
-      conv_error = 1;
-      return status;
-    }
-  }
-
-  // We're returning to PAM, so let's show the processing prompt. Unless PAM
-  // displayed its own explanation of why it is waiting, in which case we let
-  // that stand.
-  if (last_message_was_prompt) {
-    display_string("Processing...", "", 0);
-  }
-
-  return PAM_SUCCESS;
-}
-
-/*! \brief Perform a single PAM operation with retrying logic.
- */
-int call_pam_with_retries(int (*pam_call)(pam_handle_t *, int),
-                          pam_handle_t *pam, int flags) {
-  int attempt = 0;
-  for (;;) {
-    conv_error = 0;
-
-    // We're entering PAM, so let's show a processing prompt.
-    // This one is shown unconditionally, as the PAM conversation starts here.
-    display_string("Processing...", "", 0);
-
-    int status = pam_call(pam, flags);
-    if (conv_error) {  // Timeout or escape.
-      return status;
-    }
-    switch (status) {
-      // Never retry these:
-      case PAM_ABORT:             // This is fine.
-      case PAM_MAXTRIES:          // D'oh.
-      case PAM_NEW_AUTHTOK_REQD:  // hunter2 no longer good enough.
-      case PAM_SUCCESS:           // Duh.
-        return status;
-      default:
-        // Let's try again then.
-        ++attempt;
-        if (attempt >= 3) {
-          return status;
+      close(requestfd[1]);
+      if (dup2(responsefd[0], 0) == -1) {
+        LogErrno("dup2");
+        _exit(EXIT_FAILURE);
+      }
+      close(responsefd[0]);
+      if (requestfd1 != 1) {
+        if (dup2(requestfd1, 1) == -1) {
+          LogErrno("dup2");
+          _exit(EXIT_FAILURE);
         }
-        break;
-    }
-  }
-}
-
-/*! \brief Perform PAM authentication.
- *
- * \param username The user name to authenticate as.
- * \param hostname The host name to authenticate on.
- * \param conv The PAM conversation handler.
- * \param pam The PAM handle will be returned here.
- * \return The PAM status (PAM_SUCCESS after successful authentication, or
- *   anything else in case of error).
- */
-int authenticate(struct pam_conv *conv, pam_handle_t **pam) {
-  const char *service_name =
-      GetStringSetting("XSECURELOCK_PAM_SERVICE", PAM_SERVICE_NAME);
-  int status = pam_start(service_name, username, conv, pam);
-  if (status != PAM_SUCCESS) {
-    Log("pam_start: %d",
-        status);  // Or can one call pam_strerror on a NULL handle?
-    return status;
-  }
-
-  status = pam_set_item(*pam, PAM_RHOST, hostname);
-  if (status != PAM_SUCCESS) {
-    Log("pam_set_item: %s", pam_strerror(*pam, status));
-    return status;
-  }
-  status = pam_set_item(*pam, PAM_RUSER, username);
-  if (status != PAM_SUCCESS) {
-    Log("pam_set_item: %s", pam_strerror(*pam, status));
-    return status;
-  }
-  const char *display = getenv("DISPLAY");
-  status = pam_set_item(*pam, PAM_TTY, display);
-  if (status != PAM_SUCCESS) {
-    Log("pam_set_item: %s", pam_strerror(*pam, status));
-    return status;
-  }
-
-  status = call_pam_with_retries(pam_authenticate, *pam, 0);
-  if (status != PAM_SUCCESS) {
-    if (!conv_error) {
-      Log("pam_authenticate: %s", pam_strerror(*pam, status));
-    }
-    return status;
-  }
-
-  int status2 = call_pam_with_retries(pam_acct_mgmt, *pam, 0);
-  if (status2 == PAM_NEW_AUTHTOK_REQD) {
-    status2 =
-        call_pam_with_retries(pam_chauthtok, *pam, PAM_CHANGE_EXPIRED_AUTHTOK);
-#ifdef PAM_CHECK_ACCOUNT_TYPE
-    if (status2 != PAM_SUCCESS) {
-      if (!conv_error) {
-        Log("pam_chauthtok: %s", pam_strerror(*pam, status2));
+        close(requestfd1);
       }
-      return status2;
+    } else {
+      if (responsefd[0] != 0) {
+        if (dup2(responsefd[0], 0) == -1) {
+          LogErrno("dup2");
+          _exit(EXIT_FAILURE);
+        }
+        close(responsefd[0]);
+      }
+      if (requestfd[1] != 1) {
+        if (dup2(requestfd[1], 1) == -1) {
+          LogErrno("dup2");
+          _exit(EXIT_FAILURE);
+        }
+        close(requestfd[1]);
+      }
     }
-#else
-    (void)status2;
-#endif
+
+    execl(authproto_executable, authproto_executable, NULL);
+    LogErrno("execl");
+    sleep(2);  // Reduce log spam or other effects from failed execl.
+    _exit(EXIT_FAILURE);
   }
 
-#ifdef PAM_CHECK_ACCOUNT_TYPE
-  if (status2 != PAM_SUCCESS) {
-    // If this one is true, it must be coming from pam_acct_mgmt, as
-    // pam_chauthtok's result already has been checked against PAM_SUCCESS.
-    if (!conv_error) {
-      Log("pam_acct_mgmt: %s", pam_strerror(*pam, status2));
+  // Otherwise, we're in the parent process.
+  close(requestfd[1]);
+  close(responsefd[0]);
+  for (;;) {
+    char *message;
+    char *response;
+    char type = ReadPacket(requestfd[0], &message, 1);
+    switch (type) {
+      case PTYPE_INFO_MESSAGE:
+        DisplayMessage("PAM says", message);
+        free(message);
+        PlaySound(SOUND_INFO);
+        WaitForKeypress(1);
+        break;
+      case PTYPE_ERROR_MESSAGE:
+        DisplayMessage("Error", message);
+        free(message);
+        PlaySound(SOUND_ERROR);
+        WaitForKeypress(1);
+        break;
+      case PTYPE_PROMPT_LIKE_USERNAME:
+        if (Prompt(message, &response, 1)) {
+          WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_USERNAME, response);
+          free(response);
+        } else {
+          WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
+        }
+        free(message);
+        DisplayMessage("Processing...", "");
+        break;
+      case PTYPE_PROMPT_LIKE_PASSWORD:
+        if (Prompt(message, &response, 0)) {
+          WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_PASSWORD, response);
+          free(response);
+        } else {
+          WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
+        }
+        free(message);
+        DisplayMessage("Processing...", "");
+        break;
+      case 0:
+        goto done;
+      default:
+        Log("Unknown message type %02x", (int)type);
+        free(message);
+        goto done;
     }
-    return status2;
   }
-#endif
-
-  return status;
+done:
+  close(requestfd[0]);
+  close(responsefd[1]);
+  int status;
+  if (!WaitPgrp("authproto", childpid, 1, 0, &status)) {
+    Log("WaitPgrp returned false but we were blocking");
+    abort();
+  }
+  if (status == 0) {
+    PlaySound(SOUND_SUCCESS);
+  }
+  return status != 0;
 }
 
 /*! \brief The main program.
  *
- * Usage: XSCREENSAVER_WINDOW=window_id ./auth_pam_x11; status=$?
+ * Usage: XSCREENSAVER_WINDOW=window_id ./auth_x11; status=$?
  *
  * \return 0 if authentication successful, anything else otherwise.
  */
-int main() {
+int main(int argc_local, char **argv_local) {
+  argc = argc_local;
+  argv = argv_local;
+
   setlocale(LC_CTYPE, "");
+  setlocale(LC_TIME, "");
 
   // This is used by displaymarker only (no security relevance of the RNG).
   srand(time(NULL));
+
+  authproto_executable = GetExecutablePathSetting("XSECURELOCK_AUTHPROTO",
+                                                  AUTHPROTO_EXECUTABLE, 0);
 
   // Unless disabled, we shift the login prompt randomly around by a few
   // pixels. This should mostly mitigate burn-in effects from the prompt
@@ -1074,8 +1277,12 @@ int main() {
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
+  show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
+  datetime_format = GetStringSetting("XSECURELOCK_DATETIME_FORMAT", "%c");
   have_switch_user_command =
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
+  auth_sounds = GetIntSetting("XSECURELOCK_AUTH_SOUNDS", 0);
+  single_auth_window = GetIntSetting("XSECURELOCK_SINGLE_AUTH_WINDOW", 0);
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     Log("Could not connect to $DISPLAY");
@@ -1090,40 +1297,24 @@ int main() {
                         &xkb_major_version, &xkb_minor_version);
 #endif
 
-  char hostname_storage[256];
-  if (gethostname(hostname_storage, sizeof(hostname_storage))) {
-    LogErrno("gethostname");
+  if (!GetHostName(hostname, sizeof(hostname))) {
     return 1;
   }
-  hostname_storage[sizeof(hostname_storage) - 1] = 0;
-  hostname = hostname_storage;
+  if (!GetUserName(username, sizeof(username))) {
+    return 1;
+  }
 
-  struct passwd *pwd = NULL;
-  struct passwd pwd_storage;
-  char *pwd_buf;
-  long pwd_bufsize = sysconf(_SC_GETPW_R_SIZE_MAX);
-  if (pwd_bufsize < 0) {
-    pwd_bufsize = 1 << 20;
-  }
-  pwd_buf = malloc((size_t)pwd_bufsize);
-  if (!pwd_buf) {
-    LogErrno("malloc(pwd_bufsize)");
-    return 1;
-  }
-  getpwuid_r(getuid(), &pwd_storage, pwd_buf, (size_t)pwd_bufsize, &pwd);
-  if (!pwd) {
-    LogErrno("getpwuid_r");
-    free(pwd_buf);
-    return 1;
-  }
-  username = pwd->pw_name;
-
-  window = ReadWindowID();
-  if (window == None) {
+  main_window = ReadWindowID();
+  if (main_window == None) {
     Log("Invalid/no window ID in XSCREENSAVER_WINDOW");
-    free(pwd_buf);
     return 1;
   }
+  Window unused_root;
+  Window *unused_children = NULL;
+  unsigned int unused_nchildren;
+  XQueryTree(display, main_window, &unused_root, &parent_window,
+             &unused_children, &unused_nchildren);
+  XFree(unused_children);
 
   Background = BlackPixel(display, DefaultScreen(display));
   Foreground = WhitePixel(display, DefaultScreen(display));
@@ -1169,32 +1360,11 @@ int main() {
   }
   if (!have_font) {
     Log("Could not load a mind-bogglingly stupid font");
-    exit(1);
+    return 1;
   }
-
-  XGCValues gcattrs;
-  gcattrs.function = GXcopy;
-  gcattrs.foreground = Foreground;
-  gcattrs.background = Background;
-  if (core_font != NULL) {
-    gcattrs.font = core_font->fid;
-  }
-  gc = XCreateGC(display, window,
-                 GCFunction | GCForeground | GCBackground |
-                     (core_font != NULL ? GCFont : 0),
-                 &gcattrs);
-  gcattrs.foreground = Warning;
-  gc_warning = XCreateGC(display, window,
-                         GCFunction | GCForeground | GCBackground |
-                             (core_font != NULL ? GCFont : 0),
-                         &gcattrs);
 
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
-    xft_draw = XftDrawCreate(display, window,
-                             DefaultVisual(display, DefaultScreen(display)),
-                             DefaultColormap(display, DefaultScreen(display)));
-
     XRenderColor xrcolor;
     xrcolor.red = 65535;
     xrcolor.green = 65535;
@@ -1213,33 +1383,23 @@ int main() {
   }
 #endif
 
-  XSetWindowBackground(display, window, Background);
+  SelectMonitorChangeEvents(display, main_window);
 
-  SelectMonitorChangeEvents(display, window);
-  num_monitors = GetMonitors(display, window, monitors, MAX_MONITORS);
+  int status = Authenticate();
 
-  struct pam_conv conv;
-  conv.conv = converse;
-  conv.appdata_ptr = NULL;
+  // Clear any possible processing message by closing our windows.
+  DestroyPerMonitorWindows(0);
 
-  pam_handle_t *pam;
-  int status = authenticate(&conv, &pam);
-  int status2 = pam_end(pam, status);
-
-  // Clear any possible processing message.
-  display_string("", "", 0);
-
-  // Done with PAM, so we can free the getpwuid_r buffer now.
-  free(pwd_buf);
-
-  if (status != PAM_SUCCESS) {
-    // The caller already displayed an error.
-    return 1;
+#ifdef HAVE_XFT_EXT
+  if (xft_font != NULL) {
+    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
+                 DefaultColormap(display, DefaultScreen(display)),
+                 &xft_color_warning);
+    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
+                 DefaultColormap(display, DefaultScreen(display)), &xft_color);
+    XftFontClose(display, xft_font);
   }
-  if (status2 != PAM_SUCCESS) {
-    Log("pam_end: %s", pam_strerror(pam, status2));
-    return 1;
-  }
+#endif
 
-  return 0;
+  return status;
 }

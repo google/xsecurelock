@@ -21,22 +21,21 @@ limitations under the License.
  *security.
  */
 
-#include <X11/X.h>       // for Window, None, CopyFromParent
-#include <X11/Xatom.h>   // for XA_CARDINAL, XA_ATOM
-#include <X11/Xlib.h>    // for XEvent, XMapRaised, XSelectInput
-#include <X11/Xutil.h>   // for XLookupString
-#include <X11/keysym.h>  // for XK_BackSpace, XK_o
-#include <errno.h>       // for ECHILD, EINTR, errno
-#include <fcntl.h>       // for fcntl, FD_CLOEXEC, F_GETFD
-#include <locale.h>      // for NULL, setlocale, LC_CTYPE
-#include <signal.h>      // for sigaction, sigemptyset, SIGPIPE
-#include <stdio.h>       // for printf, size_t
-#include <stdlib.h>      // for exit, system, EXIT_SUCCESS
-#include <string.h>      // for memset, strncmp, strcmp
-#include <sys/select.h>  // for select, timeval, fd_set, FD_SET
-#include <sys/wait.h>    // for waitpid, WEXITSTATUS, WIFEXITED
-#include <time.h>        // for nanosleep, timespec
-#include <unistd.h>      // for chdir, close, execvp, fork
+#include <X11/X.h>           // for Window, None, CopyFromParent
+#include <X11/Xatom.h>       // for XA_CARDINAL, XA_ATOM
+#include <X11/Xlib.h>        // for XEvent, XMapRaised, XSelectInput
+#include <X11/Xutil.h>       // for XLookupString
+#include <X11/cursorfont.h>  // for XC_arrow
+#include <X11/keysym.h>      // for XK_BackSpace, XK_Tab, XK_o
+#include <fcntl.h>           // for fcntl, FD_CLOEXEC, F_GETFD
+#include <locale.h>          // for NULL, setlocale, LC_CTYPE
+#include <signal.h>          // for sigaction, raise, sa_handler
+#include <stdio.h>           // for printf, size_t, snprintf
+#include <stdlib.h>          // for exit, system, EXIT_FAILURE
+#include <string.h>          // for memset, strcmp, strncmp
+#include <sys/select.h>      // for select, timeval, fd_set, FD_SET
+#include <time.h>            // for nanosleep, timespec
+#include <unistd.h>          // for _exit, chdir, close, execvp
 
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
@@ -53,12 +52,14 @@ limitations under the License.
 #include <X11/extensions/shapeconst.h>  // for ShapeBounding
 #endif
 
-#include "auth_child.h"     // for WantAuthChild, WatchAuthChild
+#include "auth_child.h"     // for KillAuthChildSigHandler, Want...
 #include "env_settings.h"   // for GetIntSetting, GetExecutableP...
 #include "logging.h"        // for Log, LogErrno
 #include "mlock_page.h"     // for MLOCK_PAGE
-#include "saver_child.h"    // for WatchSaverChild
+#include "saver_child.h"    // for WatchSaverChild, KillAllSaver...
 #include "unmap_all.h"      // for ClearUnmapAllWindowsState
+#include "version.h"        // for git_version
+#include "wait_pgrp.h"      // for WaitPgrp
 #include "wm_properties.h"  // for SetWMProperties
 
 /*! \brief How often (in times per second) to watch child processes.
@@ -73,7 +74,7 @@ limitations under the License.
  * appears to be required with some XScreenSaver hacks that cause XSecureLock to
  * lose MotionNotify events, but nothing else.
  */
-#define ALWAYS_REINSTATE_GRABS
+#undef ALWAYS_REINSTATE_GRABS
 
 /*! \brief Try to bring the grab window to foreground in regular intervals.
  *
@@ -82,7 +83,16 @@ limitations under the License.
  * shines through. As a workaround, this enables raising the grab window
  * periodically.
  */
-#define AUTO_RAISE
+#undef AUTO_RAISE
+
+/*! \brief Show cursor during auth.
+ *
+ * If enabled, a mouse cursor is shown whenever the auth_window is mapped.
+ *
+ * Note that proper use of this also would require a way to forward click
+ * events to the auth helper, which doesn't exist yet.
+ */
+#undef SHOW_CURSOR_DURING_AUTH
 
 /*! \brief Exhaustive list of all mouse related X11 events.
  *
@@ -111,9 +121,23 @@ int composite_obscurer = 0;
 int have_switch_user_command = 0;
 //! If set, we try to force grabbing by "evil" means.
 int force_grab = 0;
+//! If set, print window info about any "conflicting" windows to stderr.
+int debug_window_info = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
+
+static void HandleSIGTERM(int signo) {
+  KillAllSaverChildrenSigHandler();  // Dirty, but quick.
+  KillAuthChildSigHandler();         // More dirty.
+  raise(signo);
+}
+
+static void HandleSIGCHLD(int unused_signo) {
+  // No handling needed - we just want to interrupt the select() in the main
+  // loop.
+  (void)unused_signo;
+}
 
 enum WatchChildrenState {
   //! Request saver child.
@@ -142,35 +166,38 @@ enum WatchChildrenState {
  * \param stdinbuf Key presses to send to the auth child, if set.
  * \return If true, authentication was successful and the program should exit.
  */
-int WatchChildren(Display *dpy, Window w, enum WatchChildrenState state,
-                  const char *stdinbuf) {
-  int auth_running = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
+int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
+                  enum WatchChildrenState state, const char *stdinbuf) {
+  int want_auth = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
 
-  // Note: auth_running is true whenever we WANT to run authentication, or it is
+  // Note: want_auth is true whenever we WANT to run authentication, or it is
   // already running. It may have recently terminated, which we will notice
   // later.
-  if (auth_running) {
-    // Make sure the saver is shut down to not interfere with the screen.
-    WatchSaverChild(dpy, w, 0, saver_executable, 0);
-
+  if (want_auth) {
     // Actually start the auth child, or notice termination.
-    if (WatchAuthChild(dpy, w, auth_executable,
+    int auth_running;
+    if (WatchAuthChild(auth_win, auth_executable,
                        state == WATCH_CHILDREN_FORCE_AUTH, stdinbuf,
                        &auth_running)) {
       // Auth performed successfully. Terminate the other children.
-      WatchSaverChild(dpy, w, 0, saver_executable, 0);
+      WatchSaverChild(dpy, saver_win, 0, saver_executable, 0);
       // Now terminate the screen lock.
       return 1;
     }
+
+    // If we wanted auth, but it's not running, auth just terminated. Unmap the
+    // auth window and poke the screensaver so that it can reset any timeouts.
+    // TODO(divVerent): Implement a nicer way to poke if supported (say,
+    // SIGUSR1).
+    if (!auth_running) {
+      XUnmapWindow(dpy, auth_win);
+      WatchSaverChild(dpy, saver_win, 0, saver_executable, 0);
+    }
   }
 
-  // No auth child is running, either because we don't have any running and
-  // didn't start one, or because it just terminated.
   // Show the screen saver.
-  if (!auth_running) {
-    WatchSaverChild(dpy, w, 0, saver_executable,
-                    state != WATCH_CHILDREN_SAVER_DISABLED);
-  }
+  WatchSaverChild(dpy, saver_win, 0, saver_executable,
+                  state != WATCH_CHILDREN_SAVER_DISABLED);
 
   // Do not terminate the screen lock.
   return 0;
@@ -180,8 +207,10 @@ int WatchChildren(Display *dpy, Window w, enum WatchChildrenState state,
  *
  * \return If true, authentication was successful, and the program should exit.
  */
-int WakeUp(Display *dpy, Window w, const char *stdinbuf) {
-  return WatchChildren(dpy, w, WATCH_CHILDREN_FORCE_AUTH, stdinbuf);
+int WakeUp(Display *dpy, Window auth_win, Window saver_win,
+           const char *stdinbuf) {
+  return WatchChildren(dpy, auth_win, saver_win, WATCH_CHILDREN_FORCE_AUTH,
+                       stdinbuf);
 }
 
 /*! \brief An X11 error handler that merely logs errors to stderr.
@@ -196,46 +225,56 @@ int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
   return 0;
 }
 
+/*! \brief Print a version message.
+ */
+void Version(void) {
+  printf("XSecureLock - X11 screen lock utility designed for security.\n");
+  if (*git_version) {
+    printf("Version: %s\n", git_version);
+  } else {
+    printf("Version unknown.\n");
+  }
+}
+
 /*! \brief Print an usage message.
  *
  * A message is shown explaining how to use XSecureLock.
  *
  * \param me The name this executable was invoked as.
  */
-void usage(const char *me) {
+void Usage(const char *me) {
+  Version();
   printf(
+      "\n"
       "Usage:\n"
       "  env [variables...] %s [-- command to run when locked]\n"
       "\n"
-      "Environment variables:\n"
-      "  XSECURELOCK_AUTH=<auth module>\n"
-      "  XSECURELOCK_FONT=<x11 font name>\n"
-#ifdef HAVE_XCOMPOSITE_EXT
-      "  XSECURELOCK_NO_COMPOSITE=<0|1>\n"
-      "  XSECURELOCK_COMPOSITE_OBSCURER=<0|1>\n"
-#endif
-      "  XSECURELOCK_PAM_SERVICE=<PAM service name>\n"
-      "  XSECURELOCK_SAVER=<saver module>\n"
-      "  XSECURELOCK_WANT_FIRST_KEYPRESS=<0|1>\n"
+      "Environment variables you may set for XSecureLock and its modules:\n"
       "\n"
-      "Default auth module: " AUTH_EXECUTABLE
+#include "env_helpstr.inc"  // IWYU pragma: keep
       "\n"
-      "Default global saver module: " GLOBAL_SAVER_EXECUTABLE
+      "Configured default auth module: " AUTH_EXECUTABLE
       "\n"
-      "Default per-screen saver module: " SAVER_EXECUTABLE
+      "Configured default authproto module: " AUTHPROTO_EXECUTABLE
+      "\n"
+      "Configured default global saver module: " GLOBAL_SAVER_EXECUTABLE
+      "\n"
+      "Configured default per-screen saver module: " SAVER_EXECUTABLE
       "\n"
       "\n"
       "This software is licensed under the Apache 2.0 License. Details are\n"
       "available at the following location:\n"
       "  " DOCS_PATH "/COPYING\n",
-      me);
+      me,
+      "%s",   // For XSECURELOCK_KEY_%s_COMMAND.
+      "%s");  // For XSECURELOCK_KEY_%s_COMMAND's description.
 }
 
 /*! \brief Load default settings from environment variables.
  *
  * These settings override what was figured out at ./configure time.
  */
-void load_defaults() {
+void LoadDefaults() {
   auth_executable =
       GetExecutablePathSetting("XSECURELOCK_AUTH", AUTH_EXECUTABLE, 1);
   saver_executable = GetExecutablePathSetting("XSECURELOCK_GLOBAL_SAVER",
@@ -247,9 +286,10 @@ void load_defaults() {
   have_switch_user_command =
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
   force_grab = GetIntSetting("XSECURELOCK_FORCE_GRAB", 0);
+  debug_window_info = GetIntSetting("XSECURELOCK_DEBUG_WINDOW_INFO", 0);
 }
 
-/*! \brief Parse the command line arguments.
+/*! \brief Parse the command line arguments, or exit in case of failure.
  *
  * This accepts saver_* or auth_* arguments, and puts them in their respective
  * global variable.
@@ -258,10 +298,8 @@ void load_defaults() {
  * environment variables instead!
  *
  * Possible errors will be printed on stderr.
- *
- * \return true if everything is OK, false otherwise.
  */
-int parse_arguments(int argc, char **argv) {
+void ParseArgumentsOrExit(int argc, char **argv) {
   int i;
   for (i = 1; i < argc; ++i) {
     if (!strncmp(argv[i], "auth_", 5)) {
@@ -280,11 +318,19 @@ int parse_arguments(int argc, char **argv) {
       notify_command = argv + i + 1;
       break;
     }
+    if (!strcmp(argv[i], "--help")) {
+      Usage(argv[0]);
+      exit(0);
+    }
+    if (!strcmp(argv[i], "--version")) {
+      Version();
+      exit(0);
+    }
     // If we get here, the argument is unrecognized. Exit, then.
     Log("Unrecognized argument: %s", argv[i]);
-    return 0;
+    Usage(argv[0]);
+    exit(0);
   }
-  return 1;
 }
 
 /*! \brief Check the settings.
@@ -297,7 +343,7 @@ int parse_arguments(int argc, char **argv) {
  *
  * \return true if everything is OK, false otherwise.
  */
-int check_settings() {
+int CheckSettings() {
   // Flawfinder note: the access() calls here are not security relevant and just
   // prevent accidentally running with a nonexisting saver or auth executable as
   // that could make the system un-unlockable.
@@ -311,6 +357,29 @@ int check_settings() {
     return 0;
   }
   return 1;
+}
+
+/*! \brief Print some debug info about a window.
+ *
+ * Only enabled if debug_window_info is set.
+ *
+ * Spammy.
+ */
+void DebugDumpWindowInfo(Window w) {
+  if (!debug_window_info) {
+    return;
+  }
+  char buf[128];
+  // Note: process has to be backgrounded (&) because we may be within
+  // XGrabServer.
+  int buflen =
+      snprintf(buf, sizeof(buf),
+               "{ xwininfo -all -id %lu; xprop -id %lu; } >&2 &", w, w);
+  if (buflen <= 0 || (size_t)buflen >= sizeof(buf)) {
+    Log("Wow, pretty large integers you got there");
+    return;
+  }
+  system(buf);
 }
 
 /*! \brief Raise a window if necessary.
@@ -340,17 +409,8 @@ void MaybeRaiseWindow(Display *display, Window w, int force) {
     // Need to bring myself to the top first.
     Log("MaybeRaiseWindow hit: window %lu was above my window %lu",
         siblings[nsiblings - 1], w);
+    DebugDumpWindowInfo(siblings[nsiblings - 1]);
     XRaiseWindow(display, w);
-    /*
-    char buf[80];
-    snprintf(buf, sizeof(buf), "xwininfo -all -id %lu",
-             siblings[nsiblings - 1]);
-    buf[sizeof(buf) - 1] = 0;
-    system(buf);
-    snprintf(buf, sizeof(buf), "xwininfo -all -id %lu", w);
-    buf[sizeof(buf) - 1] = 0;
-    system(buf);
-    */
   } else if (force) {
     // When forcing, do it anyway.
     Log("MaybeRaiseWindow miss: something obscured my window %lu but I can't "
@@ -359,6 +419,41 @@ void MaybeRaiseWindow(Display *display, Window w, int force) {
     XRaiseWindow(display, w);
   }
   XFree(siblings);
+}
+
+typedef struct {
+  Display *display;
+  Window root_window;
+  Cursor cursor;
+  int silent;
+} AcquireGrabsState;
+
+int TryAcquireGrabs(Window w, void *state_voidp) {
+  AcquireGrabsState *state = state_voidp;
+  int ok = 1;
+  if (XGrabPointer(state->display, state->root_window, False,
+                   ALL_POINTER_EVENTS, GrabModeAsync, GrabModeAsync, None,
+                   state->cursor, CurrentTime) != GrabSuccess) {
+    if (!state->silent) {
+      Log("Critical: cannot grab pointer");
+    }
+    ok = 0;
+  }
+  if (XGrabKeyboard(state->display, state->root_window, False, GrabModeAsync,
+                    GrabModeAsync, CurrentTime) != GrabSuccess) {
+    if (!state->silent) {
+      Log("Critical: cannot grab keyboard");
+    }
+    ok = 0;
+  }
+  if (w != None) {
+    Log("Unmapped window %lu to force grabbing, which %s", w,
+        ok ? "succeeded" : "didn't help");
+    if (ok) {
+      DebugDumpWindowInfo(w);
+    }
+  }
+  return ok;
 }
 
 /*! \brief Acquire all necessary grabs to lock the screen.
@@ -373,45 +468,32 @@ void MaybeRaiseWindow(Display *display, Window w, int force) {
 int AcquireGrabs(Display *display, Window root_window, Window *ignored_windows,
                  unsigned int n_ignored_windows, Cursor cursor, int silent,
                  int force) {
+  AcquireGrabsState grab_state;
+  grab_state.display = display;
+  grab_state.root_window = root_window;
+  grab_state.cursor = cursor;
+  grab_state.silent = silent;
+
+  if (!force) {
+    // Easy case.
+    return TryAcquireGrabs(None, &grab_state);
+  }
+
+  XGrabServer(display);  // Critical section.
   UnmapAllWindowsState unmap_state;
-  if (force) {
-    // Enter critical section.
-    XGrabServer(display);
-    // Unmap all.
-    if (!InitUnmapAllWindowsState(&unmap_state, display, root_window,
-                                  ignored_windows, n_ignored_windows,
-                                  "xsecurelock", NULL, force > 1)) {
-      Log("Found XSecureLock to be already running, not forcing");
-      ClearUnmapAllWindowsState(&unmap_state);
-      XUngrabServer(display);
-      force = 0;
-    }
-  }
-  if (force) {
+  int ok;
+  if (InitUnmapAllWindowsState(&unmap_state, display, root_window,
+                               ignored_windows, n_ignored_windows,
+                               "xsecurelock", NULL, force > 1)) {
     Log("Trying to force grabbing by unmapping all windows. BAD HACK");
-    UnmapAllWindows(&unmap_state);
-  }
-  int ok = 1;
-  if (XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
-                   GrabModeAsync, GrabModeAsync, None, cursor,
-                   CurrentTime) != GrabSuccess) {
-    if (!silent) {
-      Log("Critical: cannot grab pointer");
-    }
-    ok = 0;
-  }
-  if (XGrabKeyboard(display, root_window, False, GrabModeAsync, GrabModeAsync,
-                    CurrentTime) != GrabSuccess) {
-    if (!silent) {
-      Log("Critical: cannot grab keyboard");
-    }
-    ok = 0;
-  }
-  if (force) {
+    ok = UnmapAllWindows(&unmap_state, TryAcquireGrabs, &grab_state);
     RemapAllWindows(&unmap_state);
-    ClearUnmapAllWindowsState(&unmap_state);
-    XUngrabServer(display);
+  } else {
+    Log("Found XSecureLock to be already running, not forcing");
+    ok = TryAcquireGrabs(None, &grab_state);
   }
+  ClearUnmapAllWindowsState(&unmap_state);
+  XUngrabServer(display);
   return ok;
 }
 
@@ -436,7 +518,7 @@ void NotifyOfLock(int xss_sleep_lock_fd) {
       // Child process.
       execvp(notify_command[0], notify_command);
       LogErrno("execvp");
-      exit(EXIT_FAILURE);
+      _exit(EXIT_FAILURE);
     } else {
       // Parent process after successful fork.
       notify_command_pid = pid;
@@ -446,7 +528,7 @@ void NotifyOfLock(int xss_sleep_lock_fd) {
 
 /*! \brief The main program.
  *
- * Usage: see usage().
+ * Usage: see Usage().
  */
 int main(int argc, char **argv) {
   setlocale(LC_CTYPE, "");
@@ -476,13 +558,21 @@ int main(int argc, char **argv) {
   }
 
   // Parse and verify arguments.
-  load_defaults();
-  if (!parse_arguments(argc, argv)) {
-    usage(argv[0]);
+  LoadDefaults();
+  ParseArgumentsOrExit(argc, argv);
+  if (!CheckSettings()) {
+    Usage(argv[0]);
     return 1;
   }
-  if (!check_settings()) {
-    usage(argv[0]);
+
+  // Do not try "locking" a Wayland session. Although everything we do appears
+  // to work on XWayland, our grab will only affect X11 and not Wayland
+  // clients, and therefore the lock will not be effective. If you need to get
+  // around this check for testing, just unset the WAYLAND_DISPLAY environment
+  // variable before starting XSecureLock. But really, this won't be secure in
+  // any way...
+  if (*GetStringSetting("WAYLAND_DISPLAY", "")) {
+    Log("Wayland detected. This is an X11 screen locker. Cannot lock");
     return 1;
   }
 
@@ -500,7 +590,7 @@ int main(int argc, char **argv) {
   }
 
   // My windows.
-  Window my_windows[3];
+  Window my_windows[4];
   unsigned int n_my_windows = 0;
 
   // Who's the root?
@@ -522,12 +612,14 @@ int main(int argc, char **argv) {
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
   Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
-  XSetWindowAttributes coverattrs;
+  Cursor default_cursor = XCreateFontCursor(display, XC_arrow);
+  Cursor transparent_cursor =
+      XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
+  XSetWindowAttributes coverattrs = {0};
   coverattrs.background_pixel = black.pixel;
   coverattrs.save_under = 1;
   coverattrs.override_redirect = 1;
-  coverattrs.cursor =
-      XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
+  coverattrs.cursor = transparent_cursor;
 
   Window parent_window = root_window;
 
@@ -586,12 +678,13 @@ int main(int argc, char **argv) {
   }
 #endif
 
-  // Create the two windows.
+  // Create the windows.
   // background_window is the outer window which exists for security reasons (in
   // case a subprocess may turn its window transparent or something).
-  // saver_window is the "visible" window that the saver and auth children will
-  // draw on. These windows are separated because XScreenSaver's savers might
-  // XUngrabKeyboard on their window.
+  // saver_window is the "visible" window that the saver child will draw on.
+  // auth_window is a window exclusively used by the auth child. It will only be
+  // mapped during auth, and hidden otherwise. These windows are separated
+  // because XScreenSaver's savers might XUngrabKeyboard on their window.
   Window background_window = XCreateWindow(
       display, parent_window, 0, 0, w, h, 0, CopyFromParent, InputOutput,
       CopyFromParent, CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
@@ -605,7 +698,13 @@ int main(int argc, char **argv) {
   SetWMProperties(display, saver_window, "xsecurelock", "saver", argc, argv);
   my_windows[n_my_windows++] = saver_window;
 
-  // Let's get notified if we lose visibility, so we can self-raise.
+  Window auth_window =
+      XCreateWindow(display, background_window, 0, 0, w, h, 0, CopyFromParent,
+                    InputOutput, CopyFromParent, CWBackPixel, &coverattrs);
+  SetWMProperties(display, auth_window, "xsecurelock", "auth", argc, argv);
+  my_windows[n_my_windows++] = auth_window;
+
+// Let's get notified if we lose visibility, so we can self-raise.
 #ifdef HAVE_XCOMPOSITE_EXT
   if (composite_window != None) {
     XSelectInput(display, composite_window,
@@ -620,12 +719,14 @@ int main(int argc, char **argv) {
                StructureNotifyMask | VisibilityChangeMask);
   XSelectInput(display, saver_window,
                StructureNotifyMask | VisibilityChangeMask);
+  XSelectInput(display, auth_window,
+               StructureNotifyMask | VisibilityChangeMask);
 
   // Make sure we stay always on top.
   XWindowChanges coverchanges;
   coverchanges.stack_mode = Above;
   XConfigureWindow(display, background_window, CWStackMode, &coverchanges);
-  XConfigureWindow(display, saver_window, CWStackMode, &coverchanges);
+  XConfigureWindow(display, auth_window, CWStackMode, &coverchanges);
 
   // We're OverrideRedirect anyway, but setting this hint may help compositors
   // leave our window alone.
@@ -651,9 +752,9 @@ int main(int argc, char **argv) {
                     32, PropModeReplace, (const unsigned char *)&dont_composite,
                     1);
   }
-  // Note: NOT setting this on the obscurer window, as this is a fallback and
-  // actually should be composited to make sure the compositor never draws
-  // anything "interesting".
+// Note: NOT setting this on the obscurer window, as this is a fallback and
+// actually should be composited to make sure the compositor never draws
+// anything "interesting".
 #endif
 
   // Initialize XInput so we can get multibyte key events.
@@ -674,10 +775,10 @@ int main(int argc, char **argv) {
     };
     size_t i;
     for (i = 0; i < sizeof(input_styles) / sizeof(input_styles[0]); ++i) {
-      // Note: we draw XIM stuff in saver_window so it's above the saver/auth
+      // Note: we draw XIM stuff in auth_window so it's above the saver/auth
       // child. However, we receive events for the grab window.
       xic = XCreateIC(xim, XNInputStyle, input_styles[i], XNClientWindow,
-                      saver_window, XNFocusWindow, background_window, NULL);
+                      auth_window, NULL);
       if (xic != NULL) {
         break;
       }
@@ -713,7 +814,7 @@ int main(int argc, char **argv) {
   int last_normal_attempt = force_grab ? 1 : 0;
   for (retries = 10; retries >= 0; --retries) {
     if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                     coverattrs.cursor,
+                     transparent_cursor,
                      /*silent=*/retries > last_normal_attempt,
                      /*force=*/retries < last_normal_attempt)) {
       break;
@@ -730,6 +831,7 @@ int main(int argc, char **argv) {
   // yet, thereby "confirming" the screen lock.
   XMapRaised(display, background_window);
   XMapRaised(display, saver_window);
+  XRaiseWindow(display, auth_window);  // Don't map here.
 
 #ifdef HAVE_XCOMPOSITE_EXT
   if (obscurer_window != None) {
@@ -757,13 +859,22 @@ int main(int argc, char **argv) {
   // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
   XSetErrorHandler(IgnoreErrorsHandler);
 
-  // Ignore SIGPIPE, as the auth child is explicitly allowed to close its
-  // standard input file descriptor.
   struct sigaction sa;
-  sa.sa_handler = SIG_IGN;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
-  sigaction(SIGPIPE, &sa, NULL);
+  sa.sa_handler = SIG_IGN;  // Don't die if auth child closes stdin.
+  if (sigaction(SIGPIPE, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGPIPE)");
+  }
+  sa.sa_handler = HandleSIGCHLD;  // To interrupt select().
+  if (sigaction(SIGCHLD, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGCHLD)");
+  }
+  sa.sa_flags = SA_RESETHAND;     // It re-raises to suicide.
+  sa.sa_handler = HandleSIGTERM;  // To kill children.
+  if (sigaction(SIGTERM, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGTERM)");
+  }
 
   // Need to flush the display so savers sure can access the window.
   XFlush(display);
@@ -777,8 +888,9 @@ int main(int argc, char **argv) {
     xss_sleep_lock_fd = -1;
   }
 
-  int background_window_mapped = 0, saver_window_mapped = 0,
-      need_to_reinstate_grabs = 0, xss_lock_notified = 0;
+  int background_window_mapped = 0, auth_window_mapped = 0,
+      saver_window_mapped = 0, need_to_reinstate_grabs = 0,
+      xss_lock_notified = 0;
   for (;;) {
     // Watch children WATCH_CHILDREN_HZ times per second.
     fd_set in_fds;
@@ -789,7 +901,8 @@ int main(int argc, char **argv) {
     tv.tv_usec = 1000000 / WATCH_CHILDREN_HZ;
     tv.tv_sec = 0;
     select(x11_fd + 1, &in_fds, 0, 0, &tv);
-    if (WatchChildren(display, saver_window, requested_saver_state, NULL)) {
+    if (WatchChildren(display, auth_window, saver_window, requested_saver_state,
+                      NULL)) {
       goto done;
     }
 
@@ -802,14 +915,19 @@ int main(int argc, char **argv) {
     need_to_reinstate_grabs = 1;
 #endif
     if (need_to_reinstate_grabs) {
-      if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                       coverattrs.cursor, 0, 0)) {
-        need_to_reinstate_grabs = 0;
+      need_to_reinstate_grabs = 0;
+      if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
+                        transparent_cursor, 0, 0)) {
+        Log("Critical: could not reacquire grabs. The screen is now UNLOCKED! "
+            "Trying again next frame.");
+        need_to_reinstate_grabs = 1;
       }
     }
 
 #ifdef AUTO_RAISE
-    MaybeRaiseWindow(display, saver_window, 0);
+    if (auth_window_mapped) {
+      MaybeRaiseWindow(display, auth_window, 0);
+    }
     MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
     if (obscurer_window != None) {
@@ -819,37 +937,10 @@ int main(int argc, char **argv) {
 #endif
 
     // Take care of zombies.
-    // TODO(divVerent): Refactor waitpid handling as callers mostly do the same
-    // handling anyway.
     if (notify_command_pid != 0) {
       int status;
-      pid_t pid = waitpid(notify_command_pid, &status, WNOHANG);
-      if (pid < 0) {
-        switch (errno) {
-          case ECHILD:
-            // The process is dead. Fine.
-            notify_command_pid = 0;
-            break;
-          case EINTR:
-            // Waitpid was interrupted. Fine, assume it's still running.
-            break;
-          default:
-            // Assume the child still lives. Shouldn't ever happen.
-            LogErrno("waitpid");
-            break;
-        }
-      } else if (pid == notify_command_pid) {
-        if (WIFEXITED(status)) {
-          // Done notifying.
-          if (WEXITSTATUS(status) != EXIT_SUCCESS) {
-            Log("Notification command failed with status %d",
-                WEXITSTATUS(status));
-          }
-          notify_command_pid = 0;
-        }
-        // Otherwise it was suspended or whatever. We need to keep waiting.
-      } else if (pid != 0) {
-        Log("Unexpectedly woke up for PID %d", (int)pid);
+      if (WaitPgrp("notify", notify_command_pid, 0, 0, &status)) {
+        notify_command_pid = 0;
       }
       // Otherwise, we're still alive. Re-check next time.
     }
@@ -885,8 +976,8 @@ int main(int argc, char **argv) {
           }
           // Also, whatever window has been reconfigured, should also be raised
           // to make sure.
-          if (priv.ev.xconfigure.window == saver_window) {
-            MaybeRaiseWindow(display, saver_window, 0);
+          if (auth_window_mapped && priv.ev.xconfigure.window == auth_window) {
+            MaybeRaiseWindow(display, auth_window, 0);
           } else if (priv.ev.xconfigure.window == background_window) {
             MaybeRaiseWindow(display, background_window, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
@@ -905,9 +996,10 @@ int main(int argc, char **argv) {
           if (priv.ev.xvisibility.state != VisibilityUnobscured) {
             // If something else shows an OverrideRedirect window, we want to
             // stay on top.
-            if (priv.ev.xvisibility.window == saver_window) {
-              Log("Someone overlapped the saver window. Undoing that");
-              MaybeRaiseWindow(display, saver_window, 1);
+            if (auth_window_mapped &&
+                priv.ev.xvisibility.window == auth_window) {
+              Log("Someone overlapped the auth window. Undoing that");
+              MaybeRaiseWindow(display, auth_window, 1);
             } else if (priv.ev.xvisibility.window == background_window) {
               Log("Someone overlapped the background window. Undoing that");
               MaybeRaiseWindow(display, background_window, 1);
@@ -926,15 +1018,15 @@ int main(int argc, char **argv) {
               XRaiseWindow(display, composite_window);
 #endif
             } else {
-              Log("Received unexpected VisibilityNotify for window %d",
-                  (int)priv.ev.xvisibility.window);
+              Log("Received unexpected VisibilityNotify for window %lu",
+                  priv.ev.xvisibility.window);
             }
           }
           break;
         case MotionNotify:
         case ButtonPress:
           // Mouse events launch the auth child.
-          if (WakeUp(display, saver_window, NULL)) {
+          if (WakeUp(display, auth_window, saver_window, NULL)) {
             goto done;
           }
           break;
@@ -942,6 +1034,7 @@ int main(int argc, char **argv) {
           // Keyboard events launch the auth child.
           Status status = XLookupNone;
           int have_key = 1;
+          int do_wake_up = 1;
           priv.keysym = NoSymbol;
           if (xic) {
             // This uses the current locale.
@@ -997,13 +1090,41 @@ int main(int argc, char **argv) {
           } else {
             // No new bytes. Fine.
             priv.buf[0] = 0;
+            // We do check if something external wants to handle this key,
+            // though.
+            const char *keyname = XKeysymToString(priv.keysym);
+            if (keyname != NULL) {
+              char buf[64];
+              int buflen = snprintf(buf, sizeof(buf),
+                                    "XSECURELOCK_KEY_%s_COMMAND", keyname);
+              if (buflen <= 0 || (size_t)buflen >= sizeof(buf)) {
+                Log("Wow, pretty long keysym names you got there");
+              } else {
+                const char *command = GetStringSetting(buf, "");
+                if (*command) {
+                  buflen = snprintf(buf, sizeof(buf),
+                                    "eval \"$XSECURELOCK_KEY_%s_COMMAND\" &",
+                                    keyname);
+                  if (buflen <= 0 || (size_t)buflen >= sizeof(buf)) {
+                    Log("Wow, pretty long keysym names you got there");
+                  } else {
+                    system(buf);
+                    do_wake_up = 0;
+                  }
+                }
+              }
+            }
           }
-          // In any case, the saver will be activated.
-          if (WakeUp(display, saver_window, priv.buf)) {
-            goto done;
-          }
+          // Now if so desired, wake up the login prompt, and check its
+          // status.
+          int authenticated =
+              do_wake_up ? WakeUp(display, auth_window, saver_window, priv.buf)
+                         : 0;
           // Clear out keypress data immediately.
           memset(&priv, 0, sizeof(priv));
+          if (authenticated) {
+            goto done;
+          }
         } break;
         case KeyRelease:
         case ButtonRelease:
@@ -1016,7 +1137,15 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_EVENTS
           Log("MapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
-          if (priv.ev.xmap.window == saver_window) {
+          if (priv.ev.xmap.window == auth_window) {
+            auth_window_mapped = 1;
+#ifdef SHOW_CURSOR_DURING_AUTH
+            // Actually ShowCursor...
+            XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
+                         GrabModeAsync, GrabModeAsync, None, default_cursor,
+                         CurrentTime);
+#endif
+          } else if (priv.ev.xmap.window == saver_window) {
             saver_window_mapped = 1;
           } else if (priv.ev.xmap.window == background_window) {
             background_window_mapped = 1;
@@ -1031,11 +1160,19 @@ int main(int argc, char **argv) {
 #ifdef DEBUG_EVENTS
           Log("UnmapNotify %lu", (unsigned long)priv.ev.xmap.window);
 #endif
-          if (priv.ev.xmap.window == saver_window) {
+          if (priv.ev.xmap.window == auth_window) {
+            auth_window_mapped = 0;
+#ifdef SHOW_CURSOR_DURING_AUTH
+            // Actually HideCursor...
+            XGrabPointer(display, root_window, False, ALL_POINTER_EVENTS,
+                         GrabModeAsync, GrabModeAsync, None, transparent_cursor,
+                         CurrentTime);
+#endif
+          } else if (priv.ev.xmap.window == saver_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the saver window. Undoing that");
             saver_window_mapped = 0;
-            XMapRaised(display, saver_window);
+            XMapWindow(display, saver_window);
           } else if (priv.ev.xmap.window == background_window) {
             // This should never happen, but let's handle it anyway.
             Log("Someone unmapped the background window. Undoing that");
@@ -1052,7 +1189,8 @@ int main(int argc, char **argv) {
             // This should never happen, but let's handle it anyway.
             // Compton might do this when --unredir-if-possible is set and a
             // fullscreen game launches while the screen is locked.
-            Log("Someone unmapped the composite overlay window. Undoing that");
+            Log("Someone unmapped the composite overlay window. Undoing "
+                "that");
             XMapRaised(display, composite_window);
 #endif
           } else if (priv.ev.xmap.window == root_window) {
@@ -1069,9 +1207,14 @@ int main(int argc, char **argv) {
 #endif
           if (priv.ev.xfocus.window == root_window &&
               priv.ev.xfocus.mode == NotifyUngrab) {
-            Log("WARNING: lost grab, trying to grab again");
+            // Not logging this - this is a normal occurrence if invoking the
+            // screen lock from a key combination, as the press event may
+            // launch xsecurelock while the release event releases a passive
+            // grab. We still immediately try to reacquire grabs here, though.
             if (!AcquireGrabs(display, root_window, my_windows, n_my_windows,
-                              coverattrs.cursor, 0, 0)) {
+                              transparent_cursor, 0, 0)) {
+              Log("Critical: could not reacquire grabs after NotifyUngrab. "
+                  "The screen is now UNLOCKED! Trying again next frame.");
               need_to_reinstate_grabs = 1;
             }
           }
@@ -1081,8 +1224,8 @@ int main(int argc, char **argv) {
           Log("Event%d %lu", priv.ev.type, (unsigned long)priv.ev.xany.window);
 #endif
 #ifdef HAVE_XSCREENSAVER_EXT
-          // Handle screen saver notifications. If the screen is blanked anyway,
-          // turn off the saver child.
+          // Handle screen saver notifications. If the screen is blanked
+          // anyway, turn off the saver child.
           if (scrnsaver_event_base != 0 &&
               priv.ev.type == scrnsaver_event_base + ScreenSaverNotify) {
             if (((XScreenSaverNotifyEvent *)&priv.ev)->state == ScreenSaverOn) {
@@ -1104,6 +1247,7 @@ done:
   memset(&priv, 0, sizeof(priv));
 
   // Free our resources, and exit.
+  XDestroyWindow(display, auth_window);
   XDestroyWindow(display, saver_window);
   XDestroyWindow(display, background_window);
 
@@ -1117,7 +1261,8 @@ done:
   }
 #endif
 
-  XFreeCursor(display, coverattrs.cursor);
+  XFreeCursor(display, transparent_cursor);
+  XFreeCursor(display, default_cursor);
   XFreePixmap(display, bg);
 
   XCloseDisplay(display);

@@ -18,19 +18,26 @@ The following packages need to be installed; their names depend on your Linux
 distribution of choice, but will be similar:
 
 *   apache2-utils (for the `auth_htpasswd` module)
-*   automake
+*   autotools-dev
 *   binutils
 *   gcc
 *   libc6-dev
-*   libpam-dev (for the `auth_pam_x11` module)
+*   libpam-dev (for the `authproto_pam` module)
 *   libx11-dev
+*   libxcomposite-dev
+*   libxext-dev
+*   libxfixes-dev
+*   libxft-dev
+*   libxmuu-dev
+*   libxrandr-dev
 *   libxss-dev
 *   make
 *   mplayer (for the `saver_mplayer` module)
 *   mpv (for the `saver_mpv` module)
-*   imagemagick (for the `auth_htpasswd` and `auth_pamtester` modules)
-*   pamtester (for the `auth_pamtester` module)
+*   pamtester (for the `authproto_pamtester` module)
+*   pkg-config
 *   x11-xserver-utils (for the `saver_blank` module)
+*   x11proto-core-dev
 *   xscreensaver (for the `saver_xscreensaver` module)
 
 # Installation
@@ -52,8 +59,46 @@ cd xsecurelock
 sh autogen.sh
 ./configure --with-pam-service-name=SERVICE-NAME
 make
-make install
+sudo make install
 ```
+
+## Special notes for FreeBSD and NetBSD
+
+First of all, on BSD systems, `/usr/local` is owned by the ports system, so
+unless you are creating a port, it is recommended to install to a separate
+location by specifying something like `--prefix=/opt/xsecurelock` in the
+`./configure` call. You can then run XSecureLock as
+`/opt/xsecurelock/bin/xsecurelock`.
+
+Also, in order to authenticate with PAM on FreeBSD and NetBSD, you must be root
+so you can read the shadow password database. The `authproto_pam` binary can be
+made to acquire these required privileges like this:
+
+```
+chmod +s /opt/xsecurelock/libexec/xsecurelock/authproto_pam
+```
+
+## Special notes for OpenBSD
+
+First of all, on BSD systems, `/usr/local` is owned by the ports system, so
+unless you are creating a port, it is recommended to install to a separate
+location by specifying something like `--prefix=/opt/xsecurelock` in the
+`./configure` call. You can then run XSecureLock as
+`/opt/xsecurelock/bin/xsecurelock`.
+
+Also, in order to authenticate with PAM on OpenBSD, you must be in the `auth`
+group so you can run a setuid helper called `login_passwd` that can read the
+shadow password database. The `authproto_pam` binary can be made to acquire
+these required privileges like this:
+
+```
+chgrp auth /opt/xsecurelock/libexec/xsecurelock/authproto_pam
+chmod g+s /opt/xsecurelock/libexec/xsecurelock/authproto_pam
+```
+
+Note that this adds substantially less attack surface than adding your own user
+to the `auth` group, as the `login_passwd` binary can try out passwords of any
+user, while `authproto_pam` is restricted to trying your own user.
 
 # Setup
 
@@ -66,11 +111,15 @@ one of the following:
 ```
 xsecurelock
 env XSECURELOCK_SAVER=saver_xscreensaver xsecurelock
-env XSECURELOCK_SAVER=saver_mplayer XSECURELOCK_WANT_FIRST_KEYPRESS=1 xsecurelock
+env XSECURELOCK_SAVER=saver_mplayer XSECURELOCK_DISCARD_FIRST_KEYPRESS=0 xsecurelock
 env XSECURELOCK_FONT=`xlsfonts | grep '\<iso10646-1\>' | shuf | head -n 1` xsecurelock
 ```
 
 Just kidding about the last one :)
+
+IMPORTANT: Make sure your desktop environment does not launch any other locker,
+be it via autostart file or its own configuration, as multiple screen lockers
+may interfere with each other. You have been warned!
 
 # Automatic Locking
 
@@ -161,9 +210,20 @@ wait in dimmed state before locking.
 
 Options to XSecureLock can be passed by environment variables:
 
-*   `XSECURELOCK_AUTH`: specifies the desired authentication module.
+<!-- ENV VARIABLES START -->
+
+*   `XSECURELOCK_AUTH`: specifies the desired authentication module (the part
+    that displays the authentication prompt).
+*   `XSECURELOCK_AUTHPROTO`: specifies the desired authentication protocol
+    module (the part that talks to the system).
+*   `XSECURELOCK_AUTH_SOUNDS`: specifies whether to play sounds during
+    authentication to indicate status. Sounds are defined as follows:
+    *   High-pitch ascending: prompt for user input.
+    *   High-pitch constant: an info message was displayed.
+    *   Low-pitch descending: an error message was displayed.
+    *   Medium-pitch ascending: authentication successful.
 *   `XSECURELOCK_AUTH_TIMEOUT`: specifies the time (in seconds) to wait for
-    response to a prompt by `auth_pam_x11` before giving up and reverting to
+    response to a prompt by `auth_x11` before giving up and reverting to
     the screen saver.
 *   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
     X11 to fully blank the screen; a negative value disables X11 blanking.
@@ -171,11 +231,11 @@ Options to XSecureLock can be passed by environment variables:
     in when blanking (one of standby, suspend, off and on, where "on" means to
     not invoke DPMS at all).
 *   `XSECURELOCK_BURNIN_MITIGATION`: specifies the number of pixels the prompt
-    of `auth_pam_x11` may be moved at startup to mitigate possible burn-in
+    of `auth_x11` may be moved at startup to mitigate possible burn-in
     effects due to the auth dialog being displayed all the time (e.g. when
     spurious mouse events wake up the screen all the time).
 *   `XSECURELOCK_BURNIN_MITIGATION_DYNAMIC`: if set to a non-zero value,
-    `auth_pam_x11` will move the prompt while it is being displayed, but stay
+    `auth_x11` will move the prompt while it is being displayed, but stay
     within the bounds of `XSECURELOCK_BURNIN_MITIGATION`. The value of this
     variable is the maximum allowed shift per screen refresh. This mitigates
     short-term burn-in effects but is probably annoying to most users, and thus
@@ -183,19 +243,33 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_COMPOSITE_OBSCURER`: create a second full-screen window to
     obscure window content in case a running compositor unmaps its own window.
     Helps with some instances of bad compositor behavior (such as compositor
-    crashes/restarts, but also compton has been caught at drawing notifcation
+    crashes/restarts, but also compton has been caught at drawing notification
     icons above the screen locker when not using the GLX backend), should
     prevent compositors from unredirecting as it's 1 pixel smaller than the
     screen from every side, and should otherwise be harmless, so it's enabled
     by default.
+*   `XSECURELOCK_DATETIME_FORMAT`: the date format to show. Defaults to the
+    locale settings.
+*   `XSECURELOCK_DEBUG_WINDOW_INFO`: When complaining about another window
+    misbehaving, print not just the window ID but also some info about it. Uses
+    the `xwininfo` and `xprop` tools.
 *   `XSECURELOCK_DIM_ALPHA`: Linear-space opacity to fade the screen to.
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming
     effect of `dimmer`. Usually shouldn't need touching.
+*   `XSECURELOCK_DIM_OVERRIDE_COMPOSITOR_DETECTION`: When set to 1, always try
+    to use transparency for dimming; when set to 0, always use a dither
+    pattern. Default is to autodetect whether transparency will likely work.
 *   `XSECURELOCK_DIM_TIME_MS`: Milliseconds to dim for when above xss-lock
     command line with `dimmer` is used; also used by `wait_nonidle` to know when
     to assume dimming and waiting has finished and exit.
-*   `XSECURELOCK_FONT`: X11 or FontConfig font name to use for `auth_pam_x11`.
+*   `XSECURELOCK_DISCARD_FIRST_KEYPRESS`: If set to 0, the key pressed to stop
+    the screen saver and spawn the auth child is sent to the auth child (and
+    thus becomes part of the password entry). By default we always discard the
+    key press that started the authentication flow, to prevent users from
+    getting used to type their password on a blank screen (which could be just
+    powered off and have a chat client behind or similar).
+*   `XSECURELOCK_FONT`: X11 or FontConfig font name to use for `auth_x11`.
     You can get a list of supported font names by running `xlsfonts` and
     `fc-list`.
 *   `XSECURELOCK_FORCE_GRAB`: When grabbing fails, try stealing the grab from
@@ -212,6 +286,13 @@ Options to XSecureLock can be passed by environment variables:
     XInput device index (run `xinput` to see them). If multiple time counters
     are specified, the idle time is the minimum of them all. All listed timers
     must have the same unit.
+*   `XSECURELOCK_KEY_%s_COMMAND` where `%s` is the name of an X11 keysym (find
+    using `xev`): a shell command to execute when the specified key is pressed.
+    Useful e.g. for media player control. Beware: be cautiuous about what you
+    run with this, as it may yield attackers control over your computer.
+*   `XSECURELOCK_LIST_VIDEOS_COMMAND`: shell command to list all video files to
+    potentially play by `saver_mpv` or `saver_mplayer`. Defaults to
+    `find ~/Videos -type f`.
 *   `XSECURELOCK_NO_COMPOSITE`: disables covering the composite overlay window.
     This switches to a more traditional way of locking, but may allow desktop
     notifications to be visible on top of the screen lock. Not recommended.
@@ -220,25 +301,30 @@ Options to XSecureLock can be passed by environment variables:
     and fall back to XRandR 1.2. Not recommended.
 *   `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with
     that name in `/etc/pam.d`.
-*   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_pam_x11` hide the password
+*   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_x11` hide the password
     length.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
+*   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
+    login. Disabled by default.
 *   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
-    screen of `auth_pam_x11`. Possible values are 0 for not showing the
+    screen of `auth_x11`. Possible values are 0 for not showing the
     hostname, 1 for showing the short form, and 2 for showing the long form.
 *   `XSECURELOCK_SHOW_USERNAME`: whether to show the username on the login
-    screen of `auth_pam_x11`.
+    screen of `auth_x11`.
+*   `XSECURELOCK_SINGLE_AUTH_WINDOW`: whether to show only a single auth window
+    from `auth_x11`, as opposed to one per screen.
 *   `XSECURELOCK_SWITCH_USER_COMMAND`: shell command to execute when `Win-O` or
     `Ctrl-Alt-O` are pressed (think "_other_ user"). Typical values could be
     `lxdm -c USER_SWITCH`, `dm-tool switch-to-greeter`, `gdmflexiserver` or
     `kdmctl reserve`, depending on your desktop environment.
-*   `XSECURELOCK_WANT_FIRST_KEYPRESS`: If set to 1, the key pressed to stop the
-    screen saver and spawn the auth child is sent to the auth child (and thus
-    becomes part of the password entry).
 *   `XSECURELOCK_WAIT_TIME_MS`: Milliseconds to wait after dimming (and before
     locking) when above xss-lock command line is used. Should be at least as
     large as the period time set using "xset s". Also used by `wait_nonidle` to
     know when to assume dimming and waiting has finished and exit.
+*   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
+    installed for use by `saver_xscreensaver`.
+
+<!-- ENV VARIABLES END -->
 
 Additionally, command line arguments following a "--" argument will be executed
 via `execvp` once locking is successful; this can be used to notify a calling
@@ -248,13 +334,8 @@ process of successful locking.
 
 The following authentication modules are included:
 
-*   `auth_pam_x11`: Authenticates via PAM using keyboard input (X11 based;
-    recommended).
-*   `auth_pamtester`: Authenticates via PAM using keyboard input (pamtester).
-*   `auth_htpasswd`: Authenticates via a htpasswd style file stored in
-    `~/.xsecurelock.pw`. To generate this file, run: `( umask 077; htpasswd -cB
-    ~/.xsecurelock.pw "$USER" )` Use this only if you for some reason can't use
-    PAM!
+*   `auth_x11`: Authenticates via an authproto module using keyboard input (X11
+    based; recommended).
 
 ## Writing Your Own Module
 
@@ -266,6 +347,37 @@ location: `/usr/local/libexec/xsecurelock/helpers`).
     locale-dependent multibyte encoding (usually UTF-8). Use the `mb*` C
     functions to act on these.
 *   Output: it may draw on or create windows below `$XSCREENSAVER_WINDOW`.
+*   Exit status: if authentication was successful, it must return with status
+    zero. If it returns with any other status (including e.g. a segfault),
+    XSecureLock assumes failed authentication.
+*   It is recommended that it shall spawn the configured authentication
+    protocol module and let it do the actual authentication; that way the
+    authentication module can focus on the user interface alone.
+
+# Authentication Protocol Modules
+
+The following authentication protocol ("authproto") modules are included:
+
+*   `authproto_htpasswd`: Authenticates via a htpasswd style file stored in
+    `~/.xsecurelock.pw`. To generate this file, run: `( umask 077; htpasswd -cB
+    ~/.xsecurelock.pw "$USER" )` Use this only if you for some reason can't use
+    PAM!
+*   `authproto_pam`: Authenticates via PAM. Use this.
+*   `authproto_pamtester`: Authenticates via PAM using pamtester. Shouldn't
+    be required unless you can't compile `authproto_pam`. Only supports simple
+    password based conversations.
+
+## Writing Your Own Module
+
+The authentication protocol module is a separate executable, whose name must
+start with `authproto_` and be installed together with the included
+`authproto_` modules (default location:
+`/usr/local/libexec/xsecurelock/helpers`).
+
+*   Input: in response to some output messages, it may receive authproto
+    messages. See helpers/authproto.h for details.
+*   Output: it should output authproto messages; see helpers/authproto.h for
+    details.
 *   Exit status: if authentication was successful, it must return with status
     zero. If it returns with any other status (including e.g. a segfault),
     XSecureLock assumes failed authentication.
@@ -302,9 +414,14 @@ location: `/usr/local/libexec/xsecurelock/helpers`).
 In order to achieve maximum possible security against screen lock bypass
 exploits, the following measures are taken:
 
-*   Both authentication and screen saving are done using separate processes.
-    Therefore a crash of these processes will not unlock the screen, which means
-    that these processes are allowed to do "possibly dangerous" things.
+*   Authentication dialog, authentication checking and screen saving are done
+    using separate processes. Therefore a crash of these processes will not
+    unlock the screen, which means that these processes are allowed to do
+    "possibly dangerous" things.
+*   This also means that on operating systems where authentication checking
+    requires special privileges (such as FreeBSD), only that module can be set
+    to run at elevated privileges, unlike most other screen lockers which in
+    this scenario also run graphical user interface code as root.
 *   The main process is kept minimal and only uses C, POSIX and X11 APIs. This
     limits the possible influence from bugs in external libraries, and allows
     for easy auditing.

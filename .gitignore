@@ -13,19 +13,23 @@
 /config.status
 /configure
 /depcomp
-/helpers/auth_htpasswd
-/helpers/auth_pamtester
+/env_helpstr.inc
+/helpers/authproto_htpasswd
+/helpers/authproto_pamtester
 /helpers/saver_mplayer
 /helpers/saver_mpv
 /helpers/saver_xscreensaver
 /install-sh
 /missing
+/version.c
 
 # Object files.
 *.o
 
 # Binaries.
-/auth_pam_x11
+/auth_x11
+/authproto_pam
+/cat_authproto
 /dimmer
 /get_compositor
 /nvidia_break_compositor

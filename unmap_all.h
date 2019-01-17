@@ -27,6 +27,7 @@ typedef struct {
   // The window list; None windows should be skipped when iterating.
   Window *windows;
   unsigned int n_windows;
+  unsigned int first_unmapped_window;
 } UnmapAllWindowsState;
 
 /*! \brief Stores the list of all mapped application windows in the state.
@@ -46,9 +47,17 @@ int InitUnmapAllWindowsState(UnmapAllWindowsState *state, Display *display,
 
 /*! \brief Unmaps all windows, and stores them in the state.
  *
+ * After each unmapping it calls just_unmapped_can_we_stop on the window; if
+ * that returns a non-zero value, unmapping stops and we return that value.
+ *
  * Must be used on the state filled by ListAllWindows.
+ *
+ * \return Nonzero return value of just_unmapped_can_we_stop, or zero if we
+ *   unmapped all.
  */
-void UnmapAllWindows(UnmapAllWindowsState *state);
+int UnmapAllWindows(UnmapAllWindowsState *state,
+                    int (*just_unmapped_can_we_stop)(Window w, void *arg),
+                    void *arg);
 
 /*! \brief Remaps all windows from the state.
  *

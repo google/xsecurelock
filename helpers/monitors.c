@@ -132,10 +132,10 @@ static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
 }
 
 #ifdef HAVE_XRANDR_EXT
-static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy, int ww,
-                               int wh, Monitor* out_monitors,
+static int GetMonitorsXRandR12(Display* dpy, Window window, int wx, int wy,
+                               int ww, int wh, Monitor* out_monitors,
                                size_t* out_num_monitors, size_t max_monitors) {
-  XRRScreenResources* screenres = XRRGetScreenResources(dpy, w);
+  XRRScreenResources* screenres = XRRGetScreenResources(dpy, window);
   if (screenres == NULL) {
     return 0;
   }
@@ -171,14 +171,14 @@ static int GetMonitorsXRandR12(Display* dpy, Window w, int wx, int wy, int ww,
 }
 
 #ifdef HAVE_XRANDR15_EXT
-static int GetMonitorsXRandR15(Display* dpy, Window w, int wx, int wy, int ww,
-                               int wh, Monitor* out_monitors,
+static int GetMonitorsXRandR15(Display* dpy, Window window, int wx, int wy,
+                               int ww, int wh, Monitor* out_monitors,
                                size_t* out_num_monitors, size_t max_monitors) {
   if (!have_xrandr15_ext) {
     return 0;
   }
   int num_rrmonitors;
-  XRRMonitorInfo* rrmonitors = XRRGetMonitors(dpy, w, 1, &num_rrmonitors);
+  XRRMonitorInfo* rrmonitors = XRRGetMonitors(dpy, window, 1, &num_rrmonitors);
   if (rrmonitors == NULL) {
     return 0;
   }
@@ -196,7 +196,7 @@ static int GetMonitorsXRandR15(Display* dpy, Window w, int wx, int wy, int ww,
 }
 #endif
 
-static int GetMonitorsXRandR(Display* dpy, Window w,
+static int GetMonitorsXRandR(Display* dpy, Window window,
                              const XWindowAttributes* xwa,
                              Monitor* out_monitors, size_t* out_num_monitors,
                              size_t max_monitors) {
@@ -207,21 +207,21 @@ static int GetMonitorsXRandR(Display* dpy, Window w,
   // Translate to absolute coordinates so we can compare them to XRandR data.
   int wx, wy;
   Window child;
-  if (!XTranslateCoordinates(dpy, w, DefaultRootWindow(dpy), xwa->x, xwa->y,
-                             &wx, &wy, &child)) {
+  if (!XTranslateCoordinates(dpy, window, DefaultRootWindow(dpy), xwa->x,
+                             xwa->y, &wx, &wy, &child)) {
     Log("XTranslateCoordinates failed");
     wx = xwa->x;
     wy = xwa->y;
   }
 
 #ifdef HAVE_XRANDR15_EXT
-  if (GetMonitorsXRandR15(dpy, w, wx, wy, xwa->width, xwa->height, out_monitors,
-                          out_num_monitors, max_monitors)) {
+  if (GetMonitorsXRandR15(dpy, window, wx, wy, xwa->width, xwa->height,
+                          out_monitors, out_num_monitors, max_monitors)) {
     return 1;
   }
 #endif
 
-  return GetMonitorsXRandR12(dpy, w, wx, wy, xwa->width, xwa->height,
+  return GetMonitorsXRandR12(dpy, window, wx, wy, xwa->width, xwa->height,
                              out_monitors, out_num_monitors, max_monitors);
 }
 #endif
@@ -244,7 +244,7 @@ static void GetMonitorsGuess(const XWindowAttributes* xwa,
   }
 }
 
-size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
+size_t GetMonitors(Display* dpy, Window window, Monitor* out_monitors,
                    size_t max_monitors) {
   if (max_monitors < 1) {
     return 0;
@@ -254,11 +254,11 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
 
   // As outputs will be relative to the window, we have to query its attributes.
   XWindowAttributes xwa;
-  XGetWindowAttributes(dpy, w, &xwa);
+  XGetWindowAttributes(dpy, window, &xwa);
 
   do {
 #ifdef HAVE_XRANDR_EXT
-    if (GetMonitorsXRandR(dpy, w, &xwa, out_monitors, &num_monitors,
+    if (GetMonitorsXRandR(dpy, window, &xwa, out_monitors, &num_monitors,
                           max_monitors)) {
       break;
     }
@@ -278,16 +278,16 @@ size_t GetMonitors(Display* dpy, Window w, Monitor* out_monitors,
   return num_monitors;
 }
 
-void SelectMonitorChangeEvents(Display* dpy, Window w) {
+void SelectMonitorChangeEvents(Display* dpy, Window window) {
 #ifdef HAVE_XRANDR_EXT
   if (MaybeInitXRandR(dpy)) {
-    XRRSelectInput(dpy, w,
+    XRRSelectInput(dpy, window,
                    RRScreenChangeNotifyMask | RRCrtcChangeNotifyMask |
                        RROutputChangeNotifyMask);
   }
 #else
   (void)dpy;
-  (void)w;
+  (void)window;
 #endif
 }
 

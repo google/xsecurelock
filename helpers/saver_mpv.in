@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-video=`find ~/Videos -type f | sort -R | head -n 1`
-@with_mpv@ \
+: ${XSECURELOCK_LIST_VIDEOS_COMMAND:=find ~/Videos -type f}
+
+sh -c "$XSECURELOCK_LIST_VIDEOS_COMMAND" | shuf | head -n 256 |\
+@path_to_mpv@ \
   --no-input-terminal \
   --really-quiet \
   --no-stop-screensaver \
   --wid="${XSCREENSAVER_WINDOW}" \
   --no-audio \
-  -- \
-  "$video" &
+  --shuffle \
+  --playlist=- &
 exec ./saver_blank
