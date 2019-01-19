@@ -61,6 +61,7 @@ xsecurelock_SOURCES = \
 	main.c \
 	saver_child.c saver_child.h \
 	unmap_all.c unmap_all.h \
+	util.c \
 	version.c version.h \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
