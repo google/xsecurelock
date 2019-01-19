@@ -36,7 +36,8 @@ int KillPgrp(pid_t pid) {
 
 int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
              int *exit_status) {
-  for (;;) {
+  int result;
+  for (result = -1; result == -1;) {
     int status;
     pid_t gotpid = waitpid(*pid, &status, do_block ? 0 : WNOHANG);
     if (gotpid < 0) {
@@ -45,7 +46,8 @@ int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
           // The process is already dead. Fine.
           *exit_status = WAIT_ALREADY_DEAD;
           *pid = 0;
-          return 1;
+          result = 1;
+          break;
         case EINTR:
           // Waitpid was interrupted. Need to retry.
           break;
@@ -61,16 +63,15 @@ int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
           Log("%s child killed by signal %d", name, signo);
           *exit_status = (signo > 0) ? -signo : WAIT_NONPOSITIVE_SIGNAL;
           *pid = 0;
-          return 1;
+          result = 1;
         }
-      }
-      if (WIFEXITED(status)) {
+      } else if (WIFEXITED(status)) {
         *exit_status = WEXITSTATUS(status);
         if (*exit_status != EXIT_SUCCESS) {
           Log("%s child failed with status %d", name, *exit_status);
         }
         *pid = 0;
-        return 1;
+        result = 1;
       }
       // Otherwise it was suspended or whatever. We need to keep waiting.
     } else if (gotpid != 0) {
@@ -78,7 +79,8 @@ int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
     } else if (do_block) {
       Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
     } else {
-      return 0;  // Child still lives.
+      result = 0;  // Child still lives.
     }
   }
+  return result;
 }
