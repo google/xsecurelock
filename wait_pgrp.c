@@ -17,7 +17,8 @@ limitations under the License.
 #include "wait_pgrp.h"
 
 #include <errno.h>     // for errno, ECHILD, EINTR, ESRCH
-#include <signal.h>    // for kill, SIGTERM
+#include <signal.h>    // for kill, sigaddset, sigemptyset, sigprocmask,
+                       // sigsuspend, SIGCHLD, SIGTERM
 #include <stdlib.h>    // for EXIT_SUCCESS, WEXITSTATUS, WIFEXITED, WIFSIGNALED
 #include <sys/wait.h>  // for waitpid, WNOHANG
 #include <unistd.h>    // for pid_t
@@ -36,10 +37,27 @@ int KillPgrp(pid_t pid) {
 
 int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
              int *exit_status) {
+  int have_sigset;
+  sigset_t oldset, set;
+  if (sigprocmask(SIG_SETMASK, NULL, &oldset)) {
+    have_sigset = 0;
+    LogErrno("Unable to retrieve signal mask");
+  } else {
+    have_sigset = 1;
+    sigemptyset(&set);
+    if (do_block) {
+      sigaddset(&set, SIGCHLD);
+    }
+    sigaddset(&set, SIGTERM);
+  }
   int result;
   for (result = -1; result == -1;) {
+    if (have_sigset && sigprocmask(SIG_BLOCK, &set, NULL)) {
+      LogErrno("Unable to block signals");
+    }
     int status;
-    pid_t gotpid = waitpid(*pid, &status, do_block ? 0 : WNOHANG);
+    pid_t gotpid = waitpid(*pid, &status,
+                           (do_block && !have_sigset) ? 0 : WNOHANG);
     if (gotpid < 0) {
       switch (errno) {
         case ECHILD:
@@ -77,9 +95,16 @@ int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
     } else if (gotpid != 0) {
       Log("Unexpectedly woke up for PID %d", (int)*pid);
     } else if (do_block) {
-      Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
+      if (have_sigset) {
+        sigsuspend(&oldset);
+      } else {
+        Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
+      }
     } else {
       result = 0;  // Child still lives.
+    }
+    if (have_sigset && sigprocmask(SIG_SETMASK, &oldset, NULL)) {
+      LogErrno("Unable to restore signal mask");
     }
   }
   return result;
