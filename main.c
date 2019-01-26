@@ -385,40 +385,57 @@ void DebugDumpWindowInfo(Window w) {
 /*! \brief Raise a window if necessary.
  *
  * Does not cause any events if the window is already on the top.
+
+ * \param display The X11 display.
+ * \param w The window to raise.
+ * \param silent Whether to output something if we can't detect what is wrong.
+ * \param force Whether to always raise our window, even if we can't find what
+ *   covers us. Set this only if confident that there is something overlapping
+ *   us, like in response to a negative VisibilityNotify.
  */
-void MaybeRaiseWindow(Display *display, Window w, int force) {
-  Window root, parent, grandparent;
+void MaybeRaiseWindow(Display *display, Window w, int silent, int force) {
+  int need_raise = force;
+  Window root, parent;
   Window *children, *siblings;
   unsigned int nchildren, nsiblings;
-  if (!XQueryTree(display, w, &root, &parent, &children, &nchildren)) {
-    Log("XQueryTree failed");
-    return;
-  }
-  XFree(children);
-  if (!XQueryTree(display, parent, &root, &grandparent, &siblings,
-                  &nsiblings)) {
-    Log("XQueryTree failed");
-    return;
+  if (XQueryTree(display, w, &root, &parent, &children, &nchildren)) {
+    XFree(children);
+    Window grandparent;
+    if (!XQueryTree(display, parent, &root, &grandparent, &siblings,
+                    &nsiblings)) {
+      Log("XQueryTree failed on the parent");
+      siblings = NULL;
+      nsiblings = 0;
+    }
+  } else {
+    Log("XQueryTree failed on self");
+    siblings = NULL;
+    nsiblings = 0;
   }
   if (nsiblings == 0) {
-    Log("My parent window has no children");
-    XFree(siblings);
-    return;
-  }
-  if (w != siblings[nsiblings - 1]) {
-    // Need to bring myself to the top first.
-    Log("MaybeRaiseWindow hit: window %lu was above my window %lu",
-        siblings[nsiblings - 1], w);
-    DebugDumpWindowInfo(siblings[nsiblings - 1]);
-    XRaiseWindow(display, w);
-  } else if (force) {
-    // When forcing, do it anyway.
-    Log("MaybeRaiseWindow miss: something obscured my window %lu but I can't "
-        "find it",
-        w);
-    XRaiseWindow(display, w);
+    Log("No siblings found");
+  } else {
+    if (w == siblings[nsiblings - 1]) {
+      // But we _are_ on top...?
+      if (force && !silent) {
+        // We have evidence of something covering us, but cannot locate it.
+        Log("MaybeRaiseWindow miss: something obscured my window %lu but I "
+            "can't find it",
+            w);
+      }
+    } else {
+      // We found what's covering us.
+      Log("MaybeRaiseWindow hit: window %lu was above my window %lu",
+          siblings[nsiblings - 1], w);
+      DebugDumpWindowInfo(siblings[nsiblings - 1]);
+      need_raise = 1;
+    }
   }
   XFree(siblings);
+  if (need_raise) {
+    XRaiseWindow(display, w);
+  }
+  return;
 }
 
 typedef struct {
@@ -717,8 +734,7 @@ int main(int argc, char **argv) {
 #endif
   XSelectInput(display, background_window,
                StructureNotifyMask | VisibilityChangeMask);
-  XSelectInput(display, saver_window,
-               StructureNotifyMask | VisibilityChangeMask);
+  XSelectInput(display, saver_window, StructureNotifyMask);
   XSelectInput(display, auth_window,
                StructureNotifyMask | VisibilityChangeMask);
 
@@ -926,12 +942,12 @@ int main(int argc, char **argv) {
 
 #ifdef AUTO_RAISE
     if (auth_window_mapped) {
-      MaybeRaiseWindow(display, auth_window, 0);
+      MaybeRaiseWindow(display, auth_window, 0, 0);
     }
-    MaybeRaiseWindow(display, background_window, 0);
+    MaybeRaiseWindow(display, background_window, 0, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
     if (obscurer_window != None) {
-      MaybeRaiseWindow(display, obscurer_window, 0);
+      MaybeRaiseWindow(display, obscurer_window, 1, 0);
     }
 #endif
 #endif
@@ -975,13 +991,13 @@ int main(int argc, char **argv) {
           // Also, whatever window has been reconfigured, should also be raised
           // to make sure.
           if (auth_window_mapped && priv.ev.xconfigure.window == auth_window) {
-            MaybeRaiseWindow(display, auth_window, 0);
+            MaybeRaiseWindow(display, auth_window, 0, 0);
           } else if (priv.ev.xconfigure.window == background_window) {
-            MaybeRaiseWindow(display, background_window, 0);
+            MaybeRaiseWindow(display, background_window, 0, 0);
 #ifdef HAVE_XCOMPOSITE_EXT
           } else if (obscurer_window != None &&
                      priv.ev.xconfigure.window == obscurer_window) {
-            MaybeRaiseWindow(display, obscurer_window, 0);
+            MaybeRaiseWindow(display, obscurer_window, 1, 0);
 #endif
           }
           break;
@@ -1001,16 +1017,19 @@ int main(int argc, char **argv) {
             if (auth_window_mapped &&
                 priv.ev.xvisibility.window == auth_window) {
               Log("Someone overlapped the auth window. Undoing that");
-              MaybeRaiseWindow(display, auth_window, 1);
+              MaybeRaiseWindow(display, auth_window, 0, 1);
             } else if (priv.ev.xvisibility.window == background_window) {
               background_window_visible = 0;
               Log("Someone overlapped the background window. Undoing that");
-              MaybeRaiseWindow(display, background_window, 1);
+              MaybeRaiseWindow(display, background_window, 0, 1);
 #ifdef HAVE_XCOMPOSITE_EXT
             } else if (obscurer_window != None &&
                        priv.ev.xvisibility.window == obscurer_window) {
-              Log("Someone overlapped the obscurer window. Undoing that");
-              MaybeRaiseWindow(display, obscurer_window, 1);
+              // Not logging this as our own composite overlay window causes
+              // this to happen too; keeping this there anyway so we self-raise
+              // if something is wrong with the COW and something else overlaps
+              // us.
+              MaybeRaiseWindow(display, obscurer_window, 1, 1);
             } else if (composite_window != None &&
                        priv.ev.xvisibility.window == composite_window) {
               Log("Someone overlapped the composite overlay window window. "
