@@ -888,9 +888,9 @@ int main(int argc, char **argv) {
     xss_sleep_lock_fd = -1;
   }
 
-  int background_window_mapped = 0, auth_window_mapped = 0,
-      saver_window_mapped = 0, need_to_reinstate_grabs = 0,
-      xss_lock_notified = 0;
+  int background_window_mapped = 0, background_window_visible = 0,
+      auth_window_mapped = 0, saver_window_mapped = 0,
+      need_to_reinstate_grabs = 0, xss_lock_notified = 0;
   for (;;) {
     // Watch children WATCH_CHILDREN_HZ times per second.
     fd_set in_fds;
@@ -991,7 +991,11 @@ int main(int argc, char **argv) {
               (unsigned long)priv.ev.xvisibility.window,
               priv.ev.xvisibility.state);
 #endif
-          if (priv.ev.xvisibility.state != VisibilityUnobscured) {
+          if (priv.ev.xvisibility.state == VisibilityUnobscured) {
+            if (priv.ev.xvisibility.window == background_window) {
+              background_window_visible = 1;
+            }
+          } else {
             // If something else shows an OverrideRedirect window, we want to
             // stay on top.
             if (auth_window_mapped &&
@@ -999,6 +1003,7 @@ int main(int argc, char **argv) {
               Log("Someone overlapped the auth window. Undoing that");
               MaybeRaiseWindow(display, auth_window, 1);
             } else if (priv.ev.xvisibility.window == background_window) {
+              background_window_visible = 0;
               Log("Someone overlapped the background window. Undoing that");
               MaybeRaiseWindow(display, background_window, 1);
 #ifdef HAVE_XCOMPOSITE_EXT
@@ -1148,11 +1153,6 @@ int main(int argc, char **argv) {
           } else if (priv.ev.xmap.window == background_window) {
             background_window_mapped = 1;
           }
-          if (saver_window_mapped && background_window_mapped &&
-              !xss_lock_notified) {
-            NotifyOfLock(xss_sleep_lock_fd);
-            xss_lock_notified = 1;
-          }
           break;
         case UnmapNotify:
 #ifdef DEBUG_EVENTS
@@ -1236,6 +1236,11 @@ int main(int argc, char **argv) {
 #endif
           Log("Received unexpected event %d", priv.ev.type);
           break;
+      }
+      if (background_window_mapped && background_window_visible &&
+          saver_window_mapped && !xss_lock_notified) {
+        NotifyOfLock(xss_sleep_lock_fd);
+        xss_lock_notified = 1;
       }
     }
   }
