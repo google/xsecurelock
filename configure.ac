@@ -26,6 +26,7 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([])],
                [AC_MSG_RESULT([no])
                 LDFLAGS=$saved_LDFLAGS])
 
+AC_CHECK_FUNCS([explicit_bzero])
 AC_CHECK_HEADER(X11/Xlib.h,
                 [], [AC_ERROR([X includes not found.])])
 AC_CHECK_LIB(X11, XOpenDisplay,

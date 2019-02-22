@@ -58,6 +58,7 @@ limitations under the License.
 #include "mlock_page.h"     // for MLOCK_PAGE
 #include "saver_child.h"    // for WatchSaverChild, KillAllSaver...
 #include "unmap_all.h"      // for ClearUnmapAllWindowsState
+#include "util.h"           // for explicit_bzero
 #include "version.h"        // for git_version
 #include "wait_pgrp.h"      // for WaitPgrp
 #include "wm_properties.h"  // for SetWMProperties
@@ -105,6 +106,17 @@ limitations under the License.
    Button2MotionMask | Button3MotionMask | Button4MotionMask |               \
    Button5MotionMask | ButtonMotionMask)
 
+//! Private (possibly containing information about the user's password) data.
+//  This data is locked to RAM using mlock() to avoid leakage to disk via swap.
+struct {
+  // The received X event.
+  XEvent ev;
+  // The decoded key press.
+  char buf[16];
+  KeySym keysym;
+  // The length of the data in buf.
+  int len;
+} priv;
 //! The name of the auth child to execute, relative to HELPER_PATH.
 const char *auth_executable;
 //! The name of the saver child to execute, relative to HELPER_PATH.
@@ -130,6 +142,7 @@ pid_t notify_command_pid = 0;
 static void HandleSIGTERM(int signo) {
   KillAllSaverChildrenSigHandler();  // Dirty, but quick.
   KillAuthChildSigHandler();         // More dirty.
+  explicit_bzero(&priv, sizeof(priv));
   raise(signo);
 }
 
@@ -856,17 +869,6 @@ int main(int argc, char **argv) {
   }
 #endif
 
-  // Private (possibly containing information about the user's password) data.
-  // This data is locked to RAM using mlock() to avoid leakage to disk via swap.
-  struct {
-    // The received X event.
-    XEvent ev;
-    // The decoded key press.
-    char buf[16];
-    KeySym keysym;
-    // The length of the data in buf.
-    int len;
-  } priv;
   if (MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
     LogErrno("mlock");
     return 1;
@@ -1143,7 +1145,7 @@ int main(int argc, char **argv) {
               do_wake_up ? WakeUp(display, auth_window, saver_window, priv.buf)
                          : 0;
           // Clear out keypress data immediately.
-          memset(&priv, 0, sizeof(priv));
+          explicit_bzero(&priv, sizeof(priv));
           if (authenticated) {
             goto done;
           }
@@ -1266,7 +1268,7 @@ int main(int argc, char **argv) {
 
 done:
   // Wipe the password.
-  memset(&priv, 0, sizeof(priv));
+  explicit_bzero(&priv, sizeof(priv));
 
   // Free our resources, and exit.
   XDestroyWindow(display, auth_window);
