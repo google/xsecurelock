@@ -37,27 +37,26 @@ int KillPgrp(pid_t pid) {
 
 int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
              int *exit_status) {
-  int have_sigset;
   sigset_t oldset, set;
-  if (sigprocmask(SIG_SETMASK, NULL, &oldset)) {
-    have_sigset = 0;
-    LogErrno("Unable to retrieve signal mask");
-  } else {
-    have_sigset = 1;
-    sigemptyset(&set);
-    if (do_block) {
-      sigaddset(&set, SIGCHLD);
-    }
-    sigaddset(&set, SIGTERM);
+  sigemptyset(&set);
+  // We're blocking the signal we may have a forwarding handler for as their
+  // handling reads the pid variable we are changing here.
+  sigaddset(&set, SIGTERM);
+  // If we want to wait for a process to die, we must also block SIGCHLD
+  // so we can reliably wait for another child in case waitpid returned 0.
+  // Why can't we just use 0 instead of WNOHANG? Because then we can't block
+  // above signal handlers anymore, which use the pid variable.
+  if (do_block) {
+    sigaddset(&set, SIGCHLD);
   }
-  int result;
-  for (result = -1; result == -1;) {
-    if (have_sigset && sigprocmask(SIG_BLOCK, &set, NULL)) {
-      LogErrno("Unable to block signals");
-    }
+  sigemptyset(&oldset);
+  if (sigprocmask(SIG_BLOCK, &set, &oldset)) {
+    LogErrno("Unable to block signals");
+  }
+  int result = -1;
+  while (result == -1) {
     int status;
-    pid_t gotpid = waitpid(*pid, &status,
-                           (do_block && !have_sigset) ? 0 : WNOHANG);
+    pid_t gotpid = waitpid(*pid, &status, WNOHANG);
     if (gotpid < 0) {
       switch (errno) {
         case ECHILD:
@@ -95,17 +94,14 @@ int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
     } else if (gotpid != 0) {
       Log("Unexpectedly woke up for PID %d", (int)*pid);
     } else if (do_block) {
-      if (have_sigset) {
-        sigsuspend(&oldset);
-      } else {
-        Log("Unexpectedly woke up for PID 0 despite no WNOHANG");
-      }
+      // Block for SIGCHLD, then waitpid again.
+      sigsuspend(&oldset);
     } else {
       result = 0;  // Child still lives.
     }
-    if (have_sigset && sigprocmask(SIG_SETMASK, &oldset, NULL)) {
-      LogErrno("Unable to restore signal mask");
-    }
+  }
+  if (sigprocmask(SIG_SETMASK, &oldset, NULL)) {
+    LogErrno("Unable to restore signal mask");
   }
   return result;
 }
