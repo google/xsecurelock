@@ -35,7 +35,6 @@ void KillAllSaverChildrenSigHandler(void) {
     if (saver_child_pid[i] != 0) {
       KillPgrp(saver_child_pid[i]);
     }
-    saver_child_pid[i] = 0;
   }
 }
 

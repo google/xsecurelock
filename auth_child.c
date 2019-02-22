@@ -37,7 +37,6 @@ void KillAuthChildSigHandler(void) {
   if (auth_child_pid != 0) {
     KillPgrp(auth_child_pid);
   }
-  auth_child_pid = 0;
 }
 
 /*! \brief Return whether the wake-up keypress should be discarded and not be
