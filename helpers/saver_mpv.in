@@ -16,6 +16,10 @@
 
 : ${XSECURELOCK_LIST_VIDEOS_COMMAND:=find ~/Videos -type f}
 
+# On SIGUSR1, we simply keep going, as this signal should only restart
+# the sleep timer.
+trap '' USR1
+
 sh -c "$XSECURELOCK_LIST_VIDEOS_COMMAND" | shuf | head -n 256 |\
 @path_to_mpv@ \
   --no-input-terminal \

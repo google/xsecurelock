@@ -30,9 +30,13 @@ limitations under the License.
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "monitors.h"             // for IsMonitorChangeEvent, Monitor, Sele...
 
+static void HandleSIGUSR1(int signo) {
+  KillAllSaverChildrenSigHandler(signo);  // Dirty, but quick.
+}
+
 static void HandleSIGTERM(int signo) {
-  KillAllSaverChildrenSigHandler();  // Dirty, but quick.
-  raise(signo);                      // Destroys windows we created anyway.
+  KillAllSaverChildrenSigHandler(signo);  // Dirty, but quick.
+  raise(signo);                           // Destroys windows we created anyway.
 }
 
 static void HandleSIGCHLD(int unused_signo) {
@@ -125,6 +129,10 @@ int main(int argc, char** argv) {
   sa.sa_handler = HandleSIGCHLD;  // To interrupt select().
   if (sigaction(SIGCHLD, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGCHLD)");
+  }
+  sa.sa_handler = HandleSIGUSR1;  // To kill children.
+  if (sigaction(SIGUSR1, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGUSR1)");
   }
   sa.sa_flags = SA_RESETHAND;     // It re-raises to suicide.
   sa.sa_handler = HandleSIGTERM;  // To kill children.

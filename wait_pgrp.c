@@ -25,12 +25,12 @@ limitations under the License.
 
 #include "logging.h"  // for Log, LogErrno
 
-int KillPgrp(pid_t pid) {
-  int ret = kill(-pid, SIGTERM);
+int KillPgrp(pid_t pid, int signo) {
+  int ret = kill(-pid, signo);
   if (ret < 0 && errno == ESRCH) {
     // Might mean the process is not a process group leader - but might also
     // mean that the process is already dead. Try killing just the process then.
-    ret = kill(pid, SIGTERM);
+    ret = kill(pid, signo);
   }
   return ret;
 }
@@ -39,8 +39,9 @@ int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
              int *exit_status) {
   sigset_t oldset, set;
   sigemptyset(&set);
-  // We're blocking the signal we may have a forwarding handler for as their
+  // We're blocking the signals we may have forwarding handlers for as their
   // handling reads the pid variable we are changing here.
+  sigaddset(&set, SIGUSR1);
   sigaddset(&set, SIGTERM);
   // If we want to wait for a process to die, we must also block SIGCHLD
   // so we can reliably wait for another child in case waitpid returned 0.

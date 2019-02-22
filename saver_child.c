@@ -16,9 +16,10 @@ limitations under the License.
 
 #include "saver_child.h"
 
-#include <signal.h>  // for sigemptyset, sigprocmask, SIG_SETMASK
-#include <stdlib.h>  // for NULL, EXIT_FAILURE
-#include <unistd.h>  // for pid_t, _exit, execl, fork, setsid, sleep
+#include <signal.h>      // for sigemptyset, sigprocmask, SIG_SETMASK
+#include <stdlib.h>      // for NULL, EXIT_FAILURE
+#include <sys/signal.h>  // for SIGTERM
+#include <unistd.h>      // for pid_t, _exit, execl, fork, setsid, sleep
 
 #include "logging.h"           // for LogErrno, Log
 #include "wait_pgrp.h"         // for KillPgrp, WaitPgrp
@@ -27,13 +28,13 @@ limitations under the License.
 //! The PIDs of currently running saver children, or 0 if not running.
 static pid_t saver_child_pid[MAX_SAVERS] = {0};
 
-void KillAllSaverChildrenSigHandler(void) {
+void KillAllSaverChildrenSigHandler(int signo) {
   // This is a signal handler, so we're not going to make this too
   // complicated. Just kill 'em all.
   int i;
   for (i = 0; i < MAX_SAVERS; ++i) {
     if (saver_child_pid[i] != 0) {
-      KillPgrp(saver_child_pid[i]);
+      KillPgrp(saver_child_pid[i], signo);
     }
   }
 }
@@ -47,7 +48,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
 
   if (saver_child_pid[index] != 0) {
     if (!should_be_running) {
-      KillPgrp(saver_child_pid[index]);
+      KillPgrp(saver_child_pid[index], SIGTERM);
     }
 
     int status;
@@ -57,7 +58,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
       if (should_be_running) {
         // Try taking its process group with it. Should normally not do
         // anything.
-        KillPgrp(pgrpid);
+        KillPgrp(pgrpid, SIGTERM);
       }
 
       // Now is the time to remove anything the child may have displayed.

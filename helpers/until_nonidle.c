@@ -64,7 +64,7 @@ pid_t childpid = 0;
 
 static void HandleSIGTERM(int signo) {
   if (childpid != 0) {
-    KillPgrp(childpid);  // Dirty, but quick.
+    KillPgrp(childpid, signo);  // Dirty, but quick.
   }
   raise(signo);
 }
@@ -223,11 +223,11 @@ int main(int argc, char **argv) {
         still_idle && (active_ms <= dim_time_ms + wait_time_ms);
 
     if (!should_be_running) {
-      KillPgrp(childpid);
+      KillPgrp(childpid, SIGTERM);
     }
     int status;
     WaitPgrp("idle", &childpid, !should_be_running, !should_be_running,
-                 &status);
+             &status);
   }
 
   // This is the point where we can exit.

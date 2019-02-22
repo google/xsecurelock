@@ -18,6 +18,12 @@
 : ${XSECURELOCK_BLANK_TIMEOUT:=600}     # Seconds; -1 disables blanking.
 : ${XSECURELOCK_BLANK_DPMS_STATE:=off}  # Values: standby, suspend, off, on.
 
+# In case of SIGUSR1, we want to restart the timer, but NOT kill the screen
+# saver. How are we gonna do this? By having the other script ignore SIGUSR1
+# (don't restart screen saver) before spawning its subprocesses, but having
+# this script restart itself on SIGUSR1.
+trap 'exec "$0"' USR1
+
 if [ "$XSECURELOCK_BLANK_TIMEOUT" -ge 0 ]; then
   # Wait 60 seconds before actually turning the screen off. Till then we have a
   # black background managed by xsecurelock's main process anyway.

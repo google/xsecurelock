@@ -16,9 +16,10 @@ limitations under the License.
 
 #include "auth_child.h"
 
-#include <stdlib.h>  // for NULL, EXIT_FAILURE
-#include <string.h>  // for strlen
-#include <unistd.h>  // for close, _exit, dup2, execl, fork, pipe
+#include <stdlib.h>      // for NULL, EXIT_FAILURE
+#include <string.h>      // for strlen
+#include <sys/signal.h>  // for SIGTERM
+#include <unistd.h>      // for close, _exit, dup2, execl, fork, pipe
 
 #include "env_settings.h"      // for GetIntSetting
 #include "logging.h"           // for LogErrno, Log
@@ -31,11 +32,11 @@ static pid_t auth_child_pid = 0;
 //! If auth_child_pid != 0, the FD which connects to stdin of the auth child.
 static int auth_child_fd = 0;
 
-void KillAuthChildSigHandler(void) {
+void KillAuthChildSigHandler(int signo) {
   // This is a signal handler, so we're not going to make this too complicated.
   // Just kill it.
   if (auth_child_pid != 0) {
-    KillPgrp(auth_child_pid);
+    KillPgrp(auth_child_pid, signo);
   }
 }
 
@@ -101,7 +102,7 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
     pid_t pgrpid = auth_child_pid;
     if (WaitPgrp("auth", &auth_child_pid, 0, 0, &status)) {
       // Try taking its process group with it. Should normally not do anything.
-      KillPgrp(pgrpid);
+      KillPgrp(pgrpid, SIGTERM);
 
       // Clean up.
       close(auth_child_fd);

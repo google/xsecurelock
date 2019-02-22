@@ -408,6 +408,12 @@ location: `/usr/local/libexec/xsecurelock/helpers`).
 *   Output: it may draw on or create windows below `$XSCREENSAVER_WINDOW`.
 *   Exit condition: the saver child will receive SIGTERM when the user wishes to
     unlock the screen. It should exit promptly.
+*   Reset condition: the saver child will receive SIGUSR1 when the auth dialog
+    is closed. It then shall make sure to blank the screen after a timeout.
+    One way to implent this in shell script based implementations is to simply
+    ignore SIGUSR1 first, start the actual saver in a child processes, and to
+    finally exec `saver_blank`. Not implementing this will cause the entire
+    saver to reset on this condition.
 
 # Security Design
 
