@@ -22,7 +22,15 @@
 # saver. How are we gonna do this? By having the other script ignore SIGUSR1
 # (don't restart screen saver) before spawning its subprocesses, but having
 # this script restart itself on SIGUSR1.
-trap 'exec "$0"' USR1
+self=$0
+case "$self" in
+  /*)
+    ;;
+  *)
+    self=$PWD/$self
+    ;;
+esac
+trap 'exec "$self"' USR1
 
 if [ "$XSECURELOCK_BLANK_TIMEOUT" -ge 0 ]; then
   # Wait 60 seconds before actually turning the screen off. Till then we have a
