@@ -16,10 +16,9 @@ limitations under the License.
 
 #include "auth_child.h"
 
-#include <stdlib.h>      // for NULL, EXIT_FAILURE
-#include <string.h>      // for strlen
-#include <sys/signal.h>  // for SIGTERM
-#include <unistd.h>      // for close, _exit, dup2, execl, fork, pipe
+#include <stdlib.h>  // for NULL, EXIT_FAILURE
+#include <string.h>  // for strlen
+#include <unistd.h>  // for close, _exit, dup2, execl, fork, pipe
 
 #include "env_settings.h"      // for GetIntSetting
 #include "logging.h"           // for LogErrno, Log
@@ -99,11 +98,7 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
   if (auth_child_pid != 0) {
     // Check if auth child returned.
     int status;
-    pid_t pgrpid = auth_child_pid;
     if (WaitPgrp("auth", &auth_child_pid, 0, 0, &status)) {
-      // Try taking its process group with it. Should normally not do anything.
-      KillPgrp(pgrpid, SIGTERM);
-
       // Clean up.
       close(auth_child_fd);
 
@@ -129,7 +124,7 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
         LogErrno("fork");
       } else if (pid == 0) {
         // Child process.
-        setsid();
+        StartPgrp();
         ExportWindowID(w);
         close(pc[1]);
         if (pc[0] != 0) {

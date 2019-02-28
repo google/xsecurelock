@@ -16,7 +16,6 @@ limitations under the License.
 
 #include <X11/X.h>       // for Success, None, Atom, KBBellPitch
 #include <X11/Xlib.h>    // for DefaultScreen, Screen, XFree, True
-#include <assert.h>      // for assert
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE, LC_TIME
 #include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
 #include <string.h>      // for strlen, memcpy, memset, strcspn
@@ -1226,7 +1225,7 @@ done:
   close(requestfd[0]);
   close(responsefd[1]);
   int status;
-  if (!WaitPgrp("authproto", &childpid, 1, 0, &status)) {
+  if (!WaitProc("authproto", &childpid, 1, 0, &status)) {
     Log("WaitPgrp returned false but we were blocking");
     abort();
   }

@@ -25,17 +25,59 @@ limitations under the License.
 
 #include "logging.h"  // for Log, LogErrno
 
+void StartPgrp(void) {
+  if (setsid() == (pid_t)-1) {
+    LogErrno("setsid");
+  }
+  // To avoid a race condition when killing the process group after the leader
+  // is already dead (which could then kill another new process group with the
+  // same ID), we'll create a dummy process that never dies until we signal the
+  // process group explicitly.
+  pid_t pid = fork();
+  if (pid == -1) {
+    LogErrno("StartPgrp -> fork; expect potential race in KillPgrp");
+    // We ignore this error, as everything else can still work in this case;
+    // however in this case the aforementioned race condition in KillPgrp can
+    // happen.
+  } else if (pid == 0) {
+    // Child process.
+    // Just wait forever. We'll get SIGTERM'd when it's time to go.
+    for (;;) {
+      pause();
+    }
+    _exit(EXIT_FAILURE);
+  }
+}
+
 int KillPgrp(pid_t pid, int signo) {
   int ret = kill(-pid, signo);
   if (ret < 0 && errno == ESRCH) {
+    // Note: this shouldn't happen as StartPgrp() should ensure that we never
+    // get here. Remove this workaround once we made sure this really does not
+    // happen. TODO(divVerent).
+    LogErrno("Unable to kill process group %d - falling back to leader only",
+             (int)pid);
     // Might mean the process is not a process group leader - but might also
-    // mean that the process is already dead. Try killing just the process then.
+    // mean that the process is already dead. Try killing just the process
+    // then.
     ret = kill(pid, signo);
   }
   return ret;
 }
 
 int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
+             int *exit_status) {
+  int pid_saved = *pid;
+  int result = WaitProc(name, pid, do_block, already_killed, exit_status);
+  if (result) {
+    if (KillPgrp(pid_saved, SIGTERM) < 0) {
+      LogErrno("KillPgrp %s", name);
+    }
+  }
+  return result;
+}
+
+int WaitProc(const char *name, pid_t *pid, int do_block, int already_killed,
              int *exit_status) {
   sigset_t oldset, set;
   sigemptyset(&set);
@@ -61,7 +103,8 @@ int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
     if (gotpid < 0) {
       switch (errno) {
         case ECHILD:
-          // The process is already dead. Fine.
+          // The process is already dead. Fine. Although this shouldn't happen.
+          Log("%s child died without us noticing - please fix", name);
           *exit_status = WAIT_ALREADY_DEAD;
           *pid = 0;
           result = 1;

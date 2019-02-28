@@ -16,10 +16,9 @@ limitations under the License.
 
 #include "saver_child.h"
 
-#include <signal.h>      // for sigemptyset, sigprocmask, SIG_SETMASK
-#include <stdlib.h>      // for NULL, EXIT_FAILURE
-#include <sys/signal.h>  // for SIGTERM
-#include <unistd.h>      // for pid_t, _exit, execl, fork, setsid, sleep
+#include <signal.h>  // for sigemptyset, sigprocmask, SIG_SETMASK
+#include <stdlib.h>  // for NULL, EXIT_FAILURE
+#include <unistd.h>  // for pid_t, _exit, execl, fork, setsid, sleep
 
 #include "logging.h"           // for LogErrno, Log
 #include "wait_pgrp.h"         // for KillPgrp, WaitPgrp
@@ -52,15 +51,8 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
     }
 
     int status;
-    pid_t pgrpid = saver_child_pid[index];
     if (WaitPgrp("saver", &saver_child_pid[index], !should_be_running,
                  !should_be_running, &status)) {
-      if (should_be_running) {
-        // Try taking its process group with it. Should normally not do
-        // anything.
-        KillPgrp(pgrpid, SIGTERM);
-      }
-
       // Now is the time to remove anything the child may have displayed.
       XClearWindow(dpy, w);
     }
@@ -72,7 +64,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
       LogErrno("fork");
     } else if (pid == 0) {
       // Child process.
-      setsid();
+      StartPgrp();
       ExportWindowID(w);
       execl(executable,  // Path to binary.
             executable,  // argv[0].

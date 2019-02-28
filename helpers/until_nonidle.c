@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
   }
   if (childpid == 0) {
     // Child process.
-    setsid();
+    StartPgrp();
     execvp(argv[1], argv + 1);
     LogErrno("execl");
     _exit(EXIT_FAILURE);
