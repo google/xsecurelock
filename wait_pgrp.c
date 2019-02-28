@@ -69,7 +69,7 @@ int WaitPgrp(const char *name, pid_t *pid, int do_block, int already_killed,
              int *exit_status) {
   int pid_saved = *pid;
   int result = WaitProc(name, pid, do_block, already_killed, exit_status);
-  if (result) {
+  if (result && !already_killed) {
     if (KillPgrp(pid_saved, SIGTERM) < 0) {
       LogErrno("KillPgrp %s", name);
     }
