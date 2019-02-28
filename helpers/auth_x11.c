@@ -1384,6 +1384,8 @@ int main(int argc_local, char **argv_local) {
 
   SelectMonitorChangeEvents(display, main_window);
 
+  InitWaitPgrp();
+
   int status = Authenticate();
 
   // Clear any possible processing message by closing our windows.

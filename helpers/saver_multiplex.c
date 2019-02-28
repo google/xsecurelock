@@ -26,6 +26,7 @@ limitations under the License.
 #include "../env_settings.h"      // for GetStringSetting
 #include "../logging.h"           // for Log, LogErrno
 #include "../saver_child.h"       // for MAX_SAVERS
+#include "../wait_pgrp.h"         // for InitWaitPgrp
 #include "../wm_properties.h"     // for SetWMProperties
 #include "../xscreensaver_api.h"  // for ReadWindowID
 #include "monitors.h"             // for IsMonitorChangeEvent, Monitor, Sele...
@@ -37,12 +38,6 @@ static void HandleSIGUSR1(int signo) {
 static void HandleSIGTERM(int signo) {
   KillAllSaverChildrenSigHandler(signo);  // Dirty, but quick.
   raise(signo);                           // Destroys windows we created anyway.
-}
-
-static void HandleSIGCHLD(int unused_signo) {
-  // No handling needed - we just want to interrupt the select() in the main
-  // loop.
-  (void)unused_signo;
 }
 
 #define MAX_MONITORS MAX_SAVERS
@@ -126,10 +121,6 @@ int main(int argc, char** argv) {
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
-  sa.sa_handler = HandleSIGCHLD;  // To interrupt select().
-  if (sigaction(SIGCHLD, &sa, NULL) != 0) {
-    LogErrno("sigaction(SIGCHLD)");
-  }
   sa.sa_handler = HandleSIGUSR1;  // To kill children.
   if (sigaction(SIGUSR1, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGUSR1)");
@@ -139,6 +130,8 @@ int main(int argc, char** argv) {
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
   }
+
+  InitWaitPgrp();
 
   for (;;) {
     fd_set in_fds;

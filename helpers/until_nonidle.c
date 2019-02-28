@@ -203,6 +203,8 @@ int main(int argc, char **argv) {
     LogErrno("sigaction(SIGTERM)");
   }
 
+  InitWaitPgrp();
+
   struct timeval start_time;
   gettimeofday(&start_time, NULL);
   int still_idle = 1;

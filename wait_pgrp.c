@@ -25,6 +25,22 @@ limitations under the License.
 
 #include "logging.h"  // for Log, LogErrno
 
+static void HandleSIGCHLD(int unused_signo) {
+  // No handling needed - we just want to interrupt select() or sigsuspend()
+  // calls.
+  (void)unused_signo;
+}
+
+void InitWaitPgrp(void) {
+  struct sigaction sa;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  sa.sa_handler = HandleSIGCHLD;  // To interrupt select().
+  if (sigaction(SIGCHLD, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGCHLD)");
+  }
+}
+
 pid_t ForkWithoutSigHandlers(void) {
   // Before forking, block all signals we may have handlers for.
   sigset_t oldset, set;

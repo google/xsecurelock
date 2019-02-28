@@ -146,12 +146,6 @@ static void HandleSIGTERM(int signo) {
   raise(signo);
 }
 
-static void HandleSIGCHLD(int unused_signo) {
-  // No handling needed - we just want to interrupt the select() in the main
-  // loop.
-  (void)unused_signo;
-}
-
 enum WatchChildrenState {
   //! Request saver child.
   WATCH_CHILDREN_NORMAL,
@@ -882,15 +876,13 @@ int main(int argc, char **argv) {
   if (sigaction(SIGPIPE, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGPIPE)");
   }
-  sa.sa_handler = HandleSIGCHLD;  // To interrupt select().
-  if (sigaction(SIGCHLD, &sa, NULL) != 0) {
-    LogErrno("sigaction(SIGCHLD)");
-  }
   sa.sa_flags = SA_RESETHAND;     // It re-raises to suicide.
   sa.sa_handler = HandleSIGTERM;  // To kill children.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
   }
+
+  InitWaitPgrp();
 
   // Need to flush the display so savers sure can access the window.
   XFlush(display);

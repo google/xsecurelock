@@ -23,6 +23,13 @@ limitations under the License.
 #define WAIT_ALREADY_DEAD INT_MIN
 #define WAIT_NONPOSITIVE_SIGNAL (INT_MIN + 1)
 
+/*! \brief Initializes WaitPgrp.
+ *
+ * Actually just installs an empty SIGCHLD handler so select(), sigsuspend()
+ * etc. get interrupted by the signal.
+ */
+void InitWaitPgrp(void);
+
 /*! \brief Fork a subprocess, but do not inherit our signal handlers.
  *
  * Otherwise behaves exactly like fork().
