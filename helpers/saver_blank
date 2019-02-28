@@ -41,7 +41,7 @@ if [ "$XSECURELOCK_BLANK_TIMEOUT" -ge 0 ]; then
   # This is used to avoid error spam from xset receiving SIGTERM.
   protect() {
     (
-      trap '' TERM
+      trap '' TERM USR1
       exec "$@"
     )
   }
