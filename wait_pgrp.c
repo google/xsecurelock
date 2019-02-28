@@ -25,6 +25,43 @@ limitations under the License.
 
 #include "logging.h"  // for Log, LogErrno
 
+pid_t ForkWithoutSigHandlers(void) {
+  // Before forking, block all signals we may have handlers for.
+  sigset_t oldset, set;
+  sigemptyset(&set);
+  sigaddset(&set, SIGUSR1);
+  sigaddset(&set, SIGTERM);
+  sigaddset(&set, SIGCHLD);
+  sigemptyset(&oldset);
+  if (sigprocmask(SIG_BLOCK, &set, &oldset)) {
+    LogErrno("Unable to block signals");
+  }
+  pid_t pid = fork();
+  int fork_errno = errno;
+  if (pid == 0) {
+    // Clear all our custom signal handlers in the subprocess.
+    struct sigaction sa;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGUSR1, &sa, NULL)) {
+      LogErrno("sigaction(SIGUSR1)");
+    }
+    if (sigaction(SIGTERM, &sa, NULL)) {
+      LogErrno("sigaction(SIGTERM)");
+    }
+    if (sigaction(SIGCHLD, &sa, NULL)) {
+      LogErrno("sigaction(SIGCHLD)");
+    }
+  }
+  // Now we can unmask signals.
+  if (sigprocmask(SIG_SETMASK, &oldset, NULL)) {
+    LogErrno("Unable to restore signal mask");
+  }
+  errno = fork_errno;
+  return pid;
+}
+
 void StartPgrp(void) {
   if (setsid() == (pid_t)-1) {
     LogErrno("setsid");
@@ -42,6 +79,13 @@ void StartPgrp(void) {
   } else if (pid == 0) {
     // Child process.
     // Just wait forever. We'll get SIGTERM'd when it's time to go.
+    struct sigaction sa;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sa.sa_handler = SIG_IGN;  // Don't die of SIGUSR1 (saver reset).
+    if (sigaction(SIGUSR1, &sa, NULL) != 0) {
+      LogErrno("sigaction(SIGUSR1)");
+    }
     for (;;) {
       pause();
     }
@@ -122,10 +166,10 @@ int WaitProc(const char *name, pid_t *pid, int do_block, int already_killed,
         int signo = WTERMSIG(status);
         if (!already_killed || signo != SIGTERM) {
           Log("%s child killed by signal %d", name, signo);
-          *exit_status = (signo > 0) ? -signo : WAIT_NONPOSITIVE_SIGNAL;
-          *pid = 0;
-          result = 1;
         }
+        *exit_status = (signo > 0) ? -signo : WAIT_NONPOSITIVE_SIGNAL;
+        *pid = 0;
+        result = 1;
       } else if (WIFEXITED(status)) {
         *exit_status = WEXITSTATUS(status);
         if (*exit_status != EXIT_SUCCESS) {

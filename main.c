@@ -539,7 +539,7 @@ void NotifyOfLock(int xss_sleep_lock_fd) {
     }
   }
   if (notify_command != NULL && *notify_command != NULL) {
-    pid_t pid = fork();
+    pid_t pid = ForkWithoutSigHandlers();
     if (pid == -1) {
       LogErrno("fork");
     } else if (pid == 0) {

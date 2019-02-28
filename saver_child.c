@@ -59,7 +59,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
   }
 
   if (should_be_running && saver_child_pid[index] == 0) {
-    pid_t pid = fork();
+    pid_t pid = ForkWithoutSigHandlers();
     if (pid == -1) {
       LogErrno("fork");
     } else if (pid == 0) {

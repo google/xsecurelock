@@ -23,6 +23,12 @@ limitations under the License.
 #define WAIT_ALREADY_DEAD INT_MIN
 #define WAIT_NONPOSITIVE_SIGNAL (INT_MIN + 1)
 
+/*! \brief Fork a subprocess, but do not inherit our signal handlers.
+ *
+ * Otherwise behaves exactly like fork().
+ */
+pid_t ForkWithoutSigHandlers(void);
+
 /*! \brief Starts a new process group.
  *
  * Must be called from a child process, which will become the process group

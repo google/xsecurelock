@@ -1115,7 +1115,7 @@ int Authenticate() {
   }
 
   // Use authproto_pam.
-  pid_t childpid = fork();
+  pid_t childpid = ForkWithoutSigHandlers();
   if (childpid == -1) {
     LogErrno("fork");
     return 1;

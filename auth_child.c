@@ -119,7 +119,7 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
     if (pipe(pc)) {
       LogErrno("pipe");
     } else {
-      pid_t pid = fork();
+      pid_t pid = ForkWithoutSigHandlers();
       if (pid == -1) {
         LogErrno("fork");
       } else if (pid == 0) {
