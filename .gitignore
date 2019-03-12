@@ -33,6 +33,7 @@
 /dimmer
 /get_compositor
 /nvidia_break_compositor
+/pgrp_placeholder
 /remap_all
 /saver_multiplex
 /until_nonidle

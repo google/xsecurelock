@@ -95,6 +95,11 @@ helpers_SCRIPTS += \
 endif
 
 helpers_PROGRAMS = \
+	pgrp_placeholder
+pgrp_placeholder_SOURCES = \
+	helpers/pgrp_placeholder.c
+
+helpers_PROGRAMS += \
 	saver_multiplex
 saver_multiplex_SOURCES = \
 	env_settings.c env_settings.h \

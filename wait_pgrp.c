@@ -102,9 +102,9 @@ void StartPgrp(void) {
     if (sigaction(SIGUSR1, &sa, NULL) != 0) {
       LogErrno("sigaction(SIGUSR1)");
     }
-    for (;;) {
-      pause();
-    }
+    execl("pgrp_placeholder", "pgrp_placeholder", NULL);
+    LogErrno("execl");
+    sleep(2);  // Reduce log spam or other effects from failed execl.
     _exit(EXIT_FAILURE);
   }
 }
