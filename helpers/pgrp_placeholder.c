@@ -27,11 +27,13 @@ limitations under the License.
  * Must be a separate executable so F_CLOEXEC applies as intended.
  */
 
+#include <stdlib.h>
 #include <unistd.h>
 
 int main() {
   for (;;) {
     pause();
   }
-  return 0;
+  // Cannot get here.
+  abort();
 }
