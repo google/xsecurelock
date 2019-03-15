@@ -22,6 +22,7 @@ limitations under the License.
 #include "../env_info.h"      // for GetHostName, GetUserName
 #include "../env_settings.h"  // for GetStringSetting
 #include "../logging.h"       // for Log
+#include "../util.h"          // for explicit_bzero
 #include "authproto.h"        // for WritePacket, ReadPacket, PTYPE_ERRO...
 
 // IWYU pragma: no_include <security/_pam_types.h>
