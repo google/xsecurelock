@@ -14,8 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string.h>
-
-#ifndef HAVE_EXPLICIT_BZERO
+// Declare it - we'll either use ours or whatever autoconf found.
+// Including <bsd/string.h> would maybe be nicer, but it doesn't seem to
+// actually define this symbol unless we set _GNU_SOURCE.
 void explicit_bzero(void *s, size_t len);
-#endif

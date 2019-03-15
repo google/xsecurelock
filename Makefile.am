@@ -22,9 +22,11 @@ macros = \
 	-DGLOBAL_SAVER_EXECUTABLE=\"@global_saver_executable@\" \
 	-DSAVER_EXECUTABLE=\"@saver_executable@\" \
 	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
+if HAVE_LIBBSD
+macros += -DHAVE_LIBBSD
+endif
 if PAM_CHECK_ACCOUNT_TYPE
-macros += \
-	-DPAM_CHECK_ACCOUNT_TYPE
+macros += -DPAM_CHECK_ACCOUNT_TYPE
 endif
 if HAVE_XSCREENSAVER_EXT
 macros += -DHAVE_XSCREENSAVER_EXT
@@ -68,7 +70,8 @@ xsecurelock_SOURCES = \
 	xscreensaver_api.c xscreensaver_api.h
 nodist_xsecurelock_SOURCES = \
 	env_helpstr.inc
-xsecurelock_CPPFLAGS = $(macros)
+xsecurelock_CPPFLAGS = $(macros) $(LIBBSD_CFLAGS)
+xsecurelock_LDADD = $(LIBBSD_LIBS)
 
 helpersdir = $(pkglibexecdir)
 helpers_SCRIPTS = \
@@ -146,8 +149,8 @@ auth_x11_SOURCES = \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
-auth_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS)
-auth_x11_LDADD = $(XFT_LIBS)
+auth_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS) $(LIBBSD_CFLAGS)
+auth_x11_LDADD = $(XFT_LIBS) $(LIBBSD_LIBS)
 
 if HAVE_PAM
 helpers_PROGRAMS += \
@@ -160,7 +163,8 @@ authproto_pam_SOURCES = \
 	logging.c logging.h \
 	mlock_page.h \
 	util.c util.h
-authproto_pam_CPPFLAGS = $(macros)
+authproto_pam_CPPFLAGS = $(macros) $(LIBBSD_CFLAGS)
+authproto_pam_LDADD = $(LIBBSD_LIBS)
 endif
 
 docsdir = $(docdir)

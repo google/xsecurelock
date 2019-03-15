@@ -26,7 +26,6 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([])],
                [AC_MSG_RESULT([no])
                 LDFLAGS=$saved_LDFLAGS])
 
-AC_CHECK_FUNCS([explicit_bzero])
 AC_CHECK_HEADER(X11/Xlib.h,
                 [], [AC_ERROR([X includes not found.])])
 AC_CHECK_LIB(X11, XOpenDisplay,
@@ -118,6 +117,11 @@ RP_SEARCH_LIBS(XF86MiscSetGrabKeysState, Xxf86misc,
 RP_SEARCH_LIBS(pam_authenticate, pam,
                [HAVE_PAM], [pam], [yes],
                [Enable support for the PAM library to authenticate the user])
+
+RP_CHECK_MODULE(libbsd, [libbsd],
+                [HAVE_LIBBSD], [libbsd], [check],
+                [Use libbsd for utility functions.])
+AC_CHECK_FUNCS([explicit_bzero])
 
 # Xft optionally provides nicer font rendering.
 RP_CHECK_MODULE(XFT, [xft],
