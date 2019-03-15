@@ -14,6 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string.h>
+
 #ifndef HAVE_EXPLICIT_BZERO
 void explicit_bzero(void *s, size_t len);
 #endif

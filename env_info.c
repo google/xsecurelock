@@ -6,6 +6,8 @@
 #include <unistd.h>  // for gethostname, getuid, read, sysconf
 
 #include "logging.h"
+#include "mlock_page.h"
+#include "util.h"
 
 int GetHostName(char* hostname_buf, size_t hostname_buflen) {
   if (gethostname(hostname_buf, hostname_buflen)) {
@@ -29,6 +31,11 @@ int GetUserName(char* username_buf, size_t username_buflen) {
     LogErrno("malloc(pwd_bufsize)");
     return 0;
   }
+  if (MLOCK_PAGE(pwd_buf, pwd_bufsize) < 0) {
+    // We continue anyway, as very likely getpwuid_r won't retrieve a password
+    // hash on modern systems.
+    LogErrno("mlock");
+  }
   getpwuid_r(getuid(), &pwd_storage, pwd_buf, (size_t)pwd_bufsize, &pwd);
   if (!pwd) {
     LogErrno("getpwuid_r");
@@ -43,6 +50,7 @@ int GetUserName(char* username_buf, size_t username_buflen) {
   }
   strncpy(username_buf, pwd->pw_name, username_buflen);
   username_buf[username_buflen - 1] = 0;
+  explicit_bzero(pwd_buf, pwd_bufsize);
   free(pwd_buf);
   return 1;
 }

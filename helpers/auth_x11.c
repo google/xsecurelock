@@ -39,6 +39,7 @@ limitations under the License.
 #include "../env_settings.h"      // for GetIntSetting, GetStringSetting
 #include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
+#include "../util.h"              // for explicit_bzero
 #include "../wait_pgrp.h"         // for WaitPgrp
 #include "../wm_properties.h"     // for SetWMProperties
 #include "../xscreensaver_api.h"  // for ReadWindowID
@@ -1183,12 +1184,14 @@ int Authenticate() {
     switch (type) {
       case PTYPE_INFO_MESSAGE:
         DisplayMessage("PAM says", message);
+        explicit_bzero(message, strlen(message));
         free(message);
         PlaySound(SOUND_INFO);
         WaitForKeypress(1);
         break;
       case PTYPE_ERROR_MESSAGE:
         DisplayMessage("Error", message);
+        explicit_bzero(message, strlen(message));
         free(message);
         PlaySound(SOUND_ERROR);
         WaitForKeypress(1);
@@ -1196,20 +1199,24 @@ int Authenticate() {
       case PTYPE_PROMPT_LIKE_USERNAME:
         if (Prompt(message, &response, 1)) {
           WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_USERNAME, response);
+          explicit_bzero(response, strlen(response));
           free(response);
         } else {
           WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
         }
+        explicit_bzero(message, strlen(message));
         free(message);
         DisplayMessage("Processing...", "");
         break;
       case PTYPE_PROMPT_LIKE_PASSWORD:
         if (Prompt(message, &response, 0)) {
           WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_PASSWORD, response);
+          explicit_bzero(response, strlen(response));
           free(response);
         } else {
           WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
         }
+        explicit_bzero(message, strlen(message));
         free(message);
         DisplayMessage("Processing...", "");
         break;
@@ -1217,6 +1224,7 @@ int Authenticate() {
         goto done;
       default:
         Log("Unknown message type %02x", (int)type);
+        explicit_bzero(message, strlen(message));
         free(message);
         goto done;
     }

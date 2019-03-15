@@ -61,7 +61,7 @@ xsecurelock_SOURCES = \
 	main.c \
 	saver_child.c saver_child.h \
 	unmap_all.c unmap_all.h \
-	util.c \
+	util.c util.h \
 	version.c version.h \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
@@ -142,6 +142,7 @@ auth_x11_SOURCES = \
 	helpers/monitors.c helpers/monitors.h \
 	logging.c logging.h \
 	mlock_page.h \
+	util.c util.h \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
@@ -157,7 +158,8 @@ authproto_pam_SOURCES = \
 	helpers/authproto.c helpers/authproto.h \
 	helpers/authproto_pam.c \
 	logging.c logging.h \
-	mlock_page.h
+	mlock_page.h \
+	util.c util.h
 authproto_pam_CPPFLAGS = $(macros)
 endif
 

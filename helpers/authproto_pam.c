@@ -88,6 +88,9 @@ int Converse(int num_msg, const struct pam_message **msg,
     int status = ConverseOne(msg[i], &(*resp)[i]);
     if (status != PAM_SUCCESS) {
       for (i = 0; i < num_msg; ++i) {
+        if ((*resp)[i].resp != NULL) {
+          explicit_bzero((*resp)[i].resp, strlen((*resp)[i].resp));
+        }
         free((*resp)[i].resp);
       }
       free(*resp);
