@@ -191,7 +191,7 @@ As an alternative, we also support this way of integrating:
 
 1.  Wait for one of the following events:
     1.  When idle for a sufficient amount of time:
-        1.  Run `until_nonidle dimmer || xsecurelock` and wait for it.
+        1.  Run `until_nonidle dimmer || exec xsecurelock` and wait for it.
         2.  Reset your idle timer (optional when your idle timer is either the
             X11 Screen Saver extension's idle timer or the X Synchronization
             extension's `"IDLETIME"` timer, as this command can never exit
