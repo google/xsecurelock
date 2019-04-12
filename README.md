@@ -292,6 +292,8 @@ Options to XSecureLock can be passed by environment variables:
     XInput device index (run `xinput` to see them). If multiple time counters
     are specified, the idle time is the minimum of them all. All listed timers
     must have the same unit.
+*   `XSECURELOCK_IMAGE_DURATION_SECONDS`: how long to show each still image
+    played by `saver_mpv`. Defaults to 1.
 *   `XSECURELOCK_KEY_%s_COMMAND` where `%s` is the name of an X11 keysym (find
     using `xev`): a shell command to execute when the specified key is pressed.
     Useful e.g. for media player control. Beware: be cautiuous about what you
