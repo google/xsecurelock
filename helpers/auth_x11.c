@@ -115,19 +115,19 @@ XFontStruct *core_font;
 
 #ifdef HAVE_XFT_EXT
 //! The Xft font for the PAM messages.
-XftColor xft_color;
+XftColor xft_color_foreground;
 XftColor xft_color_warning;
 XftFont *xft_font;
 #endif
 
 //! The background color.
-unsigned long Background;
+XColor xcolor_background;
 
 //! The foreground color.
-unsigned long Foreground;
+XColor xcolor_foreground;
 
 //! The warning color (used as foreground).
-unsigned long Warning;
+XColor xcolor_warning;
 
 //! The cursor character displayed at the end of the masked password input.
 static const char cursor[] = "_";
@@ -455,15 +455,16 @@ void CreateOrUpdatePerMonitorWindow(size_t i, const Monitor *monitor,
   }
 
   // Add a new window.
+  XSetWindowAttributes attrs = {0};
+  attrs.background_pixel = xcolor_background.pixel;
   if (i == MAIN_WINDOW) {
     // Reuse the main_window (so this window gets protected from overlap by
     // main).
     XMoveResizeWindow(display, main_window, x, y, w, h);
+    XChangeWindowAttributes(display, main_window, CWBackPixel, &attrs);
     windows[i] = main_window;
   } else {
     // Create a new window.
-    XSetWindowAttributes attrs = {0};
-    attrs.background_pixel = Background;
     windows[i] =
         XCreateWindow(display, parent_window, x, y, w, h, 0, CopyFromParent,
                       InputOutput, CopyFromParent, CWBackPixel, &attrs);
@@ -482,8 +483,8 @@ void CreateOrUpdatePerMonitorWindow(size_t i, const Monitor *monitor,
   // Create its data structures.
   XGCValues gcattrs;
   gcattrs.function = GXcopy;
-  gcattrs.foreground = Foreground;
-  gcattrs.background = Background;
+  gcattrs.foreground = xcolor_foreground.pixel;
+  gcattrs.background = xcolor_background.pixel;
   if (core_font != NULL) {
     gcattrs.font = core_font->fid;
   }
@@ -491,7 +492,7 @@ void CreateOrUpdatePerMonitorWindow(size_t i, const Monitor *monitor,
                      GCFunction | GCForeground | GCBackground |
                          (core_font != NULL ? GCFont : 0),
                      &gcattrs);
-  gcattrs.foreground = Warning;
+  gcattrs.foreground = xcolor_warning.pixel;
   gcs_warning[i] = XCreateGC(display, windows[i],
                              GCFunction | GCForeground | GCBackground |
                                  (core_font != NULL ? GCFont : 0),
@@ -623,8 +624,8 @@ void DrawString(int monitor, int x, int y, int is_warning, const char *string,
     XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
                        &extents);
     XftDrawStringUtf8(xft_draws[monitor],
-                      is_warning ? &xft_color_warning : &xft_color, xft_font,
-                      x + XGlyphInfoExpandAmount(&extents), y,
+                      is_warning ? &xft_color_warning : &xft_color_foreground,
+                      xft_font, x + XGlyphInfoExpandAmount(&extents), y,
                       (const FcChar8 *)string, len);
     return;
   }
@@ -1323,12 +1324,15 @@ int main(int argc_local, char **argv_local) {
              &unused_children, &unused_nchildren);
   XFree(unused_children);
 
-  Background = BlackPixel(display, DefaultScreen(display));
-  Foreground = WhitePixel(display, DefaultScreen(display));
-  XColor color, dummy;
+  Colormap colormap = DefaultColormap(display, DefaultScreen(display));
+
+  XColor dummy;
   XAllocNamedColor(display, DefaultColormap(display, DefaultScreen(display)),
-                   "red", &color, &dummy);
-  Warning = color.pixel;
+                   "black", &xcolor_background, &dummy);
+  XAllocNamedColor(display, DefaultColormap(display, DefaultScreen(display)),
+                   "white", &xcolor_foreground, &dummy);
+  XAllocNamedColor(display, DefaultColormap(display, DefaultScreen(display)),
+                   "red", &xcolor_warning, &dummy);
 
   core_font = NULL;
 #ifdef HAVE_XFT_EXT
@@ -1373,17 +1377,19 @@ int main(int argc_local, char **argv_local) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
     XRenderColor xrcolor;
-    xrcolor.red = 65535;
-    xrcolor.green = 65535;
-    xrcolor.blue = 65535;
     xrcolor.alpha = 65535;
+
+    // Translate the X11 colors to XRender colors.
+    xrcolor.red = xcolor_foreground.red;
+    xrcolor.green = xcolor_foreground.green;
+    xrcolor.blue = xcolor_foreground.blue;
     XftColorAllocValue(display, DefaultVisual(display, DefaultScreen(display)),
                        DefaultColormap(display, DefaultScreen(display)),
-                       &xrcolor, &xft_color);
-    xrcolor.red = 65535;
-    xrcolor.green = 0;
-    xrcolor.blue = 0;
-    xrcolor.alpha = 65535;
+                       &xrcolor, &xft_color_foreground);
+
+    xrcolor.red = xcolor_warning.red;
+    xrcolor.green = xcolor_warning.green;
+    xrcolor.blue = xcolor_warning.blue;
     XftColorAllocValue(display, DefaultVisual(display, DefaultScreen(display)),
                        DefaultColormap(display, DefaultScreen(display)),
                        &xrcolor, &xft_color_warning);
@@ -1405,10 +1411,15 @@ int main(int argc_local, char **argv_local) {
                  DefaultColormap(display, DefaultScreen(display)),
                  &xft_color_warning);
     XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-                 DefaultColormap(display, DefaultScreen(display)), &xft_color);
+                 DefaultColormap(display, DefaultScreen(display)),
+                 &xft_color_foreground);
     XftFontClose(display, xft_font);
   }
 #endif
+
+  XFreeColors(display, colormap, &xcolor_warning.pixel, 1, 0);
+  XFreeColors(display, colormap, &xcolor_foreground.pixel, 1, 0);
+  XFreeColors(display, colormap, &xcolor_background.pixel, 1, 0);
 
   return status;
 }
