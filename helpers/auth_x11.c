@@ -1330,12 +1330,17 @@ int main(int argc_local, char **argv_local) {
   Colormap colormap = DefaultColormap(display, DefaultScreen(display));
 
   XColor dummy;
+  XAllocNamedColor(
+      display, DefaultColormap(display, DefaultScreen(display)),
+      GetStringSetting("XSECURELOCK_AUTH_BACKGROUND_COLOR", "black"),
+      &xcolor_background, &dummy);
+  XAllocNamedColor(
+      display, DefaultColormap(display, DefaultScreen(display)),
+      GetStringSetting("XSECURELOCK_AUTH_FOREGROUND_COLOR", "white"),
+      &xcolor_foreground, &dummy);
   XAllocNamedColor(display, DefaultColormap(display, DefaultScreen(display)),
-                   "black", &xcolor_background, &dummy);
-  XAllocNamedColor(display, DefaultColormap(display, DefaultScreen(display)),
-                   "white", &xcolor_foreground, &dummy);
-  XAllocNamedColor(display, DefaultColormap(display, DefaultScreen(display)),
-                   "red", &xcolor_warning, &dummy);
+                   GetStringSetting("XSECURELOCK_AUTH_WARNING_COLOR", "red"),
+                   &xcolor_warning, &dummy);
 
   core_font = NULL;
 #ifdef HAVE_XFT_EXT

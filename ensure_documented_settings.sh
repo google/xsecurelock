@@ -49,7 +49,7 @@ public_settings=$(
 documented_settings=$(
 	<README.md perl -ne '
 		if (/ENV VARIABLES START/../ENV VARIABLES_END/) {
-			print "$_\n" for /^\* +\`(XSECURELOCK_\w+)\`/g;
+			print "$_\n" for /^\* +\`(XSECURELOCK_[A-Za-z0-9_%]+)\`/g;
 		}
 	' | sort -u
 )

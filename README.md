@@ -216,15 +216,21 @@ Options to XSecureLock can be passed by environment variables:
     that displays the authentication prompt).
 *   `XSECURELOCK_AUTHPROTO`: specifies the desired authentication protocol
     module (the part that talks to the system).
+*   `XSECURELOCK_AUTH_BACKGROUND_COLOR`: specifies the X11 color (see manpage of
+    XParseColor) for the background of the auth dialog.
 *   `XSECURELOCK_AUTH_SOUNDS`: specifies whether to play sounds during
     authentication to indicate status. Sounds are defined as follows:
     *   High-pitch ascending: prompt for user input.
     *   High-pitch constant: an info message was displayed.
     *   Low-pitch descending: an error message was displayed.
     *   Medium-pitch ascending: authentication successful.
+*   `XSECURELOCK_AUTH_FOREGROUND_COLOR`: specifies the X11 color (see manpage of
+    XParseColor) for the foreground text of the auth dialog.
 *   `XSECURELOCK_AUTH_TIMEOUT`: specifies the time (in seconds) to wait for
     response to a prompt by `auth_x11` before giving up and reverting to
     the screen saver.
+*   `XSECURELOCK_AUTH_WARNING_COLOR`: specifies the X11 color (see manpage of
+    XParseColor) for the warning text of the auth dialog.
 *   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
     X11 to fully blank the screen; a negative value disables X11 blanking.
 *   `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
