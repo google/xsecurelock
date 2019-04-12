@@ -681,8 +681,9 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  *
  * \param title The title of the message.
  * \param str The message itself.
+ * \param is_warning Whether to use the warning style to display the message.
  */
-void DisplayMessage(const char *title, const char *str) {
+void DisplayMessage(const char *title, const char *str, int is_warning) {
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
 
@@ -798,10 +799,11 @@ void DisplayMessage(const char *title, const char *str) {
       y += th * 2;
     }
 
-    DrawString(i, cx - tw_full_title / 2, y, 0, full_title, len_full_title);
+    DrawString(i, cx - tw_full_title / 2, y, is_warning, full_title,
+               len_full_title);
     y += th * 2;
 
-    DrawString(i, cx - tw_str / 2, y, 0, str, len_str);
+    DrawString(i, cx - tw_str / 2, y, is_warning, str, len_str);
     y += th;
 
     DrawString(i, cx - tw_indicators / 2, y, indicators_warning, indicators,
@@ -888,7 +890,7 @@ int Prompt(const char *msg, char **response, int echo) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    DisplayMessage("Error", "Password will not be stored securely.");
+    DisplayMessage("Error", "Password will not be stored securely.", 1);
     WaitForKeypress(1);
   }
 
@@ -940,7 +942,7 @@ int Prompt(const char *msg, char **response, int echo) {
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
-    DisplayMessage(msg, priv.displaybuf);
+    DisplayMessage(msg, priv.displaybuf, 0);
 
     if (!played_sound) {
       PlaySound(SOUND_PROMPT);
@@ -1049,7 +1051,8 @@ int Prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            DisplayMessage("Error", "Password has not been stored securely.");
+            DisplayMessage("Error", "Password has not been stored securely.",
+                           1);
             WaitForKeypress(1);
           }
           if (priv.pwlen != 0) {
@@ -1184,14 +1187,14 @@ int Authenticate() {
     char type = ReadPacket(requestfd[0], &message, 1);
     switch (type) {
       case PTYPE_INFO_MESSAGE:
-        DisplayMessage("PAM says", message);
+        DisplayMessage("PAM says", message, 0);
         explicit_bzero(message, strlen(message));
         free(message);
         PlaySound(SOUND_INFO);
         WaitForKeypress(1);
         break;
       case PTYPE_ERROR_MESSAGE:
-        DisplayMessage("Error", message);
+        DisplayMessage("Error", message, 1);
         explicit_bzero(message, strlen(message));
         free(message);
         PlaySound(SOUND_ERROR);
@@ -1207,7 +1210,7 @@ int Authenticate() {
         }
         explicit_bzero(message, strlen(message));
         free(message);
-        DisplayMessage("Processing...", "");
+        DisplayMessage("Processing...", "", 0);
         break;
       case PTYPE_PROMPT_LIKE_PASSWORD:
         if (Prompt(message, &response, 0)) {
@@ -1219,7 +1222,7 @@ int Authenticate() {
         }
         explicit_bzero(message, strlen(message));
         free(message);
-        DisplayMessage("Processing...", "");
+        DisplayMessage("Processing...", "", 0);
         break;
       case 0:
         goto done;
