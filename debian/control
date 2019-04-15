@@ -15,6 +15,7 @@ Build-Depends: debhelper (>= 8.0.0),
   libxmuu-dev,
   libxrandr-dev,
   libxss-dev,
+  pandoc,
   x11proto-core-dev
 Standards-Version: 4.0.0
 Homepage: https://github.com/google/xsecurelock
