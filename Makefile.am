@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+CLEANFILES =
+
 AM_CFLAGS = -Wall -Wextra -D_POSIX_C_SOURCE=200112L -D_XOPEN_SOURCE=600
 
 macros = \
@@ -183,6 +185,7 @@ xsecurelock.1.md: doc/xsecurelock.1.md README.md
 	} > xsecurelock.1.md
 xsecurelock.1: xsecurelock.1.md
 	$(path_to_pandoc) -s -f markdown -t man -o $@ $<
+CLEANFILES += xsecurelock.1.md xsecurelock.1
 endif
 
 # Some tools that we sure don't wan to install
@@ -243,7 +246,7 @@ doxyfile.stamp:
 	$(DOXYGEN) Doxyfile
 	echo Timestamp > doxyfile.stamp
 
-CLEANFILES = doxyfile.stamp
+CLEANFILES += doxyfile.stamp
 
 all-local: doxyfile.stamp
 
