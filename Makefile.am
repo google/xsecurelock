@@ -232,7 +232,7 @@ EXTRA_DIST = \
 	LICENSE \
 	README.md \
 	autogen.sh \
-	doc/xsecurelock.md.1 \
+	doc/xsecurelock.1.md \
 	helpers/saver_blank \
 	run-linters.sh \
 	test \
