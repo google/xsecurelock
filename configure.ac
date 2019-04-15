@@ -162,6 +162,10 @@ RP_SEARCH_PROG(pamtester, [$PATH],
                [HAVE_PAMTESTER], [pamtester], [check],
                [Install authproto_pamtester (specify --with-pamtester=/usr/bin to set the path to use)])
 
+RP_SEARCH_PROG(pandoc, [$PATH],
+               [HAVE_PANDOC], [pandoc], [check],
+               [Use pandoc to generate man pages])
+
 RP_SEARCH_PROG(slidescreen, /usr/lib/xscreensaver,
                [HAVE_XSCREENSAVER], [xscreensaver], [check],
                [Install saver_xscreensaver (specify --with-xscreensaver=/usr/lib/xscreensaver to set the saver plugin directory to use)])

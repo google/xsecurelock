@@ -172,6 +172,19 @@ doc_DATA = \
 	LICENSE \
 	README.md
 
+if HAVE_PANDOC
+man1_MANS = xsecurelock.1
+xsecurelock.1.md: doc/xsecurelock.1.md README.md
+	{ \
+		grep -B 9999 'ENV VARIABLES HERE' doc/xsecurelock.1.md; \
+		grep -A 9999 'ENV VARIABLES START' README.md |\
+			grep -B 9999 'ENV VARIABLES END'; \
+		grep -A 9999 'ENV VARIABLES HERE' doc/xsecurelock.1.md; \
+	} > xsecurelock.1.md
+xsecurelock.1: xsecurelock.1.md
+	$(path_to_pandoc) -s -f markdown -t man -o $@ $<
+endif
+
 # Some tools that we sure don't wan to install
 noinst_PROGRAMS = cat_authproto nvidia_break_compositor get_compositor remap_all
 cat_authproto_SOURCES = \
