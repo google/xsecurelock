@@ -64,7 +64,7 @@ pid_t childpid = 0;
 
 static void HandleSIGTERM(int signo) {
   if (childpid != 0) {
-    KillPgrp(childpid);  // Dirty, but quick.
+    KillPgrp(childpid, signo);  // Dirty, but quick.
   }
   raise(signo);
 }
@@ -181,14 +181,14 @@ int main(int argc, char **argv) {
   }
 
   // Start the subprocess.
-  childpid = fork();
+  childpid = ForkWithoutSigHandlers();
   if (childpid == -1) {
     LogErrno("fork");
     return 1;
   }
   if (childpid == 0) {
     // Child process.
-    setsid();
+    StartPgrp();
     execvp(argv[1], argv + 1);
     LogErrno("execl");
     _exit(EXIT_FAILURE);
@@ -202,6 +202,8 @@ int main(int argc, char **argv) {
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGTERM)");
   }
+
+  InitWaitPgrp();
 
   struct timeval start_time;
   gettimeofday(&start_time, NULL);
@@ -223,13 +225,11 @@ int main(int argc, char **argv) {
         still_idle && (active_ms <= dim_time_ms + wait_time_ms);
 
     if (!should_be_running) {
-      KillPgrp(childpid);
+      KillPgrp(childpid, SIGTERM);
     }
     int status;
-    if (WaitPgrp("idle", childpid, !should_be_running, !should_be_running,
-                 &status)) {
-      childpid = 0;
-    }
+    WaitPgrp("idle", &childpid, !should_be_running, !should_be_running,
+             &status);
   }
 
   // This is the point where we can exit.

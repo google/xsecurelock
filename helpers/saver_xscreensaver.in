@@ -16,6 +16,10 @@
 
 : ${XSECURELOCK_XSCREENSAVER_PATH:=@path_to_xscreensaver@}
 
+# On SIGUSR1, we simply keep going, as this signal should only restart
+# the sleep timer.
+trap '' USR1
+
 TAB='	'
 
 # Note: the following logic is somewhat derived from parse_screenhack in

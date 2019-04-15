@@ -23,7 +23,7 @@ limitations under the License.
  *
  * This can be used from a signal handler.
  */
-void KillAuthChildSigHandler(void);
+void KillAuthChildSigHandler(int signo);
 
 /*! \brief Checks whether an auth child should be running.
  *

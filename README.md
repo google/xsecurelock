@@ -191,7 +191,7 @@ As an alternative, we also support this way of integrating:
 
 1.  Wait for one of the following events:
     1.  When idle for a sufficient amount of time:
-        1.  Run `until_nonidle dimmer || xsecurelock` and wait for it.
+        1.  Run `until_nonidle dimmer || exec xsecurelock` and wait for it.
         2.  Reset your idle timer (optional when your idle timer is either the
             X11 Screen Saver extension's idle timer or the X Synchronization
             extension's `"IDLETIME"` timer, as this command can never exit
@@ -216,15 +216,21 @@ Options to XSecureLock can be passed by environment variables:
     that displays the authentication prompt).
 *   `XSECURELOCK_AUTHPROTO`: specifies the desired authentication protocol
     module (the part that talks to the system).
+*   `XSECURELOCK_AUTH_BACKGROUND_COLOR`: specifies the X11 color (see manpage of
+    XParseColor) for the background of the auth dialog.
 *   `XSECURELOCK_AUTH_SOUNDS`: specifies whether to play sounds during
     authentication to indicate status. Sounds are defined as follows:
     *   High-pitch ascending: prompt for user input.
     *   High-pitch constant: an info message was displayed.
     *   Low-pitch descending: an error message was displayed.
     *   Medium-pitch ascending: authentication successful.
+*   `XSECURELOCK_AUTH_FOREGROUND_COLOR`: specifies the X11 color (see manpage of
+    XParseColor) for the foreground text of the auth dialog.
 *   `XSECURELOCK_AUTH_TIMEOUT`: specifies the time (in seconds) to wait for
     response to a prompt by `auth_x11` before giving up and reverting to
     the screen saver.
+*   `XSECURELOCK_AUTH_WARNING_COLOR`: specifies the X11 color (see manpage of
+    XParseColor) for the warning text of the auth dialog.
 *   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
     X11 to fully blank the screen; a negative value disables X11 blanking.
 *   `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
@@ -286,6 +292,8 @@ Options to XSecureLock can be passed by environment variables:
     XInput device index (run `xinput` to see them). If multiple time counters
     are specified, the idle time is the minimum of them all. All listed timers
     must have the same unit.
+*   `XSECURELOCK_IMAGE_DURATION_SECONDS`: how long to show each still image
+    played by `saver_mpv`. Defaults to 1.
 *   `XSECURELOCK_KEY_%s_COMMAND` where `%s` is the name of an X11 keysym (find
     using `xev`): a shell command to execute when the specified key is pressed.
     Useful e.g. for media player control. Beware: be cautiuous about what you
@@ -408,6 +416,12 @@ location: `/usr/local/libexec/xsecurelock/helpers`).
 *   Output: it may draw on or create windows below `$XSCREENSAVER_WINDOW`.
 *   Exit condition: the saver child will receive SIGTERM when the user wishes to
     unlock the screen. It should exit promptly.
+*   Reset condition: the saver child will receive SIGUSR1 when the auth dialog
+    is closed. It then shall make sure to blank the screen after a timeout.
+    One way to implent this in shell script based implementations is to simply
+    ignore SIGUSR1 first, start the actual saver in a child processes, and to
+    finally exec `saver_blank`. Not implementing this will cause the entire
+    saver to reset on this condition.
 
 # Security Design
 

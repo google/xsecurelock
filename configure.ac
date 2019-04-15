@@ -118,6 +118,11 @@ RP_SEARCH_LIBS(pam_authenticate, pam,
                [HAVE_PAM], [pam], [yes],
                [Enable support for the PAM library to authenticate the user])
 
+RP_CHECK_MODULE(libbsd, [libbsd],
+                [HAVE_LIBBSD], [libbsd], [check],
+                [Use libbsd for utility functions.])
+AC_CHECK_FUNCS([explicit_bzero])
+
 # Xft optionally provides nicer font rendering.
 RP_CHECK_MODULE(XFT, [xft],
                 [HAVE_XFT_EXT], [xft], [check],
@@ -156,6 +161,10 @@ RP_SEARCH_PROG(mpv, [$PATH],
 RP_SEARCH_PROG(pamtester, [$PATH],
                [HAVE_PAMTESTER], [pamtester], [check],
                [Install authproto_pamtester (specify --with-pamtester=/usr/bin to set the path to use)])
+
+RP_SEARCH_PROG(pandoc, [$PATH],
+               [HAVE_PANDOC], [pandoc], [check],
+               [Use pandoc to generate man pages])
 
 RP_SEARCH_PROG(slidescreen, /usr/lib/xscreensaver,
                [HAVE_XSCREENSAVER], [xscreensaver], [check],

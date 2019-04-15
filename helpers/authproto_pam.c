@@ -22,6 +22,7 @@ limitations under the License.
 #include "../env_info.h"      // for GetHostName, GetUserName
 #include "../env_settings.h"  // for GetStringSetting
 #include "../logging.h"       // for Log
+#include "../util.h"          // for explicit_bzero
 #include "authproto.h"        // for WritePacket, ReadPacket, PTYPE_ERRO...
 
 // IWYU pragma: no_include <security/_pam_types.h>
@@ -88,6 +89,9 @@ int Converse(int num_msg, const struct pam_message **msg,
     int status = ConverseOne(msg[i], &(*resp)[i]);
     if (status != PAM_SUCCESS) {
       for (i = 0; i < num_msg; ++i) {
+        if ((*resp)[i].resp != NULL) {
+          explicit_bzero((*resp)[i].resp, strlen((*resp)[i].resp));
+        }
         free((*resp)[i].resp);
       }
       free(*resp);

@@ -27,15 +27,14 @@ limitations under the License.
 //! The PIDs of currently running saver children, or 0 if not running.
 static pid_t saver_child_pid[MAX_SAVERS] = {0};
 
-void KillAllSaverChildrenSigHandler(void) {
+void KillAllSaverChildrenSigHandler(int signo) {
   // This is a signal handler, so we're not going to make this too
   // complicated. Just kill 'em all.
   int i;
   for (i = 0; i < MAX_SAVERS; ++i) {
     if (saver_child_pid[i] != 0) {
-      KillPgrp(saver_child_pid[i]);
+      KillPgrp(saver_child_pid[i], signo);
     }
-    saver_child_pid[i] = 0;
   }
 }
 
@@ -48,40 +47,24 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
 
   if (saver_child_pid[index] != 0) {
     if (!should_be_running) {
-      KillPgrp(saver_child_pid[index]);
+      KillPgrp(saver_child_pid[index], SIGTERM);
     }
 
     int status;
-    if (WaitPgrp("saver", saver_child_pid[index], !should_be_running,
+    if (WaitPgrp("saver", &saver_child_pid[index], !should_be_running,
                  !should_be_running, &status)) {
-      if (should_be_running) {
-        // Try taking its process group with it. Should normally not do
-        // anything.
-        KillPgrp(saver_child_pid[index]);
-      }
-
-      // Clean up.
-      saver_child_pid[index] = 0;
-
       // Now is the time to remove anything the child may have displayed.
       XClearWindow(dpy, w);
     }
   }
 
   if (should_be_running && saver_child_pid[index] == 0) {
-    pid_t pid = fork();
+    pid_t pid = ForkWithoutSigHandlers();
     if (pid == -1) {
       LogErrno("fork");
     } else if (pid == 0) {
       // Child process.
-      setsid();
-
-      // saver_multiplex may call this with blocked signals, but let's not have
-      // the child process inherit that.
-      sigset_t no_blocked_signals;
-      sigemptyset(&no_blocked_signals);
-      sigprocmask(SIG_SETMASK, &no_blocked_signals, NULL);
-
+      StartPgrp();
       ExportWindowID(w);
       execl(executable,  // Path to binary.
             executable,  // argv[0].

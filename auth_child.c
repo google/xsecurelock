@@ -31,13 +31,12 @@ static pid_t auth_child_pid = 0;
 //! If auth_child_pid != 0, the FD which connects to stdin of the auth child.
 static int auth_child_fd = 0;
 
-void KillAuthChildSigHandler(void) {
+void KillAuthChildSigHandler(int signo) {
   // This is a signal handler, so we're not going to make this too complicated.
   // Just kill it.
   if (auth_child_pid != 0) {
-    KillPgrp(auth_child_pid);
+    KillPgrp(auth_child_pid, signo);
   }
-  auth_child_pid = 0;
 }
 
 /*! \brief Return whether the wake-up keypress should be discarded and not be
@@ -99,13 +98,9 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
   if (auth_child_pid != 0) {
     // Check if auth child returned.
     int status;
-    if (WaitPgrp("auth", auth_child_pid, 0, 0, &status)) {
-      // Try taking its process group with it. Should normally not do anything.
-      KillPgrp(auth_child_pid);
-
+    if (WaitPgrp("auth", &auth_child_pid, 0, 0, &status)) {
       // Clean up.
       close(auth_child_fd);
-      auth_child_pid = 0;
 
       // Handle success; this will exit the screen lock.
       if (status == 0) {
@@ -124,12 +119,12 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
     if (pipe(pc)) {
       LogErrno("pipe");
     } else {
-      pid_t pid = fork();
+      pid_t pid = ForkWithoutSigHandlers();
       if (pid == -1) {
         LogErrno("fork");
       } else if (pid == 0) {
         // Child process.
-        setsid();
+        StartPgrp();
         ExportWindowID(w);
         close(pc[1]);
         if (pc[0] != 0) {

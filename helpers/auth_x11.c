@@ -16,7 +16,6 @@ limitations under the License.
 
 #include <X11/X.h>       // for Success, None, Atom, KBBellPitch
 #include <X11/Xlib.h>    // for DefaultScreen, Screen, XFree, True
-#include <assert.h>      // for assert
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE, LC_TIME
 #include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
 #include <string.h>      // for strlen, memcpy, memset, strcspn
@@ -40,6 +39,7 @@ limitations under the License.
 #include "../env_settings.h"      // for GetIntSetting, GetStringSetting
 #include "../logging.h"           // for Log, LogErrno
 #include "../mlock_page.h"        // for MLOCK_PAGE
+#include "../util.h"              // for explicit_bzero
 #include "../wait_pgrp.h"         // for WaitPgrp
 #include "../wm_properties.h"     // for SetWMProperties
 #include "../xscreensaver_api.h"  // for ReadWindowID
@@ -115,19 +115,19 @@ XFontStruct *core_font;
 
 #ifdef HAVE_XFT_EXT
 //! The Xft font for the PAM messages.
-XftColor xft_color;
+XftColor xft_color_foreground;
 XftColor xft_color_warning;
 XftFont *xft_font;
 #endif
 
 //! The background color.
-unsigned long Background;
+XColor xcolor_background;
 
 //! The foreground color.
-unsigned long Foreground;
+XColor xcolor_foreground;
 
 //! The warning color (used as foreground).
-unsigned long Warning;
+XColor xcolor_warning;
 
 //! The cursor character displayed at the end of the masked password input.
 static const char cursor[] = "_";
@@ -455,15 +455,16 @@ void CreateOrUpdatePerMonitorWindow(size_t i, const Monitor *monitor,
   }
 
   // Add a new window.
+  XSetWindowAttributes attrs = {0};
+  attrs.background_pixel = xcolor_background.pixel;
   if (i == MAIN_WINDOW) {
     // Reuse the main_window (so this window gets protected from overlap by
     // main).
     XMoveResizeWindow(display, main_window, x, y, w, h);
+    XChangeWindowAttributes(display, main_window, CWBackPixel, &attrs);
     windows[i] = main_window;
   } else {
     // Create a new window.
-    XSetWindowAttributes attrs = {0};
-    attrs.background_pixel = Background;
     windows[i] =
         XCreateWindow(display, parent_window, x, y, w, h, 0, CopyFromParent,
                       InputOutput, CopyFromParent, CWBackPixel, &attrs);
@@ -482,8 +483,8 @@ void CreateOrUpdatePerMonitorWindow(size_t i, const Monitor *monitor,
   // Create its data structures.
   XGCValues gcattrs;
   gcattrs.function = GXcopy;
-  gcattrs.foreground = Foreground;
-  gcattrs.background = Background;
+  gcattrs.foreground = xcolor_foreground.pixel;
+  gcattrs.background = xcolor_background.pixel;
   if (core_font != NULL) {
     gcattrs.font = core_font->fid;
   }
@@ -491,7 +492,7 @@ void CreateOrUpdatePerMonitorWindow(size_t i, const Monitor *monitor,
                      GCFunction | GCForeground | GCBackground |
                          (core_font != NULL ? GCFont : 0),
                      &gcattrs);
-  gcattrs.foreground = Warning;
+  gcattrs.foreground = xcolor_warning.pixel;
   gcs_warning[i] = XCreateGC(display, windows[i],
                              GCFunction | GCForeground | GCBackground |
                                  (core_font != NULL ? GCFont : 0),
@@ -623,8 +624,8 @@ void DrawString(int monitor, int x, int y, int is_warning, const char *string,
     XftTextExtentsUtf8(display, xft_font, (const FcChar8 *)string, len,
                        &extents);
     XftDrawStringUtf8(xft_draws[monitor],
-                      is_warning ? &xft_color_warning : &xft_color, xft_font,
-                      x + XGlyphInfoExpandAmount(&extents), y,
+                      is_warning ? &xft_color_warning : &xft_color_foreground,
+                      xft_font, x + XGlyphInfoExpandAmount(&extents), y,
                       (const FcChar8 *)string, len);
     return;
   }
@@ -680,8 +681,9 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  *
  * \param title The title of the message.
  * \param str The message itself.
+ * \param is_warning Whether to use the warning style to display the message.
  */
-void DisplayMessage(const char *title, const char *str) {
+void DisplayMessage(const char *title, const char *str, int is_warning) {
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
 
@@ -797,10 +799,11 @@ void DisplayMessage(const char *title, const char *str) {
       y += th * 2;
     }
 
-    DrawString(i, cx - tw_full_title / 2, y, 0, full_title, len_full_title);
+    DrawString(i, cx - tw_full_title / 2, y, is_warning, full_title,
+               len_full_title);
     y += th * 2;
 
-    DrawString(i, cx - tw_str / 2, y, 0, str, len_str);
+    DrawString(i, cx - tw_str / 2, y, is_warning, str, len_str);
     y += th;
 
     DrawString(i, cx - tw_indicators / 2, y, indicators_warning, indicators,
@@ -887,7 +890,7 @@ int Prompt(const char *msg, char **response, int echo) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    DisplayMessage("Error", "Password will not be stored securely.");
+    DisplayMessage("Error", "Password will not be stored securely.", 1);
     WaitForKeypress(1);
   }
 
@@ -939,7 +942,7 @@ int Prompt(const char *msg, char **response, int echo) {
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
     }
-    DisplayMessage(msg, priv.displaybuf);
+    DisplayMessage(msg, priv.displaybuf, 0);
 
     if (!played_sound) {
       PlaySound(SOUND_PROMPT);
@@ -1048,7 +1051,8 @@ int Prompt(const char *msg, char **response, int echo) {
             LogErrno("mlock");
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
-            DisplayMessage("Error", "Password has not been stored securely.");
+            DisplayMessage("Error", "Password has not been stored securely.",
+                           1);
             WaitForKeypress(1);
           }
           if (priv.pwlen != 0) {
@@ -1116,7 +1120,7 @@ int Authenticate() {
   }
 
   // Use authproto_pam.
-  pid_t childpid = fork();
+  pid_t childpid = ForkWithoutSigHandlers();
   if (childpid == -1) {
     LogErrno("fork");
     return 1;
@@ -1183,13 +1187,15 @@ int Authenticate() {
     char type = ReadPacket(requestfd[0], &message, 1);
     switch (type) {
       case PTYPE_INFO_MESSAGE:
-        DisplayMessage("PAM says", message);
+        DisplayMessage("PAM says", message, 0);
+        explicit_bzero(message, strlen(message));
         free(message);
         PlaySound(SOUND_INFO);
         WaitForKeypress(1);
         break;
       case PTYPE_ERROR_MESSAGE:
-        DisplayMessage("Error", message);
+        DisplayMessage("Error", message, 1);
+        explicit_bzero(message, strlen(message));
         free(message);
         PlaySound(SOUND_ERROR);
         WaitForKeypress(1);
@@ -1197,27 +1203,32 @@ int Authenticate() {
       case PTYPE_PROMPT_LIKE_USERNAME:
         if (Prompt(message, &response, 1)) {
           WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_USERNAME, response);
+          explicit_bzero(response, strlen(response));
           free(response);
         } else {
           WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
         }
+        explicit_bzero(message, strlen(message));
         free(message);
-        DisplayMessage("Processing...", "");
+        DisplayMessage("Processing...", "", 0);
         break;
       case PTYPE_PROMPT_LIKE_PASSWORD:
         if (Prompt(message, &response, 0)) {
           WritePacket(responsefd[1], PTYPE_RESPONSE_LIKE_PASSWORD, response);
+          explicit_bzero(response, strlen(response));
           free(response);
         } else {
           WritePacket(responsefd[1], PTYPE_RESPONSE_CANCELLED, "");
         }
+        explicit_bzero(message, strlen(message));
         free(message);
-        DisplayMessage("Processing...", "");
+        DisplayMessage("Processing...", "", 0);
         break;
       case 0:
         goto done;
       default:
         Log("Unknown message type %02x", (int)type);
+        explicit_bzero(message, strlen(message));
         free(message);
         goto done;
     }
@@ -1226,7 +1237,7 @@ done:
   close(requestfd[0]);
   close(responsefd[1]);
   int status;
-  if (!WaitPgrp("authproto", childpid, 1, 0, &status)) {
+  if (!WaitProc("authproto", &childpid, 1, 0, &status)) {
     Log("WaitPgrp returned false but we were blocking");
     abort();
   }
@@ -1316,12 +1327,20 @@ int main(int argc_local, char **argv_local) {
              &unused_children, &unused_nchildren);
   XFree(unused_children);
 
-  Background = BlackPixel(display, DefaultScreen(display));
-  Foreground = WhitePixel(display, DefaultScreen(display));
-  XColor color, dummy;
+  Colormap colormap = DefaultColormap(display, DefaultScreen(display));
+
+  XColor dummy;
+  XAllocNamedColor(
+      display, DefaultColormap(display, DefaultScreen(display)),
+      GetStringSetting("XSECURELOCK_AUTH_BACKGROUND_COLOR", "black"),
+      &xcolor_background, &dummy);
+  XAllocNamedColor(
+      display, DefaultColormap(display, DefaultScreen(display)),
+      GetStringSetting("XSECURELOCK_AUTH_FOREGROUND_COLOR", "white"),
+      &xcolor_foreground, &dummy);
   XAllocNamedColor(display, DefaultColormap(display, DefaultScreen(display)),
-                   "red", &color, &dummy);
-  Warning = color.pixel;
+                   GetStringSetting("XSECURELOCK_AUTH_WARNING_COLOR", "red"),
+                   &xcolor_warning, &dummy);
 
   core_font = NULL;
 #ifdef HAVE_XFT_EXT
@@ -1366,17 +1385,19 @@ int main(int argc_local, char **argv_local) {
 #ifdef HAVE_XFT_EXT
   if (xft_font != NULL) {
     XRenderColor xrcolor;
-    xrcolor.red = 65535;
-    xrcolor.green = 65535;
-    xrcolor.blue = 65535;
     xrcolor.alpha = 65535;
+
+    // Translate the X11 colors to XRender colors.
+    xrcolor.red = xcolor_foreground.red;
+    xrcolor.green = xcolor_foreground.green;
+    xrcolor.blue = xcolor_foreground.blue;
     XftColorAllocValue(display, DefaultVisual(display, DefaultScreen(display)),
                        DefaultColormap(display, DefaultScreen(display)),
-                       &xrcolor, &xft_color);
-    xrcolor.red = 65535;
-    xrcolor.green = 0;
-    xrcolor.blue = 0;
-    xrcolor.alpha = 65535;
+                       &xrcolor, &xft_color_foreground);
+
+    xrcolor.red = xcolor_warning.red;
+    xrcolor.green = xcolor_warning.green;
+    xrcolor.blue = xcolor_warning.blue;
     XftColorAllocValue(display, DefaultVisual(display, DefaultScreen(display)),
                        DefaultColormap(display, DefaultScreen(display)),
                        &xrcolor, &xft_color_warning);
@@ -1384,6 +1405,8 @@ int main(int argc_local, char **argv_local) {
 #endif
 
   SelectMonitorChangeEvents(display, main_window);
+
+  InitWaitPgrp();
 
   int status = Authenticate();
 
@@ -1396,10 +1419,15 @@ int main(int argc_local, char **argv_local) {
                  DefaultColormap(display, DefaultScreen(display)),
                  &xft_color_warning);
     XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-                 DefaultColormap(display, DefaultScreen(display)), &xft_color);
+                 DefaultColormap(display, DefaultScreen(display)),
+                 &xft_color_foreground);
     XftFontClose(display, xft_font);
   }
 #endif
+
+  XFreeColors(display, colormap, &xcolor_warning.pixel, 1, 0);
+  XFreeColors(display, colormap, &xcolor_foreground.pixel, 1, 0);
+  XFreeColors(display, colormap, &xcolor_background.pixel, 1, 0);
 
   return status;
 }

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+CLEANFILES =
+
 AM_CFLAGS = -Wall -Wextra -D_POSIX_C_SOURCE=200112L -D_XOPEN_SOURCE=600
 
 macros = \
@@ -22,9 +24,11 @@ macros = \
 	-DGLOBAL_SAVER_EXECUTABLE=\"@global_saver_executable@\" \
 	-DSAVER_EXECUTABLE=\"@saver_executable@\" \
 	-DPAM_SERVICE_NAME=\"@pam_service_name@\"
+if HAVE_LIBBSD
+macros += -DHAVE_LIBBSD
+endif
 if PAM_CHECK_ACCOUNT_TYPE
-macros += \
-	-DPAM_CHECK_ACCOUNT_TYPE
+macros += -DPAM_CHECK_ACCOUNT_TYPE
 endif
 if HAVE_XSCREENSAVER_EXT
 macros += -DHAVE_XSCREENSAVER_EXT
@@ -61,13 +65,15 @@ xsecurelock_SOURCES = \
 	main.c \
 	saver_child.c saver_child.h \
 	unmap_all.c unmap_all.h \
+	util.c util.h \
 	version.c version.h \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
 nodist_xsecurelock_SOURCES = \
 	env_helpstr.inc
-xsecurelock_CPPFLAGS = $(macros)
+xsecurelock_CPPFLAGS = $(macros) $(LIBBSD_CFLAGS)
+xsecurelock_LDADD = $(LIBBSD_LIBS)
 
 helpersdir = $(pkglibexecdir)
 helpers_SCRIPTS = \
@@ -94,6 +100,11 @@ helpers_SCRIPTS += \
 endif
 
 helpers_PROGRAMS = \
+	pgrp_placeholder
+pgrp_placeholder_SOURCES = \
+	helpers/pgrp_placeholder.c
+
+helpers_PROGRAMS += \
 	saver_multiplex
 saver_multiplex_SOURCES = \
 	env_settings.c env_settings.h \
@@ -136,11 +147,12 @@ auth_x11_SOURCES = \
 	helpers/monitors.c helpers/monitors.h \
 	logging.c logging.h \
 	mlock_page.h \
+	util.c util.h \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
-auth_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS)
-auth_x11_LDADD = $(XFT_LIBS)
+auth_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS) $(LIBBSD_CFLAGS)
+auth_x11_LDADD = $(XFT_LIBS) $(LIBBSD_LIBS)
 
 if HAVE_PAM
 helpers_PROGRAMS += \
@@ -151,15 +163,30 @@ authproto_pam_SOURCES = \
 	helpers/authproto.c helpers/authproto.h \
 	helpers/authproto_pam.c \
 	logging.c logging.h \
-	mlock_page.h
-authproto_pam_CPPFLAGS = $(macros)
+	mlock_page.h \
+	util.c util.h
+authproto_pam_CPPFLAGS = $(macros) $(LIBBSD_CFLAGS)
+authproto_pam_LDADD = $(LIBBSD_LIBS)
 endif
 
-docsdir = $(docdir)
-docs_DATA = \
+doc_DATA = \
 	CONTRIBUTING \
 	LICENSE \
 	README.md
+
+if HAVE_PANDOC
+man1_MANS = xsecurelock.1
+xsecurelock.1.md: doc/xsecurelock.1.md README.md
+	{ \
+		grep -B 9999 'ENV VARIABLES HERE' doc/xsecurelock.1.md; \
+		grep -A 9999 'ENV VARIABLES START' README.md |\
+			grep -B 9999 'ENV VARIABLES END'; \
+		grep -A 9999 'ENV VARIABLES HERE' doc/xsecurelock.1.md; \
+	} > xsecurelock.1.md
+xsecurelock.1: xsecurelock.1.md
+	$(path_to_pandoc) -s -f markdown -t man -o $@ $<
+CLEANFILES += xsecurelock.1.md xsecurelock.1
+endif
 
 # Some tools that we sure don't wan to install
 noinst_PROGRAMS = cat_authproto nvidia_break_compositor get_compositor remap_all
@@ -211,12 +238,16 @@ EXTRA_DIST = \
 	test \
 	version.c
 
+examplesdir = $(docdir)/examples
+dist_examples_DATA = \
+	doc/examples/saver_livestreams
+
 if HAVE_DOXYGEN
 doxyfile.stamp:
 	$(DOXYGEN) Doxyfile
 	echo Timestamp > doxyfile.stamp
 
-CLEANFILES = doxyfile.stamp
+CLEANFILES += doxyfile.stamp
 
 all-local: doxyfile.stamp
 
