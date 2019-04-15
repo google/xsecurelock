@@ -233,6 +233,7 @@ EXTRA_DIST = \
 	README.md \
 	autogen.sh \
 	debian \
+	docs/xsecurelock.md.1 \
 	helpers/saver_blank \
 	run-linters.sh \
 	test \
