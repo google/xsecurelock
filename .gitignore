@@ -3,7 +3,6 @@
 .dirstamp
 
 # Autotools generated files.
-/Doxyfile
 /Makefile
 /Makefile.in
 /aclocal.m4
@@ -13,7 +12,6 @@
 /config.status
 /configure
 /depcomp
-/env_helpstr.inc
 /helpers/authproto_htpasswd
 /helpers/authproto_pamtester
 /helpers/saver_mplayer
@@ -22,6 +20,12 @@
 /install-sh
 /missing
 /version.c
+
+# Our own generated files.
+/Doxyfile
+/env_helpstr.inc
+/xsecurelock.1
+/xsecurelock.1.md
 
 # Object files.
 *.o
