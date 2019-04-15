@@ -167,8 +167,7 @@ authproto_pam_CPPFLAGS = $(macros) $(LIBBSD_CFLAGS)
 authproto_pam_LDADD = $(LIBBSD_LIBS)
 endif
 
-docsdir = $(docdir)
-docs_DATA = \
+doc_DATA = \
 	CONTRIBUTING \
 	LICENSE \
 	README.md
@@ -221,6 +220,10 @@ EXTRA_DIST = \
 	run-linters.sh \
 	test \
 	version.c
+
+examplesdir = $(docdir)/examples
+dist_examples_DATA = \
+	doc/examples/saver_livestreams
 
 if HAVE_DOXYGEN
 doxyfile.stamp:
