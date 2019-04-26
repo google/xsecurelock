@@ -1,8 +1,10 @@
 xsecurelock (1.3-1) unstable; urgency=medium
 
   * Upstream version 1.3
+  * Fix changelog to fix lintian warnings.
+  * Make rpolzer Uploader to avoid NMUs.
+  * Remove lintian-overrides as xsecurelock now ships a manpage.
   * ./xsecurelock --help and --version.
-  * Now with manpage.
   * Auth window is now a box in front of the saver.
   * Better slideshow support in saver_mpv.
   * Configurable auth dialog colors.
@@ -12,7 +14,7 @@ xsecurelock (1.3-1) unstable; urgency=medium
   * Support for custom hotkeys.
   * Support to play speaker sounds during auth flow.
 
- -- Rudolf Polzer <rpolzer@google.com>  Mon, 15 Apr 2019 07:06:34 -0700
+ -- Markus Teich <mteich@google.com>  Fri, 26 Apr 2019 16:23:34 +0200
 
 xsecurelock (1.1-1) unstable; urgency=medium
 
