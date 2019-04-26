@@ -1,7 +1,8 @@
 Source: xsecurelock
 Section: x11
 Priority: optional
-Maintainer: Markus Teich <mteich@google.com>
+Maintainer: Rudolf Polzer <rpolzer@google.com>
+Uploaders: Markus Teich <mteich@google.com>
 Build-Depends: debhelper (>= 8.0.0),
   autotools-dev,
   dh-autoreconf,
