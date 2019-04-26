@@ -76,7 +76,7 @@ if [ -n "$tar_only" ]; then
 	exit 1
 fi
 if [ -n "$git_only" ]; then
-	echo >&2 "git only: " $tar_only
+	echo >&2 "git only: " $git_only
 	exit 1
 fi
 
