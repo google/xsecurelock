@@ -20,6 +20,7 @@ limitations under the License.
 #include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
 #include <string.h>      // for strlen, memcpy, memset, strcspn
 #include <sys/select.h>  // for timeval, select, fd_set, FD_SET
+#include <sys/time.h>    // for gettimeofday, timeval
 #include <time.h>        // for time, nanosleep, localtime_r
 #include <unistd.h>      // for close, _exit, dup2, pipe, dup
 
@@ -1260,8 +1261,13 @@ int main(int argc_local, char **argv_local) {
   setlocale(LC_CTYPE, "");
   setlocale(LC_TIME, "");
 
-  // This is used by displaymarker only (no security relevance of the RNG).
-  srand(time(NULL));
+  // This is used by displaymarker only; there is slight security relevance here
+  // as an attacker who has a screenshot and an exact startup time and PID can
+  // guess the password length. Of course, an attacker who records the screen
+  // as a video, or points a camera or a microphone at the keyboard, can too.
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  srand(tv.tv_sec ^ tv.tv_usec ^ getpid());
 
   authproto_executable = GetExecutablePathSetting("XSECURELOCK_AUTHPROTO",
                                                   AUTHPROTO_EXECUTABLE, 0);
