@@ -62,11 +62,14 @@ const char *authproto_executable;
 //! The maximum time to wait at a prompt for user input in seconds.
 int prompt_timeout;
 
+//! Number of dancers in the disco password display
+#define DISCO_PASSWORD_DANCERS 5
+
 //! Length of the "paranoid password display".
-#define PARANOID_PASSWORD_LENGTH 32
+#define PARANOID_PASSWORD_LENGTH (1 << DISCO_PASSWORD_DANCERS)
 
 //! Minimum distance the cursor shall move on keypress.
-#define PARANOID_PASSWORD_MIN_CHANGE 4
+#define PARANOID_PASSWORD_MIN_CHANGE 5
 
 //! Border of the window around the text.
 #define WINDOW_BORDER 16
@@ -79,6 +82,17 @@ int prompt_timeout;
 
 //! Whether password display should hide the length.
 int paranoid_password;
+
+//! Disco mode: instead of showing the password length or line input, show a disco ball
+int disco;
+
+// A disco password is composed of multiple disco_dancers (each selected at random from the array), joined by the disco_combiner
+const char * disco_combiner = " ♪ ";
+// Note: the disco_dancers MUST all have the same length
+const char * disco_dancers[] = {
+  "┏(･o･)┛",
+  "┗(･o･)┓",
+};
 
 //! If set, we can start a new login session.
 int have_switch_user_command;
@@ -917,6 +931,19 @@ int Prompt(const char *msg, char **response, int echo) {
       // priv.pwlen + 2 <= sizeof(priv.displaybuf).
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
+    } else if (disco) {
+      size_t combiner_length = strlen(disco_combiner);
+      size_t dancer_length = strlen(disco_dancers[0]);
+      size_t stride = combiner_length + dancer_length;
+      priv.displaylen = stride * DISCO_PASSWORD_DANCERS * strlen(disco_dancers[0]) + strlen(disco_combiner);
+
+      for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS; i++, bit <<= 1) {
+        char *dancer = disco_dancers[priv.displaymarker & bit ? 1 : 0];
+        memcpy(priv.displaybuf + i * stride, disco_combiner, combiner_length);
+        memcpy(priv.displaybuf + i * stride + combiner_length, dancer, dancer_length);
+      }
+      memcpy(priv.displaybuf + DISCO_PASSWORD_DANCERS * stride, disco_combiner, combiner_length);
+      priv.displaybuf[priv.displaylen] = '\0';
     } else if (paranoid_password) {
       priv.displaylen = PARANOID_PASSWORD_LENGTH;
       memset(priv.displaybuf, '_', priv.displaylen);
@@ -1294,6 +1321,7 @@ int main(int argc_local, char **argv_local) {
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
+  disco = GetIntSetting("XSECURELOCK_DISCO_PASSWORD", 0);
   show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
   datetime_format = GetStringSetting("XSECURELOCK_DATETIME_FORMAT", "%c");
   have_switch_user_command =
