@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # This screensaver displays livestreams that are listed in the feed file located
 # at "~/.streamsaver-feeds".  The feeds are chosen by the current day of year
 # and the index of the monitor as shown in `xrandr`.  The entries started with

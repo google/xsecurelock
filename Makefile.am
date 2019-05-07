@@ -233,9 +233,12 @@ EXTRA_DIST = \
 	README.md \
 	autogen.sh \
 	doc/xsecurelock.1.md \
+	ensure-documented-settings.sh \
 	helpers/saver_blank \
 	run-linters.sh \
-	test \
+	test/*.c \
+	test/*.sh \
+	test/*.xdo \
 	version.c
 
 examplesdir = $(docdir)/examples
