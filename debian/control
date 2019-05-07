@@ -16,7 +16,7 @@ Build-Depends: debhelper (>= 12),
   libxss-dev,
   pandoc,
   x11proto-core-dev
-Standards-Version: 4.0.0
+Standards-Version: 4.1.4
 Homepage: https://github.com/google/xsecurelock
 
 Package: xsecurelock
