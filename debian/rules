@@ -17,7 +17,6 @@ override_dh_auto_configure:
 		--with-xcomposite \
 		--with-xf86misc=no \
 		--with-xfixes \
-		--with-xfixes \
 		--with-xft \
 		--with-xkb \
 		--with-xrandr \
