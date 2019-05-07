@@ -18,6 +18,8 @@ Build-Depends: debhelper (>= 12),
   x11proto-core-dev
 Standards-Version: 4.1.4
 Homepage: https://github.com/google/xsecurelock
+Vcs-Browser: https://github.com/google/xsecurelock/tree/debian
+Vcs-Git: https://github.com/google/xsecurelock.git -b debian
 
 Package: xsecurelock
 Architecture: any
