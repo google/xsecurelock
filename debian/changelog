@@ -1,39 +1,6 @@
-xsecurelock (1.3-1) unstable; urgency=medium
+xsecurelock (1.3.1-1) unstable; urgency=medium
 
-  * Upstream version 1.3
-  * Fix changelog to fix lintian warnings.
-  * Make rpolzer Uploader to avoid NMUs.
-  * Remove lintian-overrides as xsecurelock now ships a manpage.
-  * ./xsecurelock --help and --version.
-  * Auth window is now a box in front of the saver.
-  * Better slideshow support in saver_mpv.
-  * Configurable auth dialog colors.
-  * Improved SIGTERM/SIGCHLD handling; fix race that might kill other processes.
-  * Optional display of current date and time.
-  * Optional force-grab feature to break other applications' grabs.
-  * Support for custom hotkeys.
-  * Support to play speaker sounds during auth flow.
+  * Initial upload (Closes: #909020)
+  * Upstream version 1.3.1
 
- -- Markus Teich <mteich@google.com>  Fri, 26 Apr 2019 16:23:34 +0200
-
-xsecurelock (1.1-1) unstable; urgency=medium
-
-  * Upstream version 1.1
-  * Fix separator display logic.
-  * Additional obscurer window.
-  * Grab on root window.
-  * Add window unmapper that allows xsecurelock to steal grabs (default: off).
-  * Correctly parse xscreensaver preferences.
-  * Use real time clock for auth timeout.
-  * Only show "Processing..." if the last PAM action was a prompt.
-  * Add keyboard layout switching shortcut to auth_pam_x11 module.
-  * Add date and PID to log output.
-
- -- Markus Teich <mteich@google.com>  Mon, 17 Sep 2018 19:53:52 +0200
-
-xsecurelock (1.0-1) unstable; urgency=medium
-
-  * Initial upload
-  * Upstream version 1.0
-
- -- Markus Teich <mteich@google.com>  Wed, 01 Aug 2018 16:31:16 +0200
+ -- Markus Teich <mteich@google.com>  Tue, 07 May 2019 17:03:34 +0200
