@@ -840,6 +840,25 @@ void WaitForKeypress(int seconds) {
   select(1, &set, NULL, NULL, &timeout);
 }
 
+/*! \brief Bump the position for the password "cursor".
+ *
+ * Precondition: pos in 0..PARANOID_PASSWORD_LENGTH-1.
+ * Postcondition: pos' in 1..PARANOID_PASSWORD_LENGTH-1.
+ * Postcondition: abs(pos' - pos) >= PARANOID_PASSWORD_MIN_CHANGE.
+ * Postcondition: pos' is uniformly distributed among all permitted choices.
+ *
+ * \param pos The initial cursor position.
+ * \return pos', the new position.
+ */
+int BumpDisplayMarker(int pos) {
+  for (;;) {
+    int new_pos = 1 + rand() % (PARANOID_PASSWORD_LENGTH - 1);
+    if (abs(new_pos - pos) >= PARANOID_PASSWORD_MIN_CHANGE) {
+      return new_pos;
+    }
+  }
+}
+
 //! The size of the buffer to store the password in. Not NUL terminated.
 #define PWBUF_SIZE 256
 
@@ -896,7 +915,7 @@ int Prompt(const char *msg, char **response, int echo) {
   }
 
   priv.pwlen = 0;
-  priv.displaymarker = rand() % PARANOID_PASSWORD_LENGTH;
+  priv.displaymarker = 0;
 
   time_t deadline = time(NULL) + prompt_timeout;
 
@@ -920,8 +939,7 @@ int Prompt(const char *msg, char **response, int echo) {
     } else if (paranoid_password) {
       priv.displaylen = PARANOID_PASSWORD_LENGTH;
       memset(priv.displaybuf, '_', priv.displaylen);
-      priv.displaybuf[priv.pwlen ? priv.displaymarker : 0] =
-          blink_state ? '|' : '-';
+      priv.displaybuf[priv.displaymarker] = blink_state ? '|' : '-';
       priv.displaybuf[priv.displaylen] = '\0';
     } else {
       mblen(NULL, 0);
@@ -1016,12 +1034,11 @@ int Prompt(const char *msg, char **response, int echo) {
             priv.pos += priv.len;
           }
           if (priv.prevpos != priv.pwlen) {
-            priv.displaymarker =
-                (priv.displaymarker - 1 + PARANOID_PASSWORD_MIN_CHANGE +
-                 rand() % (PARANOID_PASSWORD_LENGTH -
-                           2 * PARANOID_PASSWORD_MIN_CHANGE)) %
-                    (PARANOID_PASSWORD_LENGTH - 1) +
-                1;
+            if (priv.prevpos == 0) {
+              priv.displaymarker = 0;
+            } else {
+              priv.displaymarker = BumpDisplayMarker(priv.displaymarker);
+            }
           }
           priv.pwlen = priv.prevpos;
           break;
@@ -1073,12 +1090,7 @@ int Prompt(const char *msg, char **response, int echo) {
           if (priv.pwlen < sizeof(priv.pwbuf)) {
             priv.pwbuf[priv.pwlen] = priv.inputbuf;
             ++priv.pwlen;
-            priv.displaymarker =
-                (priv.displaymarker - 1 + PARANOID_PASSWORD_MIN_CHANGE +
-                 rand() % (PARANOID_PASSWORD_LENGTH -
-                           2 * PARANOID_PASSWORD_MIN_CHANGE)) %
-                    (PARANOID_PASSWORD_LENGTH - 1) +
-                1;
+            priv.displaymarker = BumpDisplayMarker(priv.displaymarker);
           } else {
             Log("Password entered is too long - bailing out");
             done = 1;
