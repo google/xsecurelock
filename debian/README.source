@@ -1,3 +1,8 @@
 To build the package use git-buildpackage like so:
 
-gbp buildpackage --git-debian-branch=debian --git-upstream-tree=SLOPPY -uc -us
+  gbp buildpackage --git-debian-branch=debian -uc -us
+
+
+For dev builds before tagging a new release you can use this invocation:
+
+  gbp buildpackage --git-debian-branch=debian --git-upstream-tree=SLOPPY -uc -us
