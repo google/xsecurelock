@@ -5,6 +5,7 @@ Source: https://github.com/google/xsecurelock
 Files: *
 Copyright: 2014-2019 Rudolf Polzer <rpolzer@google.com>, <divVerent@xonotic.org>
            2017-2019 Markus Teich <mteich@google.com>
+           2014-2019 Google Inc. All rights reserved.
 License: Apache-2.0
 
 Files: debian/*
