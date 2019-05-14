@@ -6,3 +6,8 @@ To build the package use git-buildpackage like so:
 For dev builds before tagging a new release you can use this invocation:
 
   gbp buildpackage --git-debian-branch=debian --git-upstream-tree=SLOPPY -uc -us
+
+
+Unfortunately the tests depend on quite a lot (they're full fledged integration
+tests) and are not ready to run automatically yet (e.g. they have timing
+dependencies, in other words, they're flaky).

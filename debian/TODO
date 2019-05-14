@@ -1,3 +1,4 @@
 - update Standards-Version so we can get rid of the lintian-overrides
   (/usr/libexec is part of FHS3 which is included since Standards-Version 4.1.5)
 - Provide patches to Cinnamon allowing custom screen lockers to be configured
+- Enable running tests automatically
