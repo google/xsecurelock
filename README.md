@@ -531,7 +531,7 @@ This has the following known issues:
 
 # License
 
-The code is released unser the Apache 2.0 license. See the LICENSE file for more
+The code is released under the Apache 2.0 license. See the LICENSE file for more
 details.
 
 This project is not an official Google project. It is not supported by Google
