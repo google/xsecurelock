@@ -1,3 +1,4 @@
 version=4
 opts=filenamemangle=s/.+\/v?(\d\S+)\.tar\.gz/xsecurelock-$1\.tar\.gz/ \
-  https://github.com/google/xsecurelock/tags .*/v?(\d\S+)\.tar\.gz
+  https://github.com/google/xsecurelock/releases/latest \
+  .*/xsecurelock-v?(\d\S+)\.tar\.gz
