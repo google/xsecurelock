@@ -10,6 +10,12 @@ if [ -z "$new_version" ]; then
 	exit 1
 fi
 
+# Inform caller about semver requirements.
+if git grep "REMOVE IN v${new_version%%.*}\\>" .; then
+	echo >&2 'Stuff to do before next semver!'
+	exit 1
+fi
+
 # Are we on master?
 if [ x"$(git rev-parse --abbrev-ref HEAD)" != x'master' ]; then
 	echo >&2 'Must be on master.'

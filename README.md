@@ -261,8 +261,8 @@ Options to XSecureLock can be passed by environment variables:
     the `xwininfo` and `xprop` tools.
 *   `XSECURELOCK_DIM_ALPHA`: Linear-space opacity to fade the screen to.
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
-*   `XSECURELOCK_DIM_MIN_FPS`: Minimum framerate to attain during the dimming
-    effect of `dimmer`. Usually shouldn't need touching.
+*   `XSECURELOCK_DIM_FPS`: Target framerate to attain during the dimming effect
+    of `dimmer`. Ideally matches the display refresh rate.
 *   `XSECURELOCK_DIM_OVERRIDE_COMPOSITOR_DETECTION`: When set to 1, always try
     to use transparency for dimming; when set to 0, always use a dither
     pattern. Default is to autodetect whether transparency will likely work.
