@@ -53,7 +53,6 @@ version.c
 git_extra="
 .gitignore
 build-release.sh
-run-iwyu.sh
 "
 
 # Compare tarball to git file listing.

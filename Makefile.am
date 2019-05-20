@@ -235,6 +235,7 @@ EXTRA_DIST = \
 	doc/xsecurelock.1.md \
 	ensure-documented-settings.sh \
 	helpers/saver_blank \
+	run-iwyu.sh \
 	run-linters.sh \
 	test/*.c \
 	test/*.sh \
