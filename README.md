@@ -312,6 +312,7 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_x11` hide the password
     length.
 *   `XSECURELOCK_DISCO_PASSWORD`: implies `XSECURELOCK_PARANOID_PASSWORD`; make `auth_x11` replace the password prompts with disco dancers.
+*   `XSECURELOCK_HIDE_PASSWORD_COMPLETELY`: implies `XSECURELOCK_PARANOID_PASSWORD`; make `auth_x11` completely hide the password and show no prompt.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 *   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
     login. Disabled by default.
