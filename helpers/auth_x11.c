@@ -83,6 +83,9 @@ int prompt_timeout;
 //! Whether password display should hide the length.
 int paranoid_password;
 
+//! Whether the password should be completely hidden
+int hide_password_completely;
+
 //! Disco mode: instead of showing the password length or line input, show a disco ball
 int disco;
 
@@ -931,6 +934,9 @@ int Prompt(const char *msg, char **response, int echo) {
       // priv.pwlen + 2 <= sizeof(priv.displaybuf).
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
+    } else if (hide_password_completely) {
+      priv.displaylen = 0;
+      priv.displaybuf[0] = '\0';
     } else if (disco) {
       size_t combiner_length = strlen(disco_combiner);
       size_t dancer_length = strlen(disco_dancers[0]);
@@ -1321,6 +1327,7 @@ int main(int argc_local, char **argv_local) {
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
+  hide_password_completely = GetIntSetting("XSECURELOCK_HIDE_PASSWORD_COMPLETELY", 0);
   disco = GetIntSetting("XSECURELOCK_DISCO_PASSWORD", 0);
   show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
   datetime_format = GetStringSetting("XSECURELOCK_DATETIME_FORMAT", "%c");
