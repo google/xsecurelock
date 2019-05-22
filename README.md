@@ -309,10 +309,15 @@ Options to XSecureLock can be passed by environment variables:
     and fall back to XRandR 1.2. Not recommended.
 *   `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with
     that name in `/etc/pam.d`.
-*   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_x11` hide the password
-    length.
-*   `XSECURELOCK_DISCO_PASSWORD`: implies `XSECURELOCK_PARANOID_PASSWORD`; make `auth_x11` replace the password prompts with disco dancers.
-*   `XSECURELOCK_HIDE_PASSWORD_COMPLETELY`: implies `XSECURELOCK_PARANOID_PASSWORD`; make `auth_x11` completely hide the password and show no prompt.
+*   `XSECURELOCK_PARANOID_PASSWORD`: (deprecated) makes `auth_x11` hide the
+    password length. Use `XSECURELOCK_PASSWORD_PROMPT` instead. (`1` translates
+    to `cursor`; `0` translates to asterisks)
+*   `XSECURELOCK_PASSWORD_PROMPT`: Choose password prompt mode:
+    *   `cursor`: shows a cursor that jumps around on each key press.
+    *   `asterisks`: shows asterisks, like classic password prompts. This is less
+        secure because password length is visible.
+    *   `hidden`: completely hides the password, and there's no feedback for keypresses.
+    *   `disco`: shows dancers, which dance around on each key press.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 *   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
     login. Disabled by default.
