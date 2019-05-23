@@ -316,8 +316,14 @@ Options to XSecureLock can be passed by environment variables:
     *   `cursor`: shows a cursor that jumps around on each key press.
     *   `asterisks`: shows asterisks, like classic password prompts. This is less
         secure because password length is visible.
-    *   `hidden`: completely hides the password, and there's no feedback for keypresses.
+    *   `hidden`: completely hides the password, and there's no feedback for
+        keypresses.
     *   `disco`: shows dancers, which dance around on each key press.
+    *   `emoji`: shows an emoji, changing which one on each key press.
+        (Requires using an emoji-supporting font)
+    *   `emoticon`: shows an ascii emoticon, changing which one on each key press.
+    *   `kaomoji`: shows a kaomoji (Japanese emoticon), changing which one on each
+        key press.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 *   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
     login. Disabled by default.

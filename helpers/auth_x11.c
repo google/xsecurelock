@@ -18,6 +18,7 @@ limitations under the License.
 #include <X11/Xlib.h>    // for DefaultScreen, Screen, XFree, True
 #include <locale.h>      // for NULL, setlocale, LC_CTYPE, LC_TIME
 #include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
+#include <stdio.h>
 #include <string.h>      // for strlen, memcpy, memset, strcspn
 #include <sys/select.h>  // for timeval, select, fd_set, FD_SET
 #include <sys/time.h>    // for gettimeofday, timeval
@@ -80,14 +81,35 @@ int prompt_timeout;
 //! Extra line spacing.
 #define LINE_SPACING 4
 
-//! Whether password display should hide the length.
-int paranoid_password;
+//! Deprecated flag for setting Whether password display should hide the length.
+int paranoid_password_flag;
 
-//! Whether the password should be completely hidden
-int hide_password_completely;
+//! Updated flag for password display choice
+const char * password_prompt_flag;
 
-//! Disco mode: instead of showing the password length or line input, show a disco ball
-int disco;
+//! Actual password prompt selected
+enum PasswordPrompt {
+  PASSWORD_PROMPT_CURSOR,
+  PASSWORD_PROMPT_ASTERISKS,
+  PASSWORD_PROMPT_HIDDEN,
+  PASSWORD_PROMPT_DISCO,
+  PASSWORD_PROMPT_EMOJI,
+  PASSWORD_PROMPT_EMOTICON,
+  PASSWORD_PROMPT_KAOMOJI,
+
+  PASSWORD_PROMPT_MAX_VALUE = PASSWORD_PROMPT_KAOMOJI,
+};
+const char *PasswordPromptStrings[] = {
+  /* PASSWORD_PROMPT_CURSOR= */ "cursor",
+  /* PASSWORD_PROMPT_ASTERISKS= */ "asterisks",
+  /* PASSWORD_PROMPT_HIDDEN= */ "hidden",
+  /* PASSWORD_PROMPT_DISCO= */ "disco",
+  /* PASSWORD_PROMPT_EMOJI= */ "emoji",
+  /* PASSWORD_PROMPT_EMOTICON= */ "emoticon",
+  /* PASSWORD_PROMPT_KAOMOJI= */ "kaomoji",
+};
+
+enum PasswordPrompt password_prompt;
 
 // A disco password is composed of multiple disco_dancers (each selected at random from the array), joined by the disco_combiner
 const char * disco_combiner = " ♪ ";
@@ -96,6 +118,49 @@ const char * disco_dancers[] = {
   "┏(･o･)┛",
   "┗(･o･)┓",
 };
+
+// Emojis to display in emoji mode. The length of the array must be equal to PARANOID_PASSWORD_LENGTH.
+// List taken from the top items in http://emojitracker.com/
+// The first item is always display in an empty prompt (before typing in the password)
+const char * emojis[] = {
+  "_____", "\U0001f602", "\U00002764", "\U0000267b",
+  "\U0001f60d", "\U00002665", "\U0001f62d", "\U0001f60a",
+  "\U0001f612", "\U0001f495", "\U0001f618", "\U0001f629",
+  "\U0000263a", "\U0001f44c", "\U0001f614", "\U0001f601",
+  "\U0001f60f", "\U0001f609", "\U0001f44d", "\U00002b05",
+  "\U0001f605", "\U0001f64f", "\U0001f60c", "\U0001f622",
+  "\U0001f440", "\U0001f494", "\U0001f60e", "\U0001f3b6",
+  "\U0001f499", "\U0001f49c", "\U0001f64c", "\U0001f633",
+};
+_Static_assert(sizeof(emojis) / sizeof(*emojis) == PARANOID_PASSWORD_LENGTH, "Emojis array size must be equal to PARANOID_PASSWORD_LENGTH");
+
+// Emoticons to display in emoji mode. The length of the array must be equal to PARANOID_PASSWORD_LENGTH.
+// The first item is always display in an empty prompt (before typing in the password)
+const char * emoticons[] = {
+  ":-)", ":-p", ":-O", ":-\\",
+  "(-:", "d-:", "O-:", "/-:",
+  "8-)", "8-p", "8-O", "8-\\",
+  "(-8", "d-8", "O-8", "/-8",
+  "X-)", "X-p", "X-O", "X-\\",
+  "(-X", "d-X", "O-X", "/-X",
+  ":'-)", ":-S", ":-D", ":-#",
+  "(-':", "S-:", "D-:", "#-:",
+};
+_Static_assert(sizeof(emoticons) / sizeof(*emoticons) == PARANOID_PASSWORD_LENGTH, "Emoticons array size must be equal to PARANOID_PASSWORD_LENGTH");
+
+// Kaomojis to display in kaomoji mode. The length of the array must be equal to PARANOID_PASSWORD_LENGTH.
+// The first item is always display in an empty prompt (before typing in the password)
+const char * kaomojis[] = {
+  "(͡°͜ʖ͡°)", "(>_<)", "O_ם", "(^_-)",
+  "o_0", "o.O", "0_o", "O.o",
+  "(°o°)", "^m^", "^_^", "((d[-_-]b))",
+  "┏(･o･)┛", "┗(･o･)┓", "（ﾟДﾟ)", "(°◇°)",
+  "\\o/", "\\o|", "|o/", "|o|",
+  "(●＾o＾●)", "(＾ｖ＾)", "(＾ｕ＾)", "(＾◇＾)",
+  "¯\\_(ツ)_/¯", "(^0_0^)", "(☞ﾟ∀ﾟ)☞", "(-■_■)",
+  "(┛ಠ_ಠ)┛彡┻━┻", "┬─┬ノ(º_ºノ)", "(˘³˘)♥", "❤(◍•ᴗ•◍)",
+};
+_Static_assert(sizeof(kaomojis) / sizeof(*kaomojis) == PARANOID_PASSWORD_LENGTH, "Kaomojis array size must be equal to PARANOID_PASSWORD_LENGTH");
 
 //! If set, we can start a new login session.
 int have_switch_user_command;
@@ -882,6 +947,12 @@ int BumpDisplayMarker(int pos) {
 //! The size of the buffer to use for display, with space for cursor and NUL.
 #define DISPLAYBUF_SIZE (PWBUF_SIZE + 2)
 
+void showFromArray(const char **array, size_t displaymarker, char (*displaybuf)[], size_t *displaylen) {
+  const char *selection = array[displaymarker];
+  strcpy(*displaybuf, selection);
+  *displaylen = strlen(selection);
+}
+
 /*! \brief Ask a question to the user.
  *
  * \param msg The message.
@@ -953,46 +1024,77 @@ int Prompt(const char *msg, char **response, int echo) {
       // priv.pwlen + 2 <= sizeof(priv.displaybuf).
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
-    } else if (hide_password_completely) {
-      priv.displaylen = 0;
-      priv.displaybuf[0] = '\0';
-    } else if (disco) {
-      size_t combiner_length = strlen(disco_combiner);
-      size_t dancer_length = strlen(disco_dancers[0]);
-      size_t stride = combiner_length + dancer_length;
-      priv.displaylen = stride * DISCO_PASSWORD_DANCERS * strlen(disco_dancers[0]) + strlen(disco_combiner);
-
-      for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS; i++, bit <<= 1) {
-        const char *dancer = disco_dancers[priv.displaymarker & bit ? 1 : 0];
-        memcpy(priv.displaybuf + i * stride, disco_combiner, combiner_length);
-        memcpy(priv.displaybuf + i * stride + combiner_length, dancer, dancer_length);
-      }
-      memcpy(priv.displaybuf + DISCO_PASSWORD_DANCERS * stride, disco_combiner, combiner_length);
-      priv.displaybuf[priv.displaylen] = '\0';
-    } else if (paranoid_password) {
-      priv.displaylen = PARANOID_PASSWORD_LENGTH;
-      memset(priv.displaybuf, '_', priv.displaylen);
-      priv.displaybuf[priv.displaymarker] = blink_state ? '|' : '-';
-      priv.displaybuf[priv.displaylen] = '\0';
     } else {
-      mblen(NULL, 0);
-      priv.pos = priv.displaylen = 0;
-      while (priv.pos < priv.pwlen) {
-        ++priv.displaylen;
-        // Note: this won't read past priv.pwlen.
-        priv.len = mblen(priv.pwbuf + priv.pos, priv.pwlen - priv.pos);
-        if (priv.len <= 0) {
-          // This guarantees to "eat" one byte each step. Therefore,
-          // priv.displaylen <= priv.pwlen is ensured.
+      switch (password_prompt)
+      {
+        case PASSWORD_PROMPT_ASTERISKS: {
+          mblen(NULL, 0);
+          priv.pos = priv.displaylen = 0;
+          while (priv.pos < priv.pwlen) {
+            ++priv.displaylen;
+            // Note: this won't read past priv.pwlen.
+            priv.len = mblen(priv.pwbuf + priv.pos, priv.pwlen - priv.pos);
+            if (priv.len <= 0) {
+              // This guarantees to "eat" one byte each step. Therefore,
+              // priv.displaylen <= priv.pwlen is ensured.
+              break;
+            }
+            priv.pos += priv.len;
+          }
+          memset(priv.displaybuf, '*', priv.displaylen);
+          // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
+          // priv.pwlen + 2 <= sizeof(priv.displaybuf).
+          priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
+          priv.displaybuf[priv.displaylen + 1] = '\0';
           break;
         }
-        priv.pos += priv.len;
+
+        case PASSWORD_PROMPT_HIDDEN: {
+          priv.displaylen = 0;
+          priv.displaybuf[0] = '\0';
+          break;
+        }
+
+        case PASSWORD_PROMPT_DISCO: {
+          size_t combiner_length = strlen(disco_combiner);
+          size_t dancer_length = strlen(disco_dancers[0]);
+          size_t stride = combiner_length + dancer_length;
+          priv.displaylen = stride * DISCO_PASSWORD_DANCERS * strlen(disco_dancers[0]) + strlen(disco_combiner);
+
+          for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS; i++, bit <<= 1) {
+            const char *dancer = disco_dancers[priv.displaymarker & bit ? 1 : 0];
+            memcpy(priv.displaybuf + i * stride, disco_combiner, combiner_length);
+            memcpy(priv.displaybuf + i * stride + combiner_length, dancer, dancer_length);
+          }
+          memcpy(priv.displaybuf + DISCO_PASSWORD_DANCERS * stride, disco_combiner, combiner_length);
+          priv.displaybuf[priv.displaylen] = '\0';
+          break;
+        }
+
+        case PASSWORD_PROMPT_EMOJI: {
+          showFromArray(emojis, priv.displaymarker, &(priv.displaybuf), &priv.displaylen);
+          break;
+        }
+
+        case PASSWORD_PROMPT_EMOTICON: {
+          showFromArray(emoticons, priv.displaymarker, &priv.displaybuf, &priv.displaylen);
+          break;
+        }
+
+        case PASSWORD_PROMPT_KAOMOJI: {
+          showFromArray(kaomojis, priv.displaymarker, &priv.displaybuf, &priv.displaylen);
+          break;
+        }
+
+        default:
+        case PASSWORD_PROMPT_CURSOR: {
+          priv.displaylen = PARANOID_PASSWORD_LENGTH;
+          memset(priv.displaybuf, '_', priv.displaylen);
+          priv.displaybuf[priv.displaymarker] = blink_state ? '|' : '-';
+          priv.displaybuf[priv.displaylen] = '\0';
+          break;
+        }
       }
-      memset(priv.displaybuf, '*', priv.displaylen);
-      // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
-      // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-      priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
-      priv.displaybuf[priv.displaylen + 1] = '\0';
     }
     DisplayMessage(msg, priv.displaybuf, 0);
 
@@ -1293,6 +1395,25 @@ done:
   return status != 0;
 }
 
+enum PasswordPrompt GetPasswordPromptFromFlags(int paranoid_password_flag, const char *password_prompt_flag) {
+  if (strcmp(password_prompt_flag, "") == 0) {
+    if (paranoid_password_flag) {
+      return PASSWORD_PROMPT_CURSOR;
+    } else {
+      return PASSWORD_PROMPT_ASTERISKS;
+    }
+  } else {
+    for (enum PasswordPrompt prompt = 0; prompt <= PASSWORD_PROMPT_MAX_VALUE; prompt++) {
+      if (strcmp(password_prompt_flag, PasswordPromptStrings[prompt]) == 0) {
+        return prompt;
+      }
+    }
+
+    Log("Invalid XSECURELOCK_PASSWORD_PROMPT value; defaulting to cursor");
+    return PASSWORD_PROMPT_CURSOR;
+  }
+}
+
 /*! \brief The main program.
  *
  * Usage: XSCREENSAVER_WINDOW=window_id ./auth_x11; status=$?
@@ -1338,15 +1459,16 @@ int main(int argc_local, char **argv_local) {
   prompt_timeout = GetIntSetting("XSECURELOCK_AUTH_TIMEOUT", 5 * 60);
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
-  paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
-  hide_password_completely = GetIntSetting("XSECURELOCK_HIDE_PASSWORD_COMPLETELY", 0);
-  disco = GetIntSetting("XSECURELOCK_DISCO_PASSWORD", 0);
+  paranoid_password_flag = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
+  password_prompt_flag = GetStringSetting("XSECURELOCK_PASSWORD_PROMPT", "");
   show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
   datetime_format = GetStringSetting("XSECURELOCK_DATETIME_FORMAT", "%c");
   have_switch_user_command =
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
   auth_sounds = GetIntSetting("XSECURELOCK_AUTH_SOUNDS", 0);
   single_auth_window = GetIntSetting("XSECURELOCK_SINGLE_AUTH_WINDOW", 0);
+
+  password_prompt = GetPasswordPromptFromFlags(paranoid_password_flag, password_prompt_flag);
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     Log("Could not connect to $DISPLAY");
