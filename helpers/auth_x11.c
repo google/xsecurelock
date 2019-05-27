@@ -129,14 +129,14 @@ const char * disco_dancers[] = {
 // List taken from the top items in http://emojitracker.com/
 // The first item is always display in an empty prompt (before typing in the password)
 const char * emojis[] = {
-  "_____", "\U0001f602", "\U00002764", "\U0000267b",
-  "\U0001f60d", "\U00002665", "\U0001f62d", "\U0001f60a",
-  "\U0001f612", "\U0001f495", "\U0001f618", "\U0001f629",
-  "\U0000263a", "\U0001f44c", "\U0001f614", "\U0001f601",
-  "\U0001f60f", "\U0001f609", "\U0001f44d", "\U00002b05",
-  "\U0001f605", "\U0001f64f", "\U0001f60c", "\U0001f622",
-  "\U0001f440", "\U0001f494", "\U0001f60e", "\U0001f3b6",
-  "\U0001f499", "\U0001f49c", "\U0001f64c", "\U0001f633",
+  "_____", "😂", "❤", "♻",
+  "😍", "♥", "😭", "😊",
+  "😒", "💕", "😘", "😩",
+  "☺", "👌", "😔", "😁",
+  "😏", "😉", "👍", "⬅",
+  "😅", "🙏", "😌", "😢",
+  "👀", "💔", "😎", "🎶",
+  "💙", "💜", "🙌", "😳",
 };
 ASSERT(sizeof(emojis) / sizeof(*emojis) == PARANOID_PASSWORD_LENGTH, "Emojis array size must be equal to PARANOID_PASSWORD_LENGTH");
 
