@@ -48,6 +48,12 @@ limitations under the License.
 #include "authproto.h"            // for WritePacket, ReadPacket, PTYPE_R...
 #include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
 
+#if __STDC_VERSION__ >= 201112L
+#define ASSERT(state, message) _Static_assert(state, message)
+#else
+#define ASSERT(state, message)
+#endif
+
 //! Number of args.
 int argc;
 
@@ -132,7 +138,7 @@ const char * emojis[] = {
   "\U0001f440", "\U0001f494", "\U0001f60e", "\U0001f3b6",
   "\U0001f499", "\U0001f49c", "\U0001f64c", "\U0001f633",
 };
-_Static_assert(sizeof(emojis) / sizeof(*emojis) == PARANOID_PASSWORD_LENGTH, "Emojis array size must be equal to PARANOID_PASSWORD_LENGTH");
+ASSERT(sizeof(emojis) / sizeof(*emojis) == PARANOID_PASSWORD_LENGTH, "Emojis array size must be equal to PARANOID_PASSWORD_LENGTH");
 
 // Emoticons to display in emoji mode. The length of the array must be equal to PARANOID_PASSWORD_LENGTH.
 // The first item is always display in an empty prompt (before typing in the password)
@@ -146,7 +152,7 @@ const char * emoticons[] = {
   ":'-)", ":-S", ":-D", ":-#",
   "(-':", "S-:", "D-:", "#-:",
 };
-_Static_assert(sizeof(emoticons) / sizeof(*emoticons) == PARANOID_PASSWORD_LENGTH, "Emoticons array size must be equal to PARANOID_PASSWORD_LENGTH");
+ASSERT(sizeof(emoticons) / sizeof(*emoticons) == PARANOID_PASSWORD_LENGTH, "Emoticons array size must be equal to PARANOID_PASSWORD_LENGTH");
 
 // Kaomojis to display in kaomoji mode. The length of the array must be equal to PARANOID_PASSWORD_LENGTH.
 // The first item is always display in an empty prompt (before typing in the password)
@@ -160,7 +166,7 @@ const char * kaomojis[] = {
   "¯\\_(ツ)_/¯", "(^0_0^)", "(☞ﾟ∀ﾟ)☞", "(-■_■)",
   "(┛ಠ_ಠ)┛彡┻━┻", "┬─┬ノ(º_ºノ)", "(˘³˘)♥", "❤(◍•ᴗ•◍)",
 };
-_Static_assert(sizeof(kaomojis) / sizeof(*kaomojis) == PARANOID_PASSWORD_LENGTH, "Kaomojis array size must be equal to PARANOID_PASSWORD_LENGTH");
+ASSERT(sizeof(kaomojis) / sizeof(*kaomojis) == PARANOID_PASSWORD_LENGTH, "Kaomojis array size must be equal to PARANOID_PASSWORD_LENGTH");
 
 //! If set, we can start a new login session.
 int have_switch_user_command;
