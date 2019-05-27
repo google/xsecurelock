@@ -309,9 +309,6 @@ Options to XSecureLock can be passed by environment variables:
     and fall back to XRandR 1.2. Not recommended.
 *   `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with
     that name in `/etc/pam.d`.
-*   `XSECURELOCK_PARANOID_PASSWORD`: (deprecated) makes `auth_x11` hide the
-    password length. Use `XSECURELOCK_PASSWORD_PROMPT` instead. (`1` translates
-    to `cursor`; `0` translates to asterisks)
 *   `XSECURELOCK_PASSWORD_PROMPT`: Choose password prompt mode:
     *   `cursor`: shows a cursor that jumps around on each key press.
     *   `asterisks`: shows asterisks, like classic password prompts. This is less
