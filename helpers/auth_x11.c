@@ -87,12 +87,6 @@ int prompt_timeout;
 //! Extra line spacing.
 #define LINE_SPACING 4
 
-//! Deprecated flag for setting Whether password display should hide the length.
-int paranoid_password_flag;
-
-//! Updated flag for password display choice
-const char * password_prompt_flag;
-
 //! Actual password prompt selected
 enum PasswordPrompt {
   PASSWORD_PROMPT_CURSOR,
@@ -1456,6 +1450,11 @@ int main(int argc_local, char **argv_local) {
     y_offset = rand() % (2 * burnin_mitigation_max_offset + 1) -
                burnin_mitigation_max_offset;
   }
+
+  //! Deprecated flag for setting whether password display should hide the length.
+  int paranoid_password_flag;
+  //! Updated flag for password display choice
+  const char * password_prompt_flag;
 
   // If requested, mitigate burn-in even more by moving the auth prompt while
   // displayed. I bet many will find this annoying though.
