@@ -1067,7 +1067,7 @@ int Prompt(const char *msg, char **response, int echo) {
           size_t stride = combiner_length + dancer_length;
           priv.displaylen = stride * DISCO_PASSWORD_DANCERS * strlen(disco_dancers[0]) + strlen(disco_combiner);
 
-          for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS; i++, bit <<= 1) {
+          for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS; ++i, bit <<= 1) {
             const char *dancer = disco_dancers[priv.displaymarker & bit ? 1 : 0];
             memcpy(priv.displaybuf + i * stride, disco_combiner, combiner_length);
             memcpy(priv.displaybuf + i * stride + combiner_length, dancer, dancer_length);
