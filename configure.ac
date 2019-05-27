@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-AC_INIT([xsecurelock],[1.3.2],[rpolzer@google.com])
+AC_INIT([xsecurelock],[1.3.3],[rpolzer@google.com])
 AM_INIT_AUTOMAKE([-Wall subdir-objects foreign])
 AC_PROG_CC
 
