@@ -1078,7 +1078,7 @@ int Prompt(const char *msg, char **response, int echo) {
         }
 
         case PASSWORD_PROMPT_EMOJI: {
-          ShowFromArray(emojis, priv.displaymarker, &(priv.displaybuf), &priv.displaylen);
+          ShowFromArray(emojis, priv.displaymarker, &priv.displaybuf, &priv.displaylen);
           break;
         }
 
