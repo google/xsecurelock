@@ -953,7 +953,7 @@ int BumpDisplayMarker(int pos) {
 //! The size of the buffer to use for display, with space for cursor and NUL.
 #define DISPLAYBUF_SIZE (PWBUF_SIZE + 2)
 
-void showFromArray(const char **array, size_t displaymarker, char (*displaybuf)[], size_t *displaylen) {
+void ShowFromArray(const char **array, size_t displaymarker, char (*displaybuf)[], size_t *displaylen) {
   const char *selection = array[displaymarker];
   strcpy(*displaybuf, selection);
   *displaylen = strlen(selection);
@@ -1078,17 +1078,17 @@ int Prompt(const char *msg, char **response, int echo) {
         }
 
         case PASSWORD_PROMPT_EMOJI: {
-          showFromArray(emojis, priv.displaymarker, &(priv.displaybuf), &priv.displaylen);
+          ShowFromArray(emojis, priv.displaymarker, &(priv.displaybuf), &priv.displaylen);
           break;
         }
 
         case PASSWORD_PROMPT_EMOTICON: {
-          showFromArray(emoticons, priv.displaymarker, &priv.displaybuf, &priv.displaylen);
+          ShowFromArray(emoticons, priv.displaymarker, &priv.displaybuf, &priv.displaylen);
           break;
         }
 
         case PASSWORD_PROMPT_KAOMOJI: {
-          showFromArray(kaomojis, priv.displaymarker, &priv.displaybuf, &priv.displaylen);
+          ShowFromArray(kaomojis, priv.displaymarker, &priv.displaybuf, &priv.displaylen);
           break;
         }
 
