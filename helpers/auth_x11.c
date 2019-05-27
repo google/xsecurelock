@@ -70,7 +70,7 @@ int prompt_timeout;
 #define PARANOID_PASSWORD_LENGTH (1 << DISCO_PASSWORD_DANCERS)
 
 //! Minimum distance the cursor shall move on keypress.
-#define PARANOID_PASSWORD_MIN_CHANGE 5
+#define PARANOID_PASSWORD_MIN_CHANGE 4
 
 //! Border of the window around the text.
 #define WINDOW_BORDER 16
