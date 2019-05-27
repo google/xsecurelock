@@ -1,4 +1,3 @@
 version=4
-opts="filenamemangle=s%(?:.*?)?v?(\d[\d.]*)\.tar\.gz%xsecurelock-$1.tar.gz%" \
-  https://github.com/google/xsecurelock/releases/latest \
-  (?:.*?/)?v?(\d[\d.]*)\.tar\.gz
+  https://github.com/google/xsecurelock/releases \
+  (?:.*?/)xsecurelock-(\d[\d.]*)\.tar\.gz
