@@ -87,7 +87,7 @@ int HaveCompositor(Display *display) {
 
 int dim_time_ms;
 int wait_time_ms;
-int min_fps;
+double dim_fps;
 double dim_alpha;
 
 XColor dim_color;
@@ -106,6 +106,7 @@ struct DimEffect {
 struct DitherEffect {
   struct DimEffect super;
   int pattern_power;
+  int pattern_frames;
 
   Pixmap pattern;
   XGCValues gc_values;
@@ -150,9 +151,18 @@ void DitherEffectDrawFrame(void *self, Display *display, Window dim_window,
                            int frame, int w, int h) {
   struct DitherEffect *dimmer = self;
 
-  int x, y;
-  Bayer(frame, dimmer->pattern_power, &x, &y);
-  XDrawPoint(display, dimmer->pattern, dimmer->pattern_gc, x, y);
+  // Move the pattern forward to the next display frame. One display frame can
+  // have multiple pattern frames.
+  int start_pframe = frame * dimmer->pattern_frames / dimmer->super.frame_count;
+  int end_pframe =
+      (frame + 1) * dimmer->pattern_frames / dimmer->super.frame_count;
+  int pframe;
+  for (pframe = start_pframe; pframe < end_pframe; ++pframe) {
+    int x, y;
+    Bayer(pframe, dimmer->pattern_power, &x, &y);
+    XDrawPoint(display, dimmer->pattern, dimmer->pattern_gc, x, y);
+  }
+
   // Draw the pattern on the window.
   XChangeGC(display, dimmer->dim_gc, GCStipple, &dimmer->gc_values);
   XFillRectangle(display, dim_window, dimmer->dim_gc, 0, 0, w, h);
@@ -166,9 +176,9 @@ void DitherEffectInit(struct DitherEffect *dimmer, Display *unused_display) {
   // Total time of effect if we wouldn't stop after dim_alpha of fading out.
   double total_time_ms = dim_time_ms / dim_alpha;
   // Minimum "total" frame count of the animation.
-  double total_frames_min = total_time_ms / 1000.0 * min_fps;
+  double total_frames_min = total_time_ms / 1000.0 * dim_fps;
   // This actually computes ceil(log2(sqrt(total_frames_min))) but cannot fail.
-  frexp(sqrt(total_frames_min), &dimmer->pattern_power);
+  (void)frexp(sqrt(total_frames_min), &dimmer->pattern_power);
   // Clip extreme/unsupported values.
   if (dimmer->pattern_power < 2) {
     dimmer->pattern_power = 2;
@@ -177,8 +187,8 @@ void DitherEffectInit(struct DitherEffect *dimmer, Display *unused_display) {
     dimmer->pattern_power = 8;
   }
   // Generate the frame count and vtable.
-  dimmer->super.frame_count =
-      ceil(pow(1 << dimmer->pattern_power, 2) * dim_alpha);
+  dimmer->pattern_frames = ceil(pow(1 << dimmer->pattern_power, 2) * dim_alpha);
+  dimmer->super.frame_count = ceil(dim_time_ms * dim_fps / 1000.0);
   dimmer->super.PreCreateWindow = DitherEffectPreCreateWindow;
   dimmer->super.PostCreateWindow = DitherEffectPostCreateWindow;
   dimmer->super.DrawFrame = DitherEffectDrawFrame;
@@ -259,7 +269,7 @@ void OpacityEffectInit(struct OpacityEffect *dimmer, Display *display) {
       sRGBToLinear(dim_color.blue / 65535.0) * 0.0722;
 
   // Generate the frame count and vtable.
-  dimmer->super.frame_count = ceil(dim_time_ms * min_fps / 1000.0);
+  dimmer->super.frame_count = ceil(dim_time_ms * dim_fps / 1000.0);
   dimmer->super.PreCreateWindow = OpacityEffectPreCreateWindow;
   dimmer->super.PostCreateWindow = OpacityEffectPostCreateWindow;
   dimmer->super.DrawFrame = OpacityEffectDrawFrame;
@@ -276,7 +286,9 @@ int main(int argc, char **argv) {
   // Load global settings.
   dim_time_ms = GetIntSetting("XSECURELOCK_DIM_TIME_MS", 2000);
   wait_time_ms = GetIntSetting("XSECURELOCK_WAIT_TIME_MS", 5000);
-  min_fps = GetIntSetting("XSECURELOCK_DIM_MIN_FPS", 30);
+  dim_fps = GetDoubleSetting(
+      "XSECURELOCK_DIM_FPS",
+      GetDoubleSetting("XSECURELOCK_" /* REMOVE IN v2 */ "DIM_MIN_FPS", 60));
   dim_alpha = GetDoubleSetting("XSECURELOCK_DIM_ALPHA", 0.875);
   int have_compositor = GetIntSetting(
       "XSECURELOCK_DIM_OVERRIDE_COMPOSITOR_DETECTION", HaveCompositor(display));
