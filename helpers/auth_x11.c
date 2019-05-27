@@ -1459,7 +1459,7 @@ int main(int argc_local, char **argv_local) {
   prompt_timeout = GetIntSetting("XSECURELOCK_AUTH_TIMEOUT", 5 * 60);
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
-  paranoid_password_flag = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
+  paranoid_password_flag = GetIntSetting("XSECURELOCK_" /* REMOVE IN v2 */ "PARANOID_PASSWORD", 1);
   password_prompt_flag = GetStringSetting("XSECURELOCK_PASSWORD_PROMPT", "");
   show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
   datetime_format = GetStringSetting("XSECURELOCK_DATETIME_FORMAT", "%c");
