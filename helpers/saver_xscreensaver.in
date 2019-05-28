@@ -16,10 +16,6 @@
 
 : ${XSECURELOCK_XSCREENSAVER_PATH:=@path_to_xscreensaver@}
 
-# On SIGUSR1, we simply keep going, as this signal should only restart
-# the sleep timer.
-trap '' USR1
-
 TAB='	'
 
 # Note: the following logic is somewhat derived from parse_screenhack in
@@ -81,6 +77,8 @@ list_savers() {
   done
 }
 
+mode=
+
 # Debug mode to list all savers.
 case "$1" in
   --list_savers)
@@ -91,13 +89,18 @@ case "$1" in
     list_savers true
     exit 0
     ;;
+  --internal-override-mode=*)
+    mode=${1#*=}
+    ;;
 esac
 
-mode=$(
-  xrdb -n ~/.xscreensaver 2>/dev/null |\
-    grep ^mode: |\
-    cut -f 2
-)
+if [ -z "$mode" ]; then
+  mode=$(
+    xrdb -n ~/.xscreensaver 2>/dev/null |\
+      grep ^mode: |\
+      cut -f 2
+  )
+fi
 
 selected=
 case "$mode" in
@@ -114,39 +117,66 @@ case "$mode" in
     ;;
 esac
 
-if [ -z "$selected" ]; then
+if [ -z "$selected" ]; then  # Note: random-same hits this.
   # We're using the parent process ID here, which may be a saver_multiplex
   # instance. This ensures that multiple instances of this always spawn the same
   # saver on each screen.
   selected=$PPID
 fi
 
+# Prepare the saver list so we only parse once.
+case "$mode" in
+  one)
+    savers=$(list_savers true)
+    count=$(printf '%s\n' "$savers" | wc -l)
+    ;;
+  *)
+    savers=$(list_savers false)
+    count=$(printf '%s\n' "$savers" | wc -l)
+    ;;
+esac
+
 select_saver() {
   case "$mode" in
     one)
-      savers=$(list_savers true)
-      count=$(printf '%s\n' "$savers" | wc -l)
       printf '%s\n' "$savers" | grep "^$selected$(printf '\t')"
       ;;
     *)
-      savers=$(list_savers false)
-      count=$(printf '%s\n' "$savers" | wc -l)
       printf '%s\n' "$savers" | tail -n +$((selected % count + 1))
       ;;
   esac | head -n 1 | cut -f 2-
 }
 
-# We can just run savers in a loop, until one sticks; xsecurelock will kill our
-# entire process group anyway when unlocking.
+# On SIGUSR1, we exit the saver and retry the selection.
+sigusr1_caught=false
+trap 'sigusr1_caught=true' USR1
+
 while :; do
   saver=$(select_saver)
-  if [ -n "$saver" ]; then
-    eval $saver
+  if [ -z "$saver" ]; then
+    echo >&2 "xsecurelock: No saver selected. Giving up."
+    exec ./saver_blank
   fi
-  sleep 2
-  echo >&2 "xsecurelock: Screen saver failed: $saver. Trying another one..."
-  selected=$((selected + 1))
-  mode=random
-done &
-
-exec ./saver_blank
+  sigusr1_caught=false
+  eval $saver
+  status=$?
+  if [ $status -eq 0 ] || $sigusr1_caught; then
+    # Immediately try the next saver.
+    case "$mode" in
+      one)
+        ;;
+      *)
+        selected=$((selected + 1))
+        ;;
+    esac
+  else
+    # Saver failed entirely. Just give up.
+    echo >&2 "xsecurelock: Screen saver failed with status $status: $saver."
+    sleep 2  # Anti-spam delay.
+    if [ x"$mode" != x"random" ]; then
+      # As a fallback, when the saver failed, try random.
+      exec "$0" --internal-override-mode=random
+    fi
+    exit $status
+  fi
+done

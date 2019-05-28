@@ -17,10 +17,6 @@
 : ${XSECURELOCK_LIST_VIDEOS_COMMAND:=find ~/Videos -type f}
 : ${XSECURELOCK_IMAGE_DURATION_SECONDS:=1}
 
-# On SIGUSR1, we simply keep going, as this signal should only restart
-# the sleep timer.
-trap '' USR1
-
 # Run mpv in a loop so we can quickly restart mpv in case it exits (has shown
 # the last picture/video).
 while true; do
@@ -38,5 +34,4 @@ while true; do
   # the common case.
   sleep 1
   wait
-done &
-exec ./saver_blank
+done

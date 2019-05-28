@@ -34,9 +34,13 @@ limitations under the License.
 #include <stdlib.h>          // for exit, system, EXIT_FAILURE
 #include <string.h>          // for memset, strcmp, strncmp
 #include <sys/select.h>      // for select, timeval, fd_set, FD_SET
+#include <sys/time.h>        // for gettimeofday
 #include <time.h>            // for nanosleep, timespec
 #include <unistd.h>          // for _exit, chdir, close, execvp
 
+#ifdef HAVE_DPMS_EXT
+#include <X11/extensions/dpms.h>
+#endif
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
 #endif
@@ -135,9 +139,109 @@ int have_switch_user_command = 0;
 int force_grab = 0;
 //! If set, print window info about any "conflicting" windows to stderr.
 int debug_window_info = 0;
+//! If nonnegative, the time in seconds till we blank the screen explicitly.
+int blank_timeout = -1;
+//! The DPMS state to switch the screen to when blanking.
+const char *blank_dpms_state = "off";
+//! Whether to reset the saver module when auth closes.
+int saver_reset_on_auth_close = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
+
+//! The time when we will blank the screen.
+struct timeval time_to_blank;
+
+//! Whether the screen is currently blanked by us.
+int blanked = 0;
+
+#ifdef HAVE_DPMS_EXT
+//! Whether DPMS needs to be disabled when unblanking. Set when blanking.
+int must_disable_dpms;
+#endif
+
+void ResetBlankScreenTimer(void) {
+  if (blank_timeout < 0) {
+    return;
+  }
+  gettimeofday(&time_to_blank, NULL);
+  time_to_blank.tv_sec += blank_timeout;
+}
+
+void InitBlankScreen(void) {
+  if (blank_timeout < 0) {
+    return;
+  }
+  blanked = 0;
+  ResetBlankScreenTimer();
+}
+
+void MaybeBlankScreen(Display *display) {
+  if (blank_timeout < 0 || blanked) {
+    return;
+  }
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  if (now.tv_sec < time_to_blank.tv_sec ||
+      (now.tv_sec == time_to_blank.tv_sec &&
+       now.tv_usec < time_to_blank.tv_usec)) {
+    return;
+  }
+  // Blank timer expired - blank the screen.
+  blanked = 1;
+#ifdef HAVE_DPMS_EXT
+  must_disable_dpms = 0;
+#endif
+  XForceScreenSaver(display, ScreenSaverActive);
+  if (!strcmp(blank_dpms_state, "on")) {
+    // Just X11 blanking.
+    return;
+  }
+#ifdef HAVE_DPMS_EXT
+  // If we get here, we want to do DPMS blanking.
+  int dummy;
+  if (!DPMSQueryExtension(display, &dummy, &dummy)) {
+    Log("DPMS is unavailable and XSECURELOCK_BLANK_DPMS_STATE not on");
+    return;
+  }
+  CARD16 state;
+  BOOL onoff;
+  DPMSInfo(display, &state, &onoff);
+  if (!onoff) {
+    // DPMS not active by user - so we gotta force it.
+    must_disable_dpms = 1;
+    DPMSEnable(display);
+  }
+  if (!strcmp(blank_dpms_state, "standby")) {
+    DPMSForceLevel(display, DPMSModeStandby);
+  } else if (!strcmp(blank_dpms_state, "suspend")) {
+    DPMSForceLevel(display, DPMSModeSuspend);
+  } else if (!strcmp(blank_dpms_state, "off")) {
+    DPMSForceLevel(display, DPMSModeOff);
+  } else {
+    Log("XSECURELOCK_BLANK_DPMS_STATE not in standby/suspend/off/on");
+  }
+#else
+  Log("DPMS is not compiled in and XSECURELOCK_BLANK_DPMS_STATE not on");
+#endif
+}
+
+void ScreenNoLongerBlanked(Display *display) {
+#ifdef HAVE_DPMS_EXT
+  if (must_disable_dpms) {
+    DPMSDisable(display);
+  }
+#endif
+  blanked = 0;
+}
+
+void UnblankScreen(Display *display) {
+  if (blanked) {
+    XForceScreenSaver(display, ScreenSaverReset);
+    ScreenNoLongerBlanked(display);
+  }
+  ResetBlankScreenTimer();
+}
 
 static void HandleSIGTERM(int signo) {
   KillAllSaverChildrenSigHandler(signo);  // Dirty, but quick.
@@ -176,13 +280,13 @@ enum WatchChildrenState {
 int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
                   enum WatchChildrenState state, const char *stdinbuf) {
   int want_auth = WantAuthChild(state == WATCH_CHILDREN_FORCE_AUTH);
+  int auth_running = 0;
 
   // Note: want_auth is true whenever we WANT to run authentication, or it is
   // already running. It may have recently terminated, which we will notice
   // later.
   if (want_auth) {
     // Actually start the auth child, or notice termination.
-    int auth_running;
     if (WatchAuthChild(auth_win, auth_executable,
                        state == WATCH_CHILDREN_FORCE_AUTH, stdinbuf,
                        &auth_running)) {
@@ -196,13 +300,23 @@ int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
     // auth window and poke the screensaver so that it can reset any timeouts.
     if (!auth_running) {
       XUnmapWindow(dpy, auth_win);
-      KillAllSaverChildrenSigHandler(SIGUSR1);
+      if (saver_reset_on_auth_close) {
+        KillAllSaverChildrenSigHandler(SIGUSR1);
+      }
     }
   }
 
   // Show the screen saver.
   WatchSaverChild(dpy, saver_win, 0, saver_executable,
                   state != WATCH_CHILDREN_SAVER_DISABLED);
+
+  if (auth_running) {
+    // While auth is running, we never blank.
+    UnblankScreen(dpy);
+  } else {
+    // If no auth is running, permit blanking as per timer.
+    MaybeBlankScreen(dpy);
+  }
 
   // Do not terminate the screen lock.
   return 0;
@@ -292,6 +406,10 @@ void LoadDefaults() {
       *GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
   force_grab = GetIntSetting("XSECURELOCK_FORCE_GRAB", 0);
   debug_window_info = GetIntSetting("XSECURELOCK_DEBUG_WINDOW_INFO", 0);
+  blank_timeout = GetIntSetting("XSECURELOCK_BLANK_TIMEOUT", 600);
+  blank_dpms_state = GetStringSetting("XSECURELOCK_BLANK_DPMS_STATE", "off");
+  saver_reset_on_auth_close =
+      GetIntSetting("XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE", 0);
 }
 
 /*! \brief Parse the command line arguments, or exit in case of failure.
@@ -887,7 +1005,7 @@ int main(int argc, char **argv) {
   // Need to flush the display so savers sure can access the window.
   XFlush(display);
 
-  enum WatchChildrenState requested_saver_state = WATCH_CHILDREN_NORMAL;
+  enum WatchChildrenState xss_requested_saver_state = WATCH_CHILDREN_NORMAL;
   int x11_fd = ConnectionNumber(display);
 
   if (x11_fd == xss_sleep_lock_fd && xss_sleep_lock_fd != -1) {
@@ -895,6 +1013,8 @@ int main(int argc, char **argv) {
         "inhibiting sleep now");
     xss_sleep_lock_fd = -1;
   }
+
+  InitBlankScreen();
 
   int background_window_mapped = 0, background_window_visible = 0,
       auth_window_mapped = 0, saver_window_mapped = 0,
@@ -909,6 +1029,12 @@ int main(int argc, char **argv) {
     tv.tv_usec = 1000000 / WATCH_CHILDREN_HZ;
     tv.tv_sec = 0;
     select(x11_fd + 1, &in_fds, 0, 0, &tv);
+
+    // Make sure to shut down the saver when blanked. Saves power.
+    enum WatchChildrenState requested_saver_state =
+        blanked ? WATCH_CHILDREN_SAVER_DISABLED : xss_requested_saver_state;
+
+    // Now check status of our children.
     if (WatchChildren(display, auth_window, saver_window, requested_saver_state,
                       NULL)) {
       goto done;
@@ -1040,12 +1166,14 @@ int main(int argc, char **argv) {
         case MotionNotify:
         case ButtonPress:
           // Mouse events launch the auth child.
+          ScreenNoLongerBlanked(display);
           if (WakeUp(display, auth_window, saver_window, NULL)) {
             goto done;
           }
           break;
         case KeyPress: {
           // Keyboard events launch the auth child.
+          ScreenNoLongerBlanked(display);
           Status status = XLookupNone;
           int have_key = 1;
           int do_wake_up = 1;
@@ -1142,6 +1270,9 @@ int main(int argc, char **argv) {
         } break;
         case KeyRelease:
         case ButtonRelease:
+          // Known to wake up screen blanking.
+          ScreenNoLongerBlanked(display);
+          break;
         case MappingNotify:
         case EnterNotify:
         case LeaveNotify:
@@ -1238,9 +1369,9 @@ int main(int argc, char **argv) {
           if (scrnsaver_event_base != 0 &&
               priv.ev.type == scrnsaver_event_base + ScreenSaverNotify) {
             if (((XScreenSaverNotifyEvent *)&priv.ev)->state == ScreenSaverOn) {
-              requested_saver_state = WATCH_CHILDREN_SAVER_DISABLED;
+              xss_requested_saver_state = WATCH_CHILDREN_SAVER_DISABLED;
             } else {
-              requested_saver_state = WATCH_CHILDREN_NORMAL;
+              xss_requested_saver_state = WATCH_CHILDREN_NORMAL;
             }
             break;
           }
@@ -1257,6 +1388,9 @@ int main(int argc, char **argv) {
   }
 
 done:
+  // Make sure no DPMS changes persist.
+  UnblankScreen(display);
+
   // Wipe the password.
   explicit_bzero(&priv, sizeof(priv));
 

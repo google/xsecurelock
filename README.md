@@ -36,7 +36,6 @@ distribution of choice, but will be similar:
 *   mpv (for the `saver_mpv` module)
 *   pamtester (for the `authproto_pamtester` module)
 *   pkg-config
-*   x11-xserver-utils (for the `saver_blank` module)
 *   x11proto-core-dev
 *   xscreensaver (for the `saver_xscreensaver` module)
 
@@ -232,7 +231,11 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_AUTH_WARNING_COLOR`: specifies the X11 color (see manpage of
     XParseColor) for the warning text of the auth dialog.
 *   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
-    X11 to fully blank the screen; a negative value disables X11 blanking.
+    X11 to fully blank the screen; a negative value disables X11 blanking. The
+    time is measured since the closing of the auth window or xsecurelock
+    startup. Setting this to 0 is rather nonsensical, as key-release events
+    (e.g. from the keystroke to launch xsecurelock or from pressing escape to
+    close the auth dialog) always wake up the screen.
 *   `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
     in when blanking (one of standby, suspend, off and on, where "on" means to
     not invoke DPMS at all).
@@ -312,6 +315,10 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_x11` hide the password
     length.
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
+*   `XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE`: specifies whether to reset the
+    saver module when the auth dialog closes. Resetting is done by sending
+    `SIGUSR1` to the saver, which may either just terminate, or handle this
+    specifically to do a cheaper reset.
 *   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
     login. Disabled by default.
 *   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
@@ -329,6 +336,8 @@ Options to XSecureLock can be passed by environment variables:
     locking) when above xss-lock command line is used. Should be at least as
     large as the period time set using "xset s". Also used by `wait_nonidle` to
     know when to assume dimming and waiting has finished and exit.
+*   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
+    installed for use by `saver_xscreensaver`.
 *   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
     installed for use by `saver_xscreensaver`.
 
@@ -417,11 +426,7 @@ location: `/usr/local/libexec/xsecurelock/helpers`).
 *   Exit condition: the saver child will receive SIGTERM when the user wishes to
     unlock the screen. It should exit promptly.
 *   Reset condition: the saver child will receive SIGUSR1 when the auth dialog
-    is closed. It then shall make sure to blank the screen after a timeout.
-    One way to implent this in shell script based implementations is to simply
-    ignore SIGUSR1 first, start the actual saver in a child processes, and to
-    finally exec `saver_blank`. Not implementing this will cause the entire
-    saver to reset on this condition.
+    is closed and `XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE`.
 
 # Security Design
 

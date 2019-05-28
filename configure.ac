@@ -86,8 +86,15 @@ AC_DEFUN([RP_CHECK_MODULE], [
                                        [AC_MSG_ERROR([--with-$4 was enabled, but test for $4 failed])])])])
           AM_CONDITIONAL([$3], [test x$have_$4 = xtrue])])
 
+# The DPMS extension is used to save power of the screen when turned off. Saves 
+# electric power.
+RP_SEARCH_LIBS(DPMSQueryExtension, Xext,
+               [HAVE_DPMS_EXT], [dpms], [check],
+               [Use the DPMS extension to save power])
+
 # The X11 Screen Saver extension is used to turn off the screen saver when X11
-# handles screen blanking (e.g. via timeout) anyway. Saves CPU power.
+# handles screen blanking (e.g. via timeout) anyway; not needed for when we
+# handle blanking explicitly (XSECURELOCK_BLANK_TIMEOUT). Saves CPU power.
 RP_SEARCH_LIBS(XScreenSaverQueryExtension, Xss,
                [HAVE_XSCREENSAVER_EXT], [xss], [check],
                [Use the X11 Screen Saver extension to save power])
