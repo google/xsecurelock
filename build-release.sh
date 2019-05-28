@@ -2,16 +2,18 @@
 
 set -ex
 
-new_version=$1
-
-# Need the new version.
-if [ -z "$new_version" ]; then
-	echo >&2 "Usage: $0 new-version-number"
+thisversion=$(grep '^define(\[thisversion\],\[' configure.ac | cut -d '[' -f 3 | cut -d ']' -f 1)
+nextversion=$(grep '^define(\[nextversion\],\[' configure.ac | cut -d '[' -f 3 | cut -d ']' -f 1)
+if [ x"$thisversion" = x"$nextversion" ]; then
+	echo >&2 "Please bump nextversion in configure.ac first!"
+	echo >&2 "Follow semantic versioning when doing so."
+	echo >&2 "Changes since last version:"
+	git log v"$thisversion".. >&2
 	exit 1
 fi
 
 # Inform caller about semver requirements.
-if git grep "REMOVE IN v${new_version%%.*}\\>" .; then
+if git grep "REMOVE IN v${nextversion%%.*}\\>" .; then
 	echo >&2 'Stuff to do before next semver!'
 	exit 1
 fi
@@ -23,18 +25,18 @@ if [ x"$(git rev-parse --abbrev-ref HEAD)" != x'master' ]; then
 fi
 
 # Bump the version.
-sed -i -e "
-	s,\\(AC_INIT(\\[xsecurelock\\]\\,\\[\\)[^]]*,\\1$new_version,
-" configure.ac
+sed -i -e '
+	s/^define(\[thisversion\],\[.*/define([thisversion],['"$nextversion"'])/
+' configure.ac
 
 # Generate a tarball.
-tardir=xsecurelock-$new_version
+tardir=xsecurelock-$nextversion
 tarball=$tardir.tar.gz
 rm -f "$tarball"
 ./config.status --recheck
 make clean
 rm -f version.c
-make dist GIT_VERSION=v$new_version
+make dist GIT_VERSION=v$nextversion
 ls -l "$tarball"
 
 # Extra stuff added by "make dist".
@@ -89,7 +91,7 @@ fi
 rm -rf "$tardir"
 tar xvf "$tarball"
 cd "$tardir"
-grep "$new_version" version.c
+grep "$nextversion" version.c
 ./configure --with-pam-service-name=common-auth
 make
 make install DESTDIR=$PWD/tmp
@@ -100,8 +102,8 @@ rm -rf "$tardir"
 # Confirm OK.
 set +x
 echo 'You may now tag the release:'
-echo "  git commit -a -m 'Bump version to $new_version.'"
-echo "  git tag -a v$new_version"
+echo "  git commit -a -m 'Bump version to $nextversion.'"
+echo "  git tag -a v$nextversion"
 echo "  git push origin HEAD"
-echo "  git push origin tag v$new_version"
+echo "  git push origin tag v$nextversion"
 echo "Then upload $tarball to github."
