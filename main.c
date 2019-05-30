@@ -969,6 +969,7 @@ int main(int argc, char **argv) {
   // This is done after grabbing so failure to grab does not blank the screen
   // yet, thereby "confirming" the screen lock.
   XMapRaised(display, background_window);
+  XClearWindow(display, background_window);  // Workaround for bad drivers.
   XMapRaised(display, saver_window);
   XRaiseWindow(display, auth_window);  // Don't map here.
 
@@ -1103,6 +1104,8 @@ int main(int argc, char **argv) {
             }
 #endif
             XMoveResizeWindow(display, background_window, 0, 0, w, h);
+            XClearWindow(display,
+                         background_window);  // Workaround for bad drivers.
             XMoveResizeWindow(display, saver_window, 0, 0, w, h);
             // Just in case - ConfigureNotify might also be sent for raising
           }
@@ -1112,6 +1115,8 @@ int main(int argc, char **argv) {
             MaybeRaiseWindow(display, auth_window, 0, 0);
           } else if (priv.ev.xconfigure.window == background_window) {
             MaybeRaiseWindow(display, background_window, 0, 0);
+            XClearWindow(display,
+                         background_window);  // Workaround for bad drivers.
 #ifdef HAVE_XCOMPOSITE_EXT
           } else if (obscurer_window != None &&
                      priv.ev.xconfigure.window == obscurer_window) {
@@ -1140,6 +1145,8 @@ int main(int argc, char **argv) {
               background_window_visible = 0;
               Log("Someone overlapped the background window. Undoing that");
               MaybeRaiseWindow(display, background_window, 0, 1);
+              XClearWindow(display,
+                           background_window);  // Workaround for bad drivers.
 #ifdef HAVE_XCOMPOSITE_EXT
             } else if (obscurer_window != None &&
                        priv.ev.xvisibility.window == obscurer_window) {
@@ -1318,6 +1325,8 @@ int main(int argc, char **argv) {
             Log("Someone unmapped the background window. Undoing that");
             background_window_mapped = 0;
             XMapRaised(display, background_window);
+            XClearWindow(display,
+                         background_window);  // Workaround for bad drivers.
 #ifdef HAVE_XCOMPOSITE_EXT
           } else if (obscurer_window != None &&
                      priv.ev.xmap.window == obscurer_window) {
