@@ -311,16 +311,47 @@ Options to XSecureLock can be passed by environment variables:
     that name in `/etc/pam.d`.
 *   `XSECURELOCK_PASSWORD_PROMPT`: Choose password prompt mode:
     *   `cursor`: shows a cursor that jumps around on each key press.
+
+            ________|_______________________
+            ___________________|____________
+
     *   `asterisks`: shows asterisks, like classic password prompts. This is less
         secure because password length is visible.
+
+            ***_
+            *******_
+
     *   `hidden`: completely hides the password, and there's no feedback for
         keypresses.
+
+        ```
+        ```
+
     *   `disco`: shows dancers, which dance around on each key press.
+
+            ┏(･o･)┛ ♪ ┗(･o･)┓ ♪ ┏(･o･)┛ ♪ ┗(･o･)┓ ♪ ┏(･o･)┛
+            ┗(･o･)┓ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛
+
     *   `emoji`: shows an emoji, changing which one on each key press.
         (Requires using an emoji-supporting font)
+
+            👍
+            🎶
+            💕
+
     *   `emoticon`: shows an ascii emoticon, changing which one on each key press.
+
+            :-O
+            d-X
+            X-\
+
     *   `kaomoji`: shows a kaomoji (Japanese emoticon), changing which one on each
         key press.
+
+            (͡°͜ʖ͡°)
+            (＾ｕ＾)
+            ¯\_(ツ)_/¯
+
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 *   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
     login. Disabled by default.
