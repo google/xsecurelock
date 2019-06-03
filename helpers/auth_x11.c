@@ -49,9 +49,10 @@ limitations under the License.
 #include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
 
 #if __STDC_VERSION__ >= 201112L
-#define ASSERT(state, message) _Static_assert(state, message)
+#define STATIC_ASSERT(state, message) _Static_assert(state, message)
 #else
-#define ASSERT(state, message)
+#define STATIC_ASSERT(state, message) \
+  extern int statically_asserted(int assertion[(state) ? 1 : -1]);
 #endif
 
 //! Number of args.
@@ -120,17 +121,17 @@ const char *disco_dancers[] = {
     "┗(･o･)┓",
 };
 
-// Emojis to display in emoji mode. The length of the array must be equal to
+// Emoji to display in emoji mode. The length of the array must be equal to
 // PARANOID_PASSWORD_LENGTH. List taken from the top items in
 // http://emojitracker.com/ The first item is always display in an empty prompt
 // (before typing in the password)
-const char *emojis[] = {
+const char *emoji[] = {
     "_____", "😂", "❤", "♻", "😍", "♥", "😭", "😊", "😒", "💕", "😘",
     "😩",     "☺", "👌", "😔", "😁", "😏", "😉", "👍", "⬅", "😅", "🙏",
     "😌",     "😢", "👀", "💔", "😎", "🎶", "💙", "💜", "🙌", "😳",
 };
-ASSERT(sizeof(emojis) / sizeof(*emojis) == PARANOID_PASSWORD_LENGTH,
-       "Emojis array size must be equal to PARANOID_PASSWORD_LENGTH");
+STATIC_ASSERT(sizeof(emoji) / sizeof(*emoji) == PARANOID_PASSWORD_LENGTH,
+              "Emoji array size must be equal to PARANOID_PASSWORD_LENGTH");
 
 // Emoticons to display in emoji mode. The length of the array must be equal to
 // PARANOID_PASSWORD_LENGTH. The first item is always display in an empty prompt
@@ -141,13 +142,14 @@ const char *emoticons[] = {
     "X-)",  "X-p", "X-O", "X-\\", "(-X",  "d-X", "O-X", "/-X",
     ":'-)", ":-S", ":-D", ":-#",  "(-':", "S-:", "D-:", "#-:",
 };
-ASSERT(sizeof(emoticons) / sizeof(*emoticons) == PARANOID_PASSWORD_LENGTH,
-       "Emoticons array size must be equal to PARANOID_PASSWORD_LENGTH");
+STATIC_ASSERT(sizeof(emoticons) / sizeof(*emoticons) ==
+                  PARANOID_PASSWORD_LENGTH,
+              "Emoticons array size must be equal to PARANOID_PASSWORD_LENGTH");
 
-// Kaomojis to display in kaomoji mode. The length of the array must be equal to
+// Kaomoji to display in kaomoji mode. The length of the array must be equal to
 // PARANOID_PASSWORD_LENGTH. The first item is always display in an empty prompt
 // (before typing in the password)
-const char *kaomojis[] = {
+const char *kaomoji[] = {
     "(͡°͜ʖ͡°)",     "(>_<)",       "O_ם",      "(^_-)",        "o_0",
     "o.O",       "0_o",         "O.o",      "(°o°)",        "^m^",
     "^_^",       "((d[-_-]b))", "┏(･o･)┛",  "┗(･o･)┓",      "（ﾟДﾟ)",
@@ -156,8 +158,8 @@ const char *kaomojis[] = {
     "(^0_0^)",   "(☞ﾟ∀ﾟ)☞",     "(-■_■)",   "(┛ಠ_ಠ)┛彡┻━┻", "┬─┬ノ(º_ºノ)",
     "(˘³˘)♥",    "❤(◍•ᴗ•◍)",
 };
-ASSERT(sizeof(kaomojis) / sizeof(*kaomojis) == PARANOID_PASSWORD_LENGTH,
-       "Kaomojis array size must be equal to PARANOID_PASSWORD_LENGTH");
+STATIC_ASSERT(sizeof(kaomoji) / sizeof(*kaomoji) == PARANOID_PASSWORD_LENGTH,
+              "Kaomoji array size must be equal to PARANOID_PASSWORD_LENGTH");
 
 //! If set, we can start a new login session.
 int have_switch_user_command;
@@ -1076,7 +1078,7 @@ int Prompt(const char *msg, char **response, int echo) {
         }
 
         case PASSWORD_PROMPT_EMOJI: {
-          ShowFromArray(emojis, priv.displaymarker, &priv.displaybuf,
+          ShowFromArray(emoji, priv.displaymarker, &priv.displaybuf,
                         &priv.displaylen);
           break;
         }
@@ -1088,7 +1090,7 @@ int Prompt(const char *msg, char **response, int echo) {
         }
 
         case PASSWORD_PROMPT_KAOMOJI: {
-          ShowFromArray(kaomojis, priv.displaymarker, &priv.displaybuf,
+          ShowFromArray(kaomoji, priv.displaymarker, &priv.displaybuf,
                         &priv.displaylen);
           break;
         }
