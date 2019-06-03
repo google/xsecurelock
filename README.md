@@ -313,43 +313,48 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with
     that name in `/etc/pam.d`.
 *   `XSECURELOCK_PASSWORD_PROMPT`: Choose password prompt mode:
-    *   `cursor`: shows a cursor that jumps around on each key press.
-
-            ________|_______________________
-            ___________________|____________
-
-    *   `asterisks`: shows asterisks, like classic password prompts. This is less
-        secure because password length is visible.
+    *   `asterisks`: shows asterisks, like classic password prompts. This is
+        the least secure option because password length is visible.
 
             ***_
             *******_
 
-    *   `hidden`: completely hides the password, and there's no feedback for
-        keypresses.
+    *   `cursor`: shows a cursor that jumps around on each key press. This is
+        the default.
 
-        ```
-        ```
+            ________|_______________________
+            ___________________|____________
 
-    *   `disco`: shows dancers, which dance around on each key press.
+    *   `disco`: shows dancers, which dance around on each key press. Requires a
+        font that can handle Unicode line drawing characters, and FontConfig.
 
             ┏(･o･)┛ ♪ ┗(･o･)┓ ♪ ┏(･o･)┛ ♪ ┗(･o･)┓ ♪ ┏(･o･)┛
             ┗(･o･)┓ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛
 
-    *   `emoji`: shows an emoji, changing which one on each key press.
-        (Requires using an emoji-supporting font)
+    *   `emoji`: shows an emoji, changing which one on each key press. Requires
+        a font that can handle emoji, and FontConfig.
 
             👍
             🎶
             💕
 
-    *   `emoticon`: shows an ascii emoticon, changing which one on each key press.
+    *   `emoticon`: shows an ascii emoticon, changing which one on each key
+        press.
 
             :-O
             d-X
             X-\
 
-    *   `kaomoji`: shows a kaomoji (Japanese emoticon), changing which one on each
-        key press.
+    *   `hidden`: completely hides the password, and there's no feedback for
+        keypresses. This would almost be most secure - however as it gives no
+        feedback to input whatsoever, you may not be able to notice accidentally
+        typing to another computer and sending your password to some chatroom.
+
+        ```
+        ```
+
+    *   `kaomoji`: shows a kaomoji (Japanese emoticon), changing which one on
+        each key press. Requires a Japanese font, and FontConfig.
 
             (͡°͜ʖ͡°)
             (＾ｕ＾)
