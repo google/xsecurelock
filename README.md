@@ -360,6 +360,18 @@ Options to XSecureLock can be passed by environment variables:
             (＾ｕ＾)
             ¯\_(ツ)_/¯
 
+    *   `time`: shows the current time since the epoch on each keystroke. This
+        may be the most secure mode, as it gives feedback to keystroke based
+        exclusively on public information, and does not carry over any state
+        between keystrokes whatsoever - not even some form of randomness.
+
+            1559655410.922329
+
+    *   `time_hex`: same as time, but in microseconds and hexadecimal. "Because
+        we can".
+
+            0x58a7f92bd7359
+
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
 *   `XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE`: specifies whether to reset the
     saver module when the auth dialog closes. Resetting is done by sending

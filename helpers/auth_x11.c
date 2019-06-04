@@ -25,6 +25,11 @@ limitations under the License.
 #include <time.h>        // for time, nanosleep, localtime_r
 #include <unistd.h>      // for close, _exit, dup2, pipe, dup
 
+#if __STDC_VERSION__ >= 199901L
+#include <inttypes.h>
+#include <stdint.h>
+#endif
+
 #ifdef HAVE_XFT_EXT
 #include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftColorFree
 #include <X11/extensions/Xrender.h>  // for XRenderColor, XGlyphInfo
@@ -97,8 +102,12 @@ enum PasswordPrompt {
   PASSWORD_PROMPT_EMOJI,
   PASSWORD_PROMPT_EMOTICON,
   PASSWORD_PROMPT_KAOMOJI,
+#if __STDC_VERSION__ >= 199901L
+  PASSWORD_PROMPT_TIME,
+  PASSWORD_PROMPT_TIME_HEX,
+#endif
 
-  PASSWORD_PROMPT_MAX_VALUE = PASSWORD_PROMPT_KAOMOJI,
+  PASSWORD_PROMPT_COUNT,
 };
 const char *PasswordPromptStrings[] = {
     /* PASSWORD_PROMPT_CURSOR= */ "cursor",
@@ -108,6 +117,10 @@ const char *PasswordPromptStrings[] = {
     /* PASSWORD_PROMPT_EMOJI= */ "emoji",
     /* PASSWORD_PROMPT_EMOTICON= */ "emoticon",
     /* PASSWORD_PROMPT_KAOMOJI= */ "kaomoji",
+#if __STDC_VERSION__ >= 199901L
+    /* PASSWORD_PROMPT_TIME= */ "time",
+    /* PASSWORD_PROMPT_TIME_HEX= */ "time_hex",
+#endif
 };
 
 enum PasswordPrompt password_prompt;
@@ -923,19 +936,34 @@ void WaitForKeypress(int seconds) {
 
 /*! \brief Bump the position for the password "cursor".
  *
+ * If pwlen > 0:
  * Precondition: pos in 0..PARANOID_PASSWORD_LENGTH-1.
  * Postcondition: pos' in 1..PARANOID_PASSWORD_LENGTH-1.
  * Postcondition: abs(pos' - pos) >= PARANOID_PASSWORD_MIN_CHANGE.
  * Postcondition: pos' is uniformly distributed among all permitted choices.
+ * If pwlen == 0:
+ * Postcondition: pos' is 0.
  *
- * \param pos The initial cursor position.
- * \return pos', the new position.
+ * \param pwlen The current password length.
+ * \param pos The initial cursor position; will get updated.
+ * \param last_keystroke The time of last keystroke; will get updated.
  */
-int BumpDisplayMarker(int pos) {
+void BumpDisplayMarker(size_t pwlen, size_t *pos,
+                       struct timeval *last_keystroke) {
+  gettimeofday(last_keystroke, NULL);
+
+  // Empty password: always put at 0.
+  if (pwlen == 0) {
+    *pos = 0;
+    return;
+  }
+
+  // Otherwise: put in the range and fulfill the constraints.
   for (;;) {
-    int new_pos = 1 + rand() % (PARANOID_PASSWORD_LENGTH - 1);
-    if (abs(new_pos - pos) >= PARANOID_PASSWORD_MIN_CHANGE) {
-      return new_pos;
+    size_t new_pos = 1 + rand() % (PARANOID_PASSWORD_LENGTH - 1);
+    if (abs((ssize_t)new_pos - (ssize_t)*pos) >= PARANOID_PASSWORD_MIN_CHANGE) {
+      *pos = new_pos;
+      break;
     }
   }
 }
@@ -985,6 +1013,9 @@ int Prompt(const char *msg, char **response, int echo) {
 
     // Character read buffer.
     char inputbuf;
+
+    // The time of last keystroke.
+    struct timeval last_keystroke;
 
     // Temporary position variables that might leak properties about the
     // password and thus are in the private struct too.
@@ -1095,6 +1126,29 @@ int Prompt(const char *msg, char **response, int echo) {
           break;
         }
 
+#if __STDC_VERSION__ >= 199901L
+        case PASSWORD_PROMPT_TIME:
+        case PASSWORD_PROMPT_TIME_HEX: {
+          if (priv.pwlen == 0) {
+            strncpy(priv.displaybuf, "----", DISPLAYBUF_SIZE - 1);
+            priv.displaybuf[DISPLAYBUF_SIZE - 1] = 0;
+          } else {
+            if (password_prompt == PASSWORD_PROMPT_TIME) {
+              snprintf(priv.displaybuf, DISPLAYBUF_SIZE,
+                       "%" PRId64 ".%06" PRId64,
+                       (int64_t)priv.last_keystroke.tv_sec,
+                       (int64_t)priv.last_keystroke.tv_usec);
+            } else {
+              snprintf(priv.displaybuf, DISPLAYBUF_SIZE, "%#" PRIx64,
+                       (int64_t)priv.last_keystroke.tv_sec * 1000000 +
+                           (int64_t)priv.last_keystroke.tv_usec);
+            }
+            priv.displaybuf[DISPLAYBUF_SIZE - 1] = 0;
+          }
+          break;
+        }
+#endif
+
         default:
         case PASSWORD_PROMPT_CURSOR: {
           priv.displaylen = PARANOID_PASSWORD_LENGTH;
@@ -1177,14 +1231,9 @@ int Prompt(const char *msg, char **response, int echo) {
             }
             priv.pos += priv.len;
           }
-          if (priv.prevpos != priv.pwlen) {
-            if (priv.prevpos == 0) {
-              priv.displaymarker = 0;
-            } else {
-              priv.displaymarker = BumpDisplayMarker(priv.displaymarker);
-            }
-          }
           priv.pwlen = priv.prevpos;
+          BumpDisplayMarker(priv.pwlen, &priv.displaymarker,
+                            &priv.last_keystroke);
           break;
         }
         case '\001':  // Ctrl-A.
@@ -1192,6 +1241,8 @@ int Prompt(const char *msg, char **response, int echo) {
           // requested. In most toolkits, Ctrl-A does not immediately erase but
           // almost every keypress other than arrow keys will erase afterwards.
           priv.pwlen = 0;
+          BumpDisplayMarker(priv.pwlen, &priv.displaymarker,
+                            &priv.last_keystroke);
           break;
         case '\023':  // Ctrl-S.
           SwitchKeyboardLayout();
@@ -1201,6 +1252,8 @@ int Prompt(const char *msg, char **response, int echo) {
           // i3lock: supports Ctrl-U but not Ctrl-A.
           // xscreensaver: supports Ctrl-U and Ctrl-X but not Ctrl-A.
           priv.pwlen = 0;
+          BumpDisplayMarker(priv.pwlen, &priv.displaymarker,
+                            &priv.last_keystroke);
           break;
         case 0:       // Shouldn't happen.
         case '\033':  // Escape.
@@ -1234,7 +1287,8 @@ int Prompt(const char *msg, char **response, int echo) {
           if (priv.pwlen < sizeof(priv.pwbuf)) {
             priv.pwbuf[priv.pwlen] = priv.inputbuf;
             ++priv.pwlen;
-            priv.displaymarker = BumpDisplayMarker(priv.displaymarker);
+            BumpDisplayMarker(priv.pwlen, &priv.displaymarker,
+                              &priv.last_keystroke);
           } else {
             Log("Password entered is too long - bailing out");
             done = 1;
@@ -1413,8 +1467,8 @@ enum PasswordPrompt GetPasswordPromptFromFlags(
       return PASSWORD_PROMPT_ASTERISKS;
     }
   } else {
-    for (enum PasswordPrompt prompt = 0; prompt <= PASSWORD_PROMPT_MAX_VALUE;
-         prompt++) {
+    for (enum PasswordPrompt prompt = 0; prompt < PASSWORD_PROMPT_COUNT;
+         ++prompt) {
       if (strcmp(password_prompt_flag, PasswordPromptStrings[prompt]) == 0) {
         return prompt;
       }
