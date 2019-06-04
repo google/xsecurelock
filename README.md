@@ -367,8 +367,8 @@ Options to XSecureLock can be passed by environment variables:
 
             1559655410.922329
 
-    *   `time_hex`: same as time, but in microseconds and hexadecimal. "Because
-        we can".
+    *   `time_hex`: same as `time`, but in microseconds and hexadecimal.
+        "Because we can".
 
             0x58a7f92bd7359
 
