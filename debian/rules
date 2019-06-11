@@ -1,6 +1,9 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
 
+# Use already defined upstream version as DEB_VERSION_UPSTREAM.
+include /usr/share/dpkg/pkg-info.mk
+
 export DH_VERBOSE=1
 
 export DEB_BUILD_MAINT_OPTIONS=+all
@@ -26,9 +29,16 @@ override_dh_auto_configure:
 		--with-xss \
 		--with-xsync
 
+override_dh_auto_build:
+	GIT_VERSION="$(DEB_VERSION_UPSTREAM)" dh_auto_build
+
 override_dh_autoreconf:
 	dh_autoreconf ./autogen.sh
 
 override_dh_auto_install:
 	dh_auto_install
 	find ./debian -type f -name "LICENSE" -delete
+
+override_dh_auto_clean:
+	dh_auto_clean
+	-rm version.c
