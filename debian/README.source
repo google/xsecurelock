@@ -1,11 +1,8 @@
-To build the package use git-buildpackage like so:
+To build the package use git-buildpackage from the repository root like so:
 
-  gbp buildpackage --git-debian-branch=debian -uc -us
-
-
-For dev builds before tagging a new release you can use this invocation:
-
-  gbp buildpackage --git-debian-branch=debian --git-upstream-tree=SLOPPY -uc -us
+  mkdir -p ../build-area
+  uscan --force-download --destdir ../build-area
+  gbp buildpackage --git-debian-branch=debian -uc -us --git-tarball-dir=../build-area --git-export-dir=../build-area
 
 
 Unfortunately the tests depend on quite a lot (they're full fledged integration
