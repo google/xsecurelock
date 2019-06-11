@@ -36,6 +36,7 @@ if which clang-tidy; then
     -extra-arg=-DGLOBAL_SAVER_EXECUTABLE=\"\" \
     -extra-arg=-DSAVER_EXECUTABLE=\"\" \
     -extra-arg=-DPAM_SERVICE_NAME=\"\" \
+    -extra-arg=-DHAVE_DPMS_EXT \
     -extra-arg=-DHAVE_XCOMPOSITE_EXT \
     -extra-arg=-DHAVE_XFIXES_EXT \
     -extra-arg=-DHAVE_XKB_EXT \

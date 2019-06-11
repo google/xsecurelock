@@ -14,15 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <X11/X.h>       // for Success, None, Atom, KBBellPitch
-#include <X11/Xlib.h>    // for DefaultScreen, Screen, XFree, True
-#include <locale.h>      // for NULL, setlocale, LC_CTYPE, LC_TIME
+#include <X11/X.h>     // for Success, None, Atom, KBBellPitch
+#include <X11/Xlib.h>  // for DefaultScreen, Screen, XFree, True
+#include <locale.h>    // for NULL, setlocale, LC_CTYPE, LC_TIME
+#include <stdio.h>
 #include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
 #include <string.h>      // for strlen, memcpy, memset, strcspn
 #include <sys/select.h>  // for timeval, select, fd_set, FD_SET
 #include <sys/time.h>    // for gettimeofday, timeval
 #include <time.h>        // for time, nanosleep, localtime_r
 #include <unistd.h>      // for close, _exit, dup2, pipe, dup
+
+#if __STDC_VERSION__ >= 199901L
+#include <inttypes.h>
+#include <stdint.h>
+#endif
 
 #ifdef HAVE_XFT_EXT
 #include <X11/Xft/Xft.h>             // for XftColorAllocValue, XftColorFree
@@ -47,6 +53,13 @@ limitations under the License.
 #include "authproto.h"            // for WritePacket, ReadPacket, PTYPE_R...
 #include "monitors.h"             // for Monitor, GetMonitors, IsMonitorC...
 
+#if __STDC_VERSION__ >= 201112L
+#define STATIC_ASSERT(state, message) _Static_assert(state, message)
+#else
+#define STATIC_ASSERT(state, message) \
+  extern int statically_asserted(int assertion[(state) ? 1 : -1]);
+#endif
+
 //! Number of args.
 int argc;
 
@@ -62,8 +75,11 @@ const char *authproto_executable;
 //! The maximum time to wait at a prompt for user input in seconds.
 int prompt_timeout;
 
+//! Number of dancers in the disco password display
+#define DISCO_PASSWORD_DANCERS 5
+
 //! Length of the "paranoid password display".
-#define PARANOID_PASSWORD_LENGTH 32
+#define PARANOID_PASSWORD_LENGTH (1 << DISCO_PASSWORD_DANCERS)
 
 //! Minimum distance the cursor shall move on keypress.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
@@ -77,8 +93,86 @@ int prompt_timeout;
 //! Extra line spacing.
 #define LINE_SPACING 4
 
-//! Whether password display should hide the length.
-int paranoid_password;
+//! Actual password prompt selected
+enum PasswordPrompt {
+  PASSWORD_PROMPT_CURSOR,
+  PASSWORD_PROMPT_ASTERISKS,
+  PASSWORD_PROMPT_HIDDEN,
+  PASSWORD_PROMPT_DISCO,
+  PASSWORD_PROMPT_EMOJI,
+  PASSWORD_PROMPT_EMOTICON,
+  PASSWORD_PROMPT_KAOMOJI,
+#if __STDC_VERSION__ >= 199901L
+  PASSWORD_PROMPT_TIME,
+  PASSWORD_PROMPT_TIME_HEX,
+#endif
+
+  PASSWORD_PROMPT_COUNT,
+};
+const char *PasswordPromptStrings[] = {
+    /* PASSWORD_PROMPT_CURSOR= */ "cursor",
+    /* PASSWORD_PROMPT_ASTERISKS= */ "asterisks",
+    /* PASSWORD_PROMPT_HIDDEN= */ "hidden",
+    /* PASSWORD_PROMPT_DISCO= */ "disco",
+    /* PASSWORD_PROMPT_EMOJI= */ "emoji",
+    /* PASSWORD_PROMPT_EMOTICON= */ "emoticon",
+    /* PASSWORD_PROMPT_KAOMOJI= */ "kaomoji",
+#if __STDC_VERSION__ >= 199901L
+    /* PASSWORD_PROMPT_TIME= */ "time",
+    /* PASSWORD_PROMPT_TIME_HEX= */ "time_hex",
+#endif
+};
+
+enum PasswordPrompt password_prompt;
+
+// A disco password is composed of multiple disco_dancers (each selected at
+// random from the array), joined by the disco_combiner
+const char *disco_combiner = " ♪ ";
+// Note: the disco_dancers MUST all have the same length
+const char *disco_dancers[] = {
+    "┏(･o･)┛",
+    "┗(･o･)┓",
+};
+
+// Emoji to display in emoji mode. The length of the array must be equal to
+// PARANOID_PASSWORD_LENGTH. List taken from the top items in
+// http://emojitracker.com/ The first item is always display in an empty prompt
+// (before typing in the password)
+const char *emoji[] = {
+    "_____", "😂", "❤", "♻", "😍", "♥", "😭", "😊", "😒", "💕", "😘",
+    "😩",     "☺", "👌", "😔", "😁", "😏", "😉", "👍", "⬅", "😅", "🙏",
+    "😌",     "😢", "👀", "💔", "😎", "🎶", "💙", "💜", "🙌", "😳",
+};
+STATIC_ASSERT(sizeof(emoji) / sizeof(*emoji) == PARANOID_PASSWORD_LENGTH,
+              "Emoji array size must be equal to PARANOID_PASSWORD_LENGTH");
+
+// Emoticons to display in emoji mode. The length of the array must be equal to
+// PARANOID_PASSWORD_LENGTH. The first item is always display in an empty prompt
+// (before typing in the password)
+const char *emoticons[] = {
+    ":-)",  ":-p", ":-O", ":-\\", "(-:",  "d-:", "O-:", "/-:",
+    "8-)",  "8-p", "8-O", "8-\\", "(-8",  "d-8", "O-8", "/-8",
+    "X-)",  "X-p", "X-O", "X-\\", "(-X",  "d-X", "O-X", "/-X",
+    ":'-)", ":-S", ":-D", ":-#",  "(-':", "S-:", "D-:", "#-:",
+};
+STATIC_ASSERT(sizeof(emoticons) / sizeof(*emoticons) ==
+                  PARANOID_PASSWORD_LENGTH,
+              "Emoticons array size must be equal to PARANOID_PASSWORD_LENGTH");
+
+// Kaomoji to display in kaomoji mode. The length of the array must be equal to
+// PARANOID_PASSWORD_LENGTH. The first item is always display in an empty prompt
+// (before typing in the password)
+const char *kaomoji[] = {
+    "(͡°͜ʖ͡°)",     "(>_<)",       "O_ם",      "(^_-)",        "o_0",
+    "o.O",       "0_o",         "O.o",      "(°o°)",        "^m^",
+    "^_^",       "((d[-_-]b))", "┏(･o･)┛",  "┗(･o･)┓",      "（ﾟДﾟ)",
+    "(°◇°)",     "\\o/",        "\\o|",     "|o/",          "|o|",
+    "(●＾o＾●)", "(＾ｖ＾)",    "(＾ｕ＾)", "(＾◇＾)",      "¯\\_(ツ)_/¯",
+    "(^0_0^)",   "(☞ﾟ∀ﾟ)☞",     "(-■_■)",   "(┛ಠ_ಠ)┛彡┻━┻", "┬─┬ノ(º_ºノ)",
+    "(˘³˘)♥",    "❤(◍•ᴗ•◍)",
+};
+STATIC_ASSERT(sizeof(kaomoji) / sizeof(*kaomoji) == PARANOID_PASSWORD_LENGTH,
+              "Kaomoji array size must be equal to PARANOID_PASSWORD_LENGTH");
 
 //! If set, we can start a new login session.
 int have_switch_user_command;
@@ -842,19 +936,34 @@ void WaitForKeypress(int seconds) {
 
 /*! \brief Bump the position for the password "cursor".
  *
+ * If pwlen > 0:
  * Precondition: pos in 0..PARANOID_PASSWORD_LENGTH-1.
  * Postcondition: pos' in 1..PARANOID_PASSWORD_LENGTH-1.
  * Postcondition: abs(pos' - pos) >= PARANOID_PASSWORD_MIN_CHANGE.
  * Postcondition: pos' is uniformly distributed among all permitted choices.
+ * If pwlen == 0:
+ * Postcondition: pos' is 0.
  *
- * \param pos The initial cursor position.
- * \return pos', the new position.
+ * \param pwlen The current password length.
+ * \param pos The initial cursor position; will get updated.
+ * \param last_keystroke The time of last keystroke; will get updated.
  */
-int BumpDisplayMarker(int pos) {
+void BumpDisplayMarker(size_t pwlen, size_t *pos,
+                       struct timeval *last_keystroke) {
+  gettimeofday(last_keystroke, NULL);
+
+  // Empty password: always put at 0.
+  if (pwlen == 0) {
+    *pos = 0;
+    return;
+  }
+
+  // Otherwise: put in the range and fulfill the constraints.
   for (;;) {
-    int new_pos = 1 + rand() % (PARANOID_PASSWORD_LENGTH - 1);
-    if (abs(new_pos - pos) >= PARANOID_PASSWORD_MIN_CHANGE) {
-      return new_pos;
+    size_t new_pos = 1 + rand() % (PARANOID_PASSWORD_LENGTH - 1);
+    if (abs((ssize_t)new_pos - (ssize_t)*pos) >= PARANOID_PASSWORD_MIN_CHANGE) {
+      *pos = new_pos;
+      break;
     }
   }
 }
@@ -864,6 +973,13 @@ int BumpDisplayMarker(int pos) {
 
 //! The size of the buffer to use for display, with space for cursor and NUL.
 #define DISPLAYBUF_SIZE (PWBUF_SIZE + 2)
+
+void ShowFromArray(const char **array, size_t displaymarker,
+                   char (*displaybuf)[], size_t *displaylen) {
+  const char *selection = array[displaymarker];
+  strcpy(*displaybuf, selection);
+  *displaylen = strlen(selection);
+}
 
 /*! \brief Ask a question to the user.
  *
@@ -897,6 +1013,9 @@ int Prompt(const char *msg, char **response, int echo) {
 
     // Character read buffer.
     char inputbuf;
+
+    // The time of last keystroke.
+    struct timeval last_keystroke;
 
     // Temporary position variables that might leak properties about the
     // password and thus are in the private struct too.
@@ -936,30 +1055,109 @@ int Prompt(const char *msg, char **response, int echo) {
       // priv.pwlen + 2 <= sizeof(priv.displaybuf).
       priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
       priv.displaybuf[priv.displaylen + 1] = '\0';
-    } else if (paranoid_password) {
-      priv.displaylen = PARANOID_PASSWORD_LENGTH;
-      memset(priv.displaybuf, '_', priv.displaylen);
-      priv.displaybuf[priv.displaymarker] = blink_state ? '|' : '-';
-      priv.displaybuf[priv.displaylen] = '\0';
     } else {
-      mblen(NULL, 0);
-      priv.pos = priv.displaylen = 0;
-      while (priv.pos < priv.pwlen) {
-        ++priv.displaylen;
-        // Note: this won't read past priv.pwlen.
-        priv.len = mblen(priv.pwbuf + priv.pos, priv.pwlen - priv.pos);
-        if (priv.len <= 0) {
-          // This guarantees to "eat" one byte each step. Therefore,
-          // priv.displaylen <= priv.pwlen is ensured.
+      switch (password_prompt) {
+        case PASSWORD_PROMPT_ASTERISKS: {
+          mblen(NULL, 0);
+          priv.pos = priv.displaylen = 0;
+          while (priv.pos < priv.pwlen) {
+            ++priv.displaylen;
+            // Note: this won't read past priv.pwlen.
+            priv.len = mblen(priv.pwbuf + priv.pos, priv.pwlen - priv.pos);
+            if (priv.len <= 0) {
+              // This guarantees to "eat" one byte each step. Therefore,
+              // priv.displaylen <= priv.pwlen is ensured.
+              break;
+            }
+            priv.pos += priv.len;
+          }
+          memset(priv.displaybuf, '*', priv.displaylen);
+          // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
+          // priv.pwlen + 2 <= sizeof(priv.displaybuf).
+          priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
+          priv.displaybuf[priv.displaylen + 1] = '\0';
           break;
         }
-        priv.pos += priv.len;
+
+        case PASSWORD_PROMPT_HIDDEN: {
+          priv.displaylen = 0;
+          priv.displaybuf[0] = '\0';
+          break;
+        }
+
+        case PASSWORD_PROMPT_DISCO: {
+          size_t combiner_length = strlen(disco_combiner);
+          size_t dancer_length = strlen(disco_dancers[0]);
+          size_t stride = combiner_length + dancer_length;
+          priv.displaylen =
+              stride * DISCO_PASSWORD_DANCERS * strlen(disco_dancers[0]) +
+              strlen(disco_combiner);
+
+          for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS;
+               ++i, bit <<= 1) {
+            const char *dancer =
+                disco_dancers[priv.displaymarker & bit ? 1 : 0];
+            memcpy(priv.displaybuf + i * stride, disco_combiner,
+                   combiner_length);
+            memcpy(priv.displaybuf + i * stride + combiner_length, dancer,
+                   dancer_length);
+          }
+          memcpy(priv.displaybuf + DISCO_PASSWORD_DANCERS * stride,
+                 disco_combiner, combiner_length);
+          priv.displaybuf[priv.displaylen] = '\0';
+          break;
+        }
+
+        case PASSWORD_PROMPT_EMOJI: {
+          ShowFromArray(emoji, priv.displaymarker, &priv.displaybuf,
+                        &priv.displaylen);
+          break;
+        }
+
+        case PASSWORD_PROMPT_EMOTICON: {
+          ShowFromArray(emoticons, priv.displaymarker, &priv.displaybuf,
+                        &priv.displaylen);
+          break;
+        }
+
+        case PASSWORD_PROMPT_KAOMOJI: {
+          ShowFromArray(kaomoji, priv.displaymarker, &priv.displaybuf,
+                        &priv.displaylen);
+          break;
+        }
+
+#if __STDC_VERSION__ >= 199901L
+        case PASSWORD_PROMPT_TIME:
+        case PASSWORD_PROMPT_TIME_HEX: {
+          if (priv.pwlen == 0) {
+            strncpy(priv.displaybuf, "----", DISPLAYBUF_SIZE - 1);
+            priv.displaybuf[DISPLAYBUF_SIZE - 1] = 0;
+          } else {
+            if (password_prompt == PASSWORD_PROMPT_TIME) {
+              snprintf(priv.displaybuf, DISPLAYBUF_SIZE,
+                       "%" PRId64 ".%06" PRId64,
+                       (int64_t)priv.last_keystroke.tv_sec,
+                       (int64_t)priv.last_keystroke.tv_usec);
+            } else {
+              snprintf(priv.displaybuf, DISPLAYBUF_SIZE, "%#" PRIx64,
+                       (int64_t)priv.last_keystroke.tv_sec * 1000000 +
+                           (int64_t)priv.last_keystroke.tv_usec);
+            }
+            priv.displaybuf[DISPLAYBUF_SIZE - 1] = 0;
+          }
+          break;
+        }
+#endif
+
+        default:
+        case PASSWORD_PROMPT_CURSOR: {
+          priv.displaylen = PARANOID_PASSWORD_LENGTH;
+          memset(priv.displaybuf, '_', priv.displaylen);
+          priv.displaybuf[priv.displaymarker] = blink_state ? '|' : '-';
+          priv.displaybuf[priv.displaylen] = '\0';
+          break;
+        }
       }
-      memset(priv.displaybuf, '*', priv.displaylen);
-      // Note that priv.pwlen <= sizeof(priv.pwbuf) and thus
-      // priv.pwlen + 2 <= sizeof(priv.displaybuf).
-      priv.displaybuf[priv.displaylen] = blink_state ? ' ' : *cursor;
-      priv.displaybuf[priv.displaylen + 1] = '\0';
     }
     DisplayMessage(msg, priv.displaybuf, 0);
 
@@ -1033,14 +1231,9 @@ int Prompt(const char *msg, char **response, int echo) {
             }
             priv.pos += priv.len;
           }
-          if (priv.prevpos != priv.pwlen) {
-            if (priv.prevpos == 0) {
-              priv.displaymarker = 0;
-            } else {
-              priv.displaymarker = BumpDisplayMarker(priv.displaymarker);
-            }
-          }
           priv.pwlen = priv.prevpos;
+          BumpDisplayMarker(priv.pwlen, &priv.displaymarker,
+                            &priv.last_keystroke);
           break;
         }
         case '\001':  // Ctrl-A.
@@ -1048,6 +1241,8 @@ int Prompt(const char *msg, char **response, int echo) {
           // requested. In most toolkits, Ctrl-A does not immediately erase but
           // almost every keypress other than arrow keys will erase afterwards.
           priv.pwlen = 0;
+          BumpDisplayMarker(priv.pwlen, &priv.displaymarker,
+                            &priv.last_keystroke);
           break;
         case '\023':  // Ctrl-S.
           SwitchKeyboardLayout();
@@ -1057,6 +1252,8 @@ int Prompt(const char *msg, char **response, int echo) {
           // i3lock: supports Ctrl-U but not Ctrl-A.
           // xscreensaver: supports Ctrl-U and Ctrl-X but not Ctrl-A.
           priv.pwlen = 0;
+          BumpDisplayMarker(priv.pwlen, &priv.displaymarker,
+                            &priv.last_keystroke);
           break;
         case 0:       // Shouldn't happen.
         case '\033':  // Escape.
@@ -1090,7 +1287,8 @@ int Prompt(const char *msg, char **response, int echo) {
           if (priv.pwlen < sizeof(priv.pwbuf)) {
             priv.pwbuf[priv.pwlen] = priv.inputbuf;
             ++priv.pwlen;
-            priv.displaymarker = BumpDisplayMarker(priv.displaymarker);
+            BumpDisplayMarker(priv.pwlen, &priv.displaymarker,
+                              &priv.last_keystroke);
           } else {
             Log("Password entered is too long - bailing out");
             done = 1;
@@ -1260,6 +1458,27 @@ done:
   return status != 0;
 }
 
+enum PasswordPrompt GetPasswordPromptFromFlags(
+    int paranoid_password_flag, const char *password_prompt_flag) {
+  if (strcmp(password_prompt_flag, "") == 0) {
+    if (paranoid_password_flag) {
+      return PASSWORD_PROMPT_CURSOR;
+    } else {
+      return PASSWORD_PROMPT_ASTERISKS;
+    }
+  } else {
+    for (enum PasswordPrompt prompt = 0; prompt < PASSWORD_PROMPT_COUNT;
+         ++prompt) {
+      if (strcmp(password_prompt_flag, PasswordPromptStrings[prompt]) == 0) {
+        return prompt;
+      }
+    }
+
+    Log("Invalid XSECURELOCK_PASSWORD_PROMPT value; defaulting to cursor");
+    return PASSWORD_PROMPT_CURSOR;
+  }
+}
+
 /*! \brief The main program.
  *
  * Usage: XSCREENSAVER_WINDOW=window_id ./auth_x11; status=$?
@@ -1297,6 +1516,12 @@ int main(int argc_local, char **argv_local) {
                burnin_mitigation_max_offset;
   }
 
+  //! Deprecated flag for setting whether password display should hide the
+  //! length.
+  int paranoid_password_flag;
+  //! Updated flag for password display choice
+  const char *password_prompt_flag;
+
   // If requested, mitigate burn-in even more by moving the auth prompt while
   // displayed. I bet many will find this annoying though.
   burnin_mitigation_max_offset_change =
@@ -1305,13 +1530,18 @@ int main(int argc_local, char **argv_local) {
   prompt_timeout = GetIntSetting("XSECURELOCK_AUTH_TIMEOUT", 5 * 60);
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
-  paranoid_password = GetIntSetting("XSECURELOCK_PARANOID_PASSWORD", 1);
+  paranoid_password_flag = GetIntSetting(
+      "XSECURELOCK_" /* REMOVE IN v2 */ "PARANOID_PASSWORD", 1);
+  password_prompt_flag = GetStringSetting("XSECURELOCK_PASSWORD_PROMPT", "");
   show_datetime = GetIntSetting("XSECURELOCK_SHOW_DATETIME", 0);
   datetime_format = GetStringSetting("XSECURELOCK_DATETIME_FORMAT", "%c");
   have_switch_user_command =
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
   auth_sounds = GetIntSetting("XSECURELOCK_AUTH_SOUNDS", 0);
   single_auth_window = GetIntSetting("XSECURELOCK_SINGLE_AUTH_WINDOW", 0);
+
+  password_prompt =
+      GetPasswordPromptFromFlags(paranoid_password_flag, password_prompt_flag);
 
   if ((display = XOpenDisplay(NULL)) == NULL) {
     Log("Could not connect to $DISPLAY");

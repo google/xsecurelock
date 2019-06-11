@@ -36,7 +36,6 @@ distribution of choice, but will be similar:
 *   mpv (for the `saver_mpv` module)
 *   pamtester (for the `authproto_pamtester` module)
 *   pkg-config
-*   x11-xserver-utils (for the `saver_blank` module)
 *   x11proto-core-dev
 *   xscreensaver (for the `saver_xscreensaver` module)
 
@@ -232,7 +231,11 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_AUTH_WARNING_COLOR`: specifies the X11 color (see manpage of
     XParseColor) for the warning text of the auth dialog.
 *   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
-    X11 to fully blank the screen; a negative value disables X11 blanking.
+    X11 to fully blank the screen; a negative value disables X11 blanking. The
+    time is measured since the closing of the auth window or xsecurelock
+    startup. Setting this to 0 is rather nonsensical, as key-release events
+    (e.g. from the keystroke to launch xsecurelock or from pressing escape to
+    close the auth dialog) always wake up the screen.
 *   `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
     in when blanking (one of standby, suspend, off and on, where "on" means to
     not invoke DPMS at all).
@@ -309,9 +312,71 @@ Options to XSecureLock can be passed by environment variables:
     and fall back to XRandR 1.2. Not recommended.
 *   `XSECURELOCK_PAM_SERVICE`: pam service name. You should have a file with
     that name in `/etc/pam.d`.
-*   `XSECURELOCK_PARANOID_PASSWORD`: make `auth_x11` hide the password
-    length.
+*   `XSECURELOCK_PASSWORD_PROMPT`: Choose password prompt mode:
+    *   `asterisks`: shows asterisks, like classic password prompts. This is
+        the least secure option because password length is visible.
+
+            ***_
+            *******_
+
+    *   `cursor`: shows a cursor that jumps around on each key press. This is
+        the default.
+
+            ________|_______________________
+            ___________________|____________
+
+    *   `disco`: shows dancers, which dance around on each key press. Requires a
+        font that can handle Unicode line drawing characters, and FontConfig.
+
+            ┏(･o･)┛ ♪ ┗(･o･)┓ ♪ ┏(･o･)┛ ♪ ┗(･o･)┓ ♪ ┏(･o･)┛
+            ┗(･o･)┓ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛ ♪ ┏(･o･)┛
+
+    *   `emoji`: shows an emoji, changing which one on each key press. Requires
+        a font that can handle emoji, and FontConfig.
+
+            👍
+            🎶
+            💕
+
+    *   `emoticon`: shows an ascii emoticon, changing which one on each key
+        press.
+
+            :-O
+            d-X
+            X-\
+
+    *   `hidden`: completely hides the password, and there's no feedback for
+        keypresses. This would almost be most secure - however as it gives no
+        feedback to input whatsoever, you may not be able to notice accidentally
+        typing to another computer and sending your password to some chatroom.
+
+        ```
+        ```
+
+    *   `kaomoji`: shows a kaomoji (Japanese emoticon), changing which one on
+        each key press. Requires a Japanese font, and FontConfig.
+
+            (͡°͜ʖ͡°)
+            (＾ｕ＾)
+            ¯\_(ツ)_/¯
+
+    *   `time`: shows the current time since the epoch on each keystroke. This
+        may be the most secure mode, as it gives feedback to keystroke based
+        exclusively on public information, and does not carry over any state
+        between keystrokes whatsoever - not even some form of randomness.
+
+            1559655410.922329
+
+    *   `time_hex`: same as `time`, but in microseconds and hexadecimal.
+        "Because we can".
+
+            0x58a7f92bd7359
+
 *   `XSECURELOCK_SAVER`: specifies the desired screen saver module.
+*   `XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE`: specifies whether to reset the
+    saver module when the auth dialog closes. Resetting is done by sending
+    `SIGUSR1` to the saver, which may either just terminate, or handle this
+    specifically to do a cheaper reset.
 *   `XSECURELOCK_SHOW_DATETIME`: whether to show local date and time on the
     login. Disabled by default.
 *   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
@@ -329,6 +394,8 @@ Options to XSecureLock can be passed by environment variables:
     locking) when above xss-lock command line is used. Should be at least as
     large as the period time set using "xset s". Also used by `wait_nonidle` to
     know when to assume dimming and waiting has finished and exit.
+*   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
+    installed for use by `saver_xscreensaver`.
 *   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
     installed for use by `saver_xscreensaver`.
 
@@ -417,11 +484,7 @@ location: `/usr/local/libexec/xsecurelock/helpers`).
 *   Exit condition: the saver child will receive SIGTERM when the user wishes to
     unlock the screen. It should exit promptly.
 *   Reset condition: the saver child will receive SIGUSR1 when the auth dialog
-    is closed. It then shall make sure to blank the screen after a timeout.
-    One way to implent this in shell script based implementations is to simply
-    ignore SIGUSR1 first, start the actual saver in a child processes, and to
-    finally exec `saver_blank`. Not implementing this will cause the entire
-    saver to reset on this condition.
+    is closed and `XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE`.
 
 # Security Design
 

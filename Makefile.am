@@ -30,6 +30,9 @@ endif
 if PAM_CHECK_ACCOUNT_TYPE
 macros += -DPAM_CHECK_ACCOUNT_TYPE
 endif
+if HAVE_DPMS_EXT
+macros += -DHAVE_DPMS_EXT
+endif
 if HAVE_XSCREENSAVER_EXT
 macros += -DHAVE_XSCREENSAVER_EXT
 endif
