@@ -106,9 +106,9 @@ limitations under the License.
  */
 #define ALL_POINTER_EVENTS                                                   \
   (ButtonPressMask | ButtonReleaseMask | EnterWindowMask | LeaveWindowMask | \
-   PointerMotionMask | PointerMotionHintMask | Button1MotionMask |           \
-   Button2MotionMask | Button3MotionMask | Button4MotionMask |               \
-   Button5MotionMask | ButtonMotionMask)
+   PointerMotionMask | Button1MotionMask | Button2MotionMask |               \
+   Button3MotionMask | Button4MotionMask | Button5MotionMask |               \
+   ButtonMotionMask)
 
 //! Private (possibly containing information about the user's password) data.
 //  This data is locked to RAM using mlock() to avoid leakage to disk via swap.
