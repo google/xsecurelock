@@ -13,7 +13,7 @@
 # limitations under the License.
 
 define([thisversion],[1.4.0])
-define([nextversion],[1.4.1])
+define([nextversion],[1.5.0])
 AC_INIT([xsecurelock],thisversion,[rpolzer@google.com])
 AM_INIT_AUTOMAKE([-Wall subdir-objects foreign])
 AC_PROG_CC

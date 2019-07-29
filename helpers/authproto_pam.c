@@ -165,14 +165,14 @@ int Authenticate(struct pam_conv *conv, pam_handle_t **pam) {
     return status;
   }
 
-  char hostname[256];
-  if (!GetHostName(hostname, sizeof(hostname))) {
-    return 1;
-  }
-  status = pam_set_item(*pam, PAM_RHOST, hostname);
-  if (status != PAM_SUCCESS) {
-    Log("pam_set_item: %s", pam_strerror(*pam, status));
-    return status;
+  if (!GetIntSetting("XSECURELOCK_NO_PAM_RHOST", 0)) {
+    // This is a local login - by convention PAM_RHOST should be "localhost":
+    // http://www.linux-pam.org/Linux-PAM-html/adg-security-user-identity.html
+    status = pam_set_item(*pam, PAM_RHOST, "localhost");
+    if (status != PAM_SUCCESS) {
+      Log("pam_set_item: %s", pam_strerror(*pam, status));
+      return status;
+    }
   }
 
   status = pam_set_item(*pam, PAM_RUSER, username);
