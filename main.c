@@ -1368,6 +1368,15 @@ int main(int argc, char **argv) {
             }
           }
           break;
+        case ClientMessage: {
+          // Those cause spam below, so let's log them separately to get some
+          // details.
+          const char *message_type =
+              XGetAtomName(display, priv.ev.xclient.message_type);
+          Log("Received unexpected ClientMessage event %s",
+              message_type == NULL ? "(null)" : message_type);
+          break;
+        }
         default:
 #ifdef DEBUG_EVENTS
           Log("Event%d %lu", priv.ev.type, (unsigned long)priv.ev.xany.window);
