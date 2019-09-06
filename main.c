@@ -1407,12 +1407,19 @@ int main(int argc, char **argv) {
           }
           break;
         case ClientMessage: {
+          if (priv.ev.xclient.window == root_window) {
+            // ClientMessage on root window is used by the EWMH spec. No need to
+            // spam about those. As we want to watch the root window size,
+            // we must keep selecting StructureNotifyMask there.
+            break;
+          }
           // Those cause spam below, so let's log them separately to get some
           // details.
           const char *message_type =
               XGetAtomName(display, priv.ev.xclient.message_type);
-          Log("Received unexpected ClientMessage event %s",
-              message_type == NULL ? "(null)" : message_type);
+          Log("Received unexpected ClientMessage event %s on window %lu",
+              message_type == NULL ? "(null)" : message_type,
+              priv.ev.xclient.window);
           break;
         }
         default:
