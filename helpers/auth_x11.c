@@ -975,10 +975,11 @@ void BumpDisplayMarker(size_t pwlen, size_t *pos,
 //! The size of the buffer to use for display, with space for cursor and NUL.
 #define DISPLAYBUF_SIZE (PWBUF_SIZE + 2)
 
-void ShowFromArray(const char **array, size_t displaymarker,
-                   char (*displaybuf)[], size_t *displaylen) {
+void ShowFromArray(const char **array, size_t displaymarker, char *displaybuf,
+                   size_t displaybufsize, size_t *displaylen) {
   const char *selection = array[displaymarker];
-  strcpy(*displaybuf, selection);
+  strncpy(displaybuf, selection, displaybufsize);
+  displaybuf[displaybufsize - 1] = 0;
   *displaylen = strlen(selection);
 }
 
@@ -1097,7 +1098,7 @@ int Prompt(const char *msg, char **response, int echo) {
           for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS;
                ++i, bit <<= 1) {
             const char *dancer =
-                disco_dancers[priv.displaymarker & bit ? 1 : 0];
+                disco_dancers[(priv.displaymarker & bit) ? 1 : 0];
             memcpy(priv.displaybuf + i * stride, disco_combiner,
                    combiner_length);
             memcpy(priv.displaybuf + i * stride + combiner_length, dancer,
@@ -1110,20 +1111,20 @@ int Prompt(const char *msg, char **response, int echo) {
         }
 
         case PASSWORD_PROMPT_EMOJI: {
-          ShowFromArray(emoji, priv.displaymarker, &priv.displaybuf,
-                        &priv.displaylen);
+          ShowFromArray(emoji, priv.displaymarker, priv.displaybuf,
+                        sizeof(priv.displaybuf), &priv.displaylen);
           break;
         }
 
         case PASSWORD_PROMPT_EMOTICON: {
-          ShowFromArray(emoticons, priv.displaymarker, &priv.displaybuf,
-                        &priv.displaylen);
+          ShowFromArray(emoticons, priv.displaymarker, priv.displaybuf,
+                        sizeof(priv.displaybuf), &priv.displaylen);
           break;
         }
 
         case PASSWORD_PROMPT_KAOMOJI: {
-          ShowFromArray(kaomoji, priv.displaymarker, &priv.displaybuf,
-                        &priv.displaylen);
+          ShowFromArray(kaomoji, priv.displaymarker, priv.displaybuf,
+                        sizeof(priv.displaybuf), &priv.displaylen);
           break;
         }
 
@@ -1461,23 +1462,20 @@ done:
 
 enum PasswordPrompt GetPasswordPromptFromFlags(
     int paranoid_password_flag, const char *password_prompt_flag) {
-  if (strcmp(password_prompt_flag, "") == 0) {
-    if (paranoid_password_flag) {
-      return PASSWORD_PROMPT_CURSOR;
-    } else {
-      return PASSWORD_PROMPT_ASTERISKS;
-    }
-  } else {
-    for (enum PasswordPrompt prompt = 0; prompt < PASSWORD_PROMPT_COUNT;
-         ++prompt) {
-      if (strcmp(password_prompt_flag, PasswordPromptStrings[prompt]) == 0) {
-        return prompt;
-      }
-    }
-
-    Log("Invalid XSECURELOCK_PASSWORD_PROMPT value; defaulting to cursor");
-    return PASSWORD_PROMPT_CURSOR;
+  if (!*password_prompt_flag) {
+    return paranoid_password_flag ? PASSWORD_PROMPT_CURSOR
+                                  : PASSWORD_PROMPT_ASTERISKS;
   }
+
+  for (enum PasswordPrompt prompt = 0; prompt < PASSWORD_PROMPT_COUNT;
+       ++prompt) {
+    if (strcmp(password_prompt_flag, PasswordPromptStrings[prompt]) == 0) {
+      return prompt;
+    }
+  }
+
+  Log("Invalid XSECURELOCK_PASSWORD_PROMPT value; defaulting to cursor");
+  return PASSWORD_PROMPT_CURSOR;
 }
 
 /*! \brief The main program.
@@ -1621,10 +1619,10 @@ int main(int argc_local, char **argv_local) {
     xft_font = XftFontOpenName(display, DefaultScreen(display), "monospace");
     have_font = (xft_font != NULL);
 #endif
-    if (!have_font) {
-      core_font = XLoadQueryFont(display, "fixed");
-      have_font = (core_font != NULL);
-    }
+  }
+  if (!have_font) {
+    core_font = XLoadQueryFont(display, "fixed");
+    have_font = (core_font != NULL);
   }
   if (!have_font) {
     Log("Could not load a mind-bogglingly stupid font");

@@ -560,7 +560,6 @@ void MaybeRaiseWindow(Display *display, Window w, int silent, int force) {
   if (need_raise) {
     XRaiseWindow(display, w);
   }
-  return;
 }
 
 typedef struct {
