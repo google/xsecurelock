@@ -259,6 +259,14 @@ Options to XSecureLock can be passed by environment variables:
     by default.
 *   `XSECURELOCK_DATETIME_FORMAT`: the date format to show. Defaults to the
     locale settings.
+*   `XSECURELOCK_DEBUG_ALLOW_LOCKING_IF_INEFFECTIVE`: Normally we don't allow
+    locking sessions that are likely not any useful to lock, such as the X11
+    part of a Wayland session (one could still use Wayland applicatione when
+    locked) or VNC sessions (as it'd only lock the server side session while
+    users will likely think they locked the client, allowing for an easy
+    escape). These checks can be bypassed by setting this variable to 1. Not
+    recommended other than for debugging XSecureLock itself via such
+    connections.
 *   `XSECURELOCK_DEBUG_WINDOW_INFO`: When complaining about another window
     misbehaving, print not just the window ID but also some info about it. Uses
     the `xwininfo` and `xprop` tools.

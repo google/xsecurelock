@@ -666,6 +666,49 @@ void NotifyOfLock(int xss_sleep_lock_fd) {
   }
 }
 
+int CheckLockingEffectiveness() {
+  // When this variable is set, all checks in here are still evaluated but we
+  // try locking anyway.
+  int error_status = 0;
+  const char *error_string = "Will not lock";
+  if (GetIntSetting("XSECURELOCK_DEBUG_ALLOW_LOCKING_IF_INEFFECTIVE", 0)) {
+    error_status = 1;
+    error_string = "Locking anyway";
+  }
+
+  // Do not try "locking" a Wayland session. Although everything we do appears
+  // to work on XWayland, our grab will only affect X11 and not Wayland
+  // clients, and therefore the lock will not be effective. If you need to get
+  // around this check for testing, just unset the WAYLAND_DISPLAY environment
+  // variable before starting XSecureLock. But really, this won't be secure in
+  // any way...
+  if (*GetStringSetting("WAYLAND_DISPLAY", "")) {
+    Log("Wayland detected. This would only lock the X11 part of your session. "
+        "%s",
+        error_string);
+    return error_status;
+  }
+
+  // Inside a VNC session, we better don't lock, as users might think it locked
+  // their client when it actually only locked the remote.
+  if (*GetStringSetting("VNCDESKTOP", "")) {
+    Log("VNC detected. This would only lock your remote session. %s",
+        error_string);
+    return error_status;
+  }
+
+  // Inside a Chrome Remote Desktop session, we better don't lock, as users
+  // might think it locked their client when it actually only locked the remote.
+  if (*GetStringSetting("CHROME_REMOTE_DESKTOP_SESSION", "")) {
+    Log("Chrome Remote Desktop detected. This would only lock your remote "
+        "session. %s",
+        error_string);
+    return error_status;
+  }
+
+  return 1;
+}
+
 /*! \brief The main program.
  *
  * Usage: see Usage().
@@ -705,14 +748,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Do not try "locking" a Wayland session. Although everything we do appears
-  // to work on XWayland, our grab will only affect X11 and not Wayland
-  // clients, and therefore the lock will not be effective. If you need to get
-  // around this check for testing, just unset the WAYLAND_DISPLAY environment
-  // variable before starting XSecureLock. But really, this won't be secure in
-  // any way...
-  if (*GetStringSetting("WAYLAND_DISPLAY", "")) {
-    Log("Wayland detected. This is an X11 screen locker. Cannot lock");
+  // Check if we are in a lockable session.
+  if (!CheckLockingEffectiveness()) {
     return 1;
   }
 
