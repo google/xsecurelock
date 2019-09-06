@@ -34,13 +34,11 @@
  *****************************************************************************
  */
 
+#ifndef HAVE_EXPLICIT_BZERO
 #include <string.h>
 
-#ifndef HAVE_EXPLICIT_BZERO
-void
-explicit_bzero(void *s, size_t len)
-{
+void explicit_bzero(void *s, size_t len) {
   memset(s, '\0', len);
-  asm volatile ("":::"memory");
+  asm volatile("" ::: "memory");
 }
 #endif

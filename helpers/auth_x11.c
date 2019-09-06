@@ -961,7 +961,8 @@ void BumpDisplayMarker(size_t pwlen, size_t *pos,
   // Otherwise: put in the range and fulfill the constraints.
   for (;;) {
     size_t new_pos = 1 + rand() % (PARANOID_PASSWORD_LENGTH - 1);
-    if (abs((ssize_t)new_pos - (ssize_t)*pos) >= PARANOID_PASSWORD_MIN_CHANGE) {
+    if (labs((ssize_t)new_pos - (ssize_t)*pos) >=
+        PARANOID_PASSWORD_MIN_CHANGE) {
       *pos = new_pos;
       break;
     }

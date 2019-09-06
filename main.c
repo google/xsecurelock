@@ -39,7 +39,9 @@ limitations under the License.
 #include <unistd.h>          // for _exit, chdir, close, execvp
 
 #ifdef HAVE_DPMS_EXT
+#include <X11/Xmd.h>  // for BOOL, CARD16
 #include <X11/extensions/dpms.h>
+#include <X11/extensions/dpmsconst.h>  // for DPMSModeOff, DPMSModeStandby
 #endif
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
