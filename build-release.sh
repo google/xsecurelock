@@ -33,7 +33,8 @@ sed -i -e '
 tardir=xsecurelock-$nextversion
 tarball=$tardir.tar.gz
 rm -f "$tarball"
-./config.status --recheck
+sh autogen.sh
+./config.status --recheck || ./configure --with-pam-service-name=common-auth
 make clean
 rm -f version.c
 make dist GIT_VERSION=v$nextversion
