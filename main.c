@@ -1438,7 +1438,9 @@ int main(int argc, char **argv) {
           // anyway, turn off the saver child.
           if (scrnsaver_event_base != 0 &&
               priv.ev.type == scrnsaver_event_base + ScreenSaverNotify) {
-            if (((XScreenSaverNotifyEvent *)&priv.ev)->state == ScreenSaverOn) {
+            XScreenSaverNotifyEvent *xss_ev =
+                (XScreenSaverNotifyEvent *)&priv.ev;
+            if (xss_ev->state == ScreenSaverOn) {
               xss_requested_saver_state = WATCH_CHILDREN_SAVER_DISABLED;
             } else {
               xss_requested_saver_state = WATCH_CHILDREN_NORMAL;
