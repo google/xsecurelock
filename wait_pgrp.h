@@ -46,6 +46,16 @@ pid_t ForkWithoutSigHandlers(void);
  */
 void StartPgrp(void);
 
+/*! \brief Spawns a helper process.
+ *
+ * Works just like execv(), but if path is a relative path, it looks it up
+ * within HELPER_PATH.
+ *
+ * If it fails, it logs a message about what it tried to execute and how it
+ * failed.
+ */
+int ExecvHelper(const char *path, const char *const argv[]);
+
 /*! \brief Kills the given process group.
  *
  * \param pid The process group ID.

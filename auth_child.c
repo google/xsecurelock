@@ -134,12 +134,12 @@ int WatchAuthChild(Window w, const char *executable, int force_auth,
           }
           close(pc[0]);
         }
-        execl(executable,  // Path to binary.
-              executable,  // argv[0].
-              NULL);
-        LogErrno("execl");
-        sleep(2);  // Reduce log spam or other effects from failed execl.
-        _exit(EXIT_FAILURE);
+        {
+          const char *args[2] = {executable, NULL};
+          ExecvHelper(executable, args);
+          sleep(2);  // Reduce log spam or other effects from failed execv.
+          _exit(EXIT_FAILURE);
+        }
       } else {
         // Parent process after successful fork.
         close(pc[0]);

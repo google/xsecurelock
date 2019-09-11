@@ -734,10 +734,17 @@ int main(int argc, char **argv) {
     }
   }
 
-  // Change the current directory to HELPER_PATH so we don't need to process
-  // path names.
-  if (chdir(HELPER_PATH)) {
-    Log("Could not switch to directory %s", HELPER_PATH);
+  // Switch to the root directory to not hold on to any directory descriptors
+  // (just in case you started xsecurelock from a directory you want to unmount
+  // later).
+  if (chdir("/")) {
+    Log("Could not switch to the root directory");
+    return 1;
+  }
+
+  // Test if HELPER_PATH is accessible; if not, we will likely have a problem.
+  if (access(HELPER_PATH "/", X_OK)) {
+    Log("Could not access directory %s", HELPER_PATH);
     return 1;
   }
 

@@ -16,10 +16,12 @@ limitations under the License.
 
 #include "wait_pgrp.h"
 
-#include <errno.h>     // for errno, ECHILD, EINTR, ESRCH
-#include <signal.h>    // for kill, sigaddset, sigemptyset, sigprocmask,
-                       // sigsuspend, SIGCHLD, SIGTERM
-#include <stdlib.h>    // for EXIT_SUCCESS, WEXITSTATUS, WIFEXITED, WIFSIGNALED
+#include <errno.h>   // for errno, ECHILD, EINTR, ESRCH
+#include <signal.h>  // for kill, sigaddset, sigemptyset, sigprocmask,
+                     // sigsuspend, SIGCHLD, SIGTERM
+#include <stdio.h>
+#include <stdlib.h>  // for EXIT_SUCCESS, WEXITSTATUS, WIFEXITED, WIFSIGNALED
+#include <string.h>
 #include <sys/wait.h>  // for waitpid, WNOHANG
 #include <unistd.h>    // for pid_t
 
@@ -102,11 +104,38 @@ void StartPgrp(void) {
     if (sigaction(SIGUSR1, &sa, NULL) != 0) {
       LogErrno("sigaction(SIGUSR1)");
     }
-    execl("pgrp_placeholder", "pgrp_placeholder", NULL);
-    LogErrno("execl");
-    sleep(2);  // Reduce log spam or other effects from failed execl.
-    _exit(EXIT_FAILURE);
+    {
+      const char *args[2] = {"prgp_placeholder", NULL};
+      ExecvHelper("pgrp_placeholder", args);
+      sleep(2);  // Reduce log spam or other effects from failed execv.
+      _exit(EXIT_FAILURE);
+    }
   }
+}
+
+int ExecvHelper(const char *path, const char *const argv[]) {
+  char *path_allocated = NULL;
+  if (*path != '/') {
+    size_t len = sizeof(HELPER_PATH) + 1 + strlen(path);
+    path_allocated = malloc(len);
+    if (snprintf(path_allocated, len, "%s/%s", HELPER_PATH, path) !=
+        (int)len - 1) {
+      Log("Unreachable code: could not format path name %s/%s", HELPER_PATH,
+          path);
+      return -1;
+    }
+    path = path_allocated;
+  }
+  execv(path, (char *const *)argv);
+  // If we get here, we know it failed. We still log the error and free the
+  // allocated path if any.
+  int saved_errno = errno;
+  LogErrno("execv %s", path);
+  if (path_allocated) {
+    free(path_allocated);
+  }
+  errno = saved_errno;
+  return -1;
 }
 
 int KillPgrp(pid_t pid, int signo) {

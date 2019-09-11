@@ -1384,11 +1384,12 @@ int Authenticate() {
         close(requestfd[1]);
       }
     }
-
-    execl(authproto_executable, authproto_executable, NULL);
-    LogErrno("execl");
-    sleep(2);  // Reduce log spam or other effects from failed execl.
-    _exit(EXIT_FAILURE);
+    {
+      const char *args[2] = {authproto_executable, NULL};
+      ExecvHelper(authproto_executable, args);
+      sleep(2);  // Reduce log spam or other effects from failed execv.
+      _exit(EXIT_FAILURE);
+    }
   }
 
   // Otherwise, we're in the parent process.

@@ -66,13 +66,16 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
       // Child process.
       StartPgrp();
       ExportWindowID(w);
-      execl(executable,  // Path to binary.
-            executable,  // argv[0].
-            "-root",     // argv[1]; for XScreenSaver hacks, unused by our own.
-            NULL);
-      LogErrno("execl");
-      sleep(2);  // Reduce log spam or other effects from failed execl.
-      _exit(EXIT_FAILURE);
+
+      {
+        const char* args[3] = {
+            executable,
+            "-root",  // For XScreenSaver hacks, unused by our own.
+            NULL};
+        ExecvHelper(executable, args);
+        sleep(2);  // Reduce log spam or other effects from failed execv.
+        _exit(EXIT_FAILURE);
+      }
     } else {
       // Parent process after successful fork.
       saver_child_pid[index] = pid;
