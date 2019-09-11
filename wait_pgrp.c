@@ -114,26 +114,18 @@ void StartPgrp(void) {
 }
 
 int ExecvHelper(const char *path, const char *const argv[]) {
-  char *path_allocated = NULL;
-  if (*path != '/') {
-    size_t len = sizeof(HELPER_PATH) + 1 + strlen(path);
-    path_allocated = malloc(len);
-    if (snprintf(path_allocated, len, "%s/%s", HELPER_PATH, path) !=
-        (int)len - 1) {
-      Log("Unreachable code: could not format path name %s/%s", HELPER_PATH,
-          path);
-      return -1;
-    }
-    path = path_allocated;
+  // Helpers expect to always run inside HELPER_PATH. Also, path names may be
+  // relative to this directory.
+  if (chdir(HELPER_PATH)) {
+    LogErrno("chdir %s", HELPER_PATH);
+    return -1;
   }
+  // Now execute the program.
   execv(path, (char *const *)argv);
   // If we get here, we know it failed. We still log the error and free the
   // allocated path if any.
   int saved_errno = errno;
   LogErrno("execv %s", path);
-  if (path_allocated) {
-    free(path_allocated);
-  }
   errno = saved_errno;
   return -1;
 }
