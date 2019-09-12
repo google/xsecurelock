@@ -635,6 +635,12 @@ int AcquireGrabs(Display *display, Window root_window, Window *ignored_windows,
   }
   ClearUnmapAllWindowsState(&unmap_state);
   XUngrabServer(display);
+
+  // Always flush the display after this to ensure the server is only
+  // grabbed for as long as needed, and to make absolutely sure that
+  // remapping did happen.
+  XFlush(display);
+
   return ok;
 }
 
@@ -988,7 +994,7 @@ int main(int argc, char **argv) {
   // of the lock.
   if (XF86MiscSetGrabKeysState(display, False) != MiscExtGrabStateSuccess) {
     Log("Could not set grab keys state");
-    return 1;
+    return EXIT_FAILURE;
   }
 #endif
 
@@ -1007,7 +1013,7 @@ int main(int argc, char **argv) {
   }
   if (retries < 0) {
     Log("Failed to grab. Giving up.");
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // Map our windows.
@@ -1027,7 +1033,7 @@ int main(int argc, char **argv) {
 
   if (MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
     LogErrno("mlock");
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
