@@ -197,14 +197,14 @@ void MaybeBlankScreen(Display *display) {
   XForceScreenSaver(display, ScreenSaverActive);
   if (!strcmp(blank_dpms_state, "on")) {
     // Just X11 blanking.
-    return;
+    goto done;
   }
 #ifdef HAVE_DPMS_EXT
   // If we get here, we want to do DPMS blanking.
   int dummy;
   if (!DPMSQueryExtension(display, &dummy, &dummy)) {
     Log("DPMS is unavailable and XSECURELOCK_BLANK_DPMS_STATE not on");
-    return;
+    goto done;
   }
   CARD16 state;
   BOOL onoff;
@@ -226,12 +226,20 @@ void MaybeBlankScreen(Display *display) {
 #else
   Log("DPMS is not compiled in and XSECURELOCK_BLANK_DPMS_STATE not on");
 #endif
+done:
+  // Flush the output buffer so we turn off the display now and not a few ms
+  // later.
+  XFlush(display);
 }
 
 void ScreenNoLongerBlanked(Display *display) {
 #ifdef HAVE_DPMS_EXT
   if (must_disable_dpms) {
     DPMSDisable(display);
+    must_disable_dpms = 0;
+    // Flush the output buffer so we turn on the display now and not a
+    // few ms later. Makes our and X11's idle timer more consistent.
+    XFlush(display);
   }
 #endif
   blanked = 0;
