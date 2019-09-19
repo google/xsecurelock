@@ -159,7 +159,7 @@ int blanked = 0;
 
 #ifdef HAVE_DPMS_EXT
 //! Whether DPMS needs to be disabled when unblanking. Set when blanking.
-int must_disable_dpms;
+int must_disable_dpms = 0;
 #endif
 
 void ResetBlankScreenTimer(void) {
@@ -191,9 +191,6 @@ void MaybeBlankScreen(Display *display) {
   }
   // Blank timer expired - blank the screen.
   blanked = 1;
-#ifdef HAVE_DPMS_EXT
-  must_disable_dpms = 0;
-#endif
   XForceScreenSaver(display, ScreenSaverActive);
   if (!strcmp(blank_dpms_state, "on")) {
     // Just X11 blanking.
