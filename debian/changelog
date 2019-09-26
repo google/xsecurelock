@@ -1,3 +1,25 @@
+xsecurelock (1.5.1-1) unstable; urgency=medium
+
+  * Upstream version 1.5.1
+  * Bump Standards-Version from 4.1.4 to 4.3.0
+  * Changes from upstream version 1.5.1
+    * XSECURELOCK_FORCE_GRAB no longer sometimes fails to re-map the unmapped
+      windows in case locking fails despite the forcing. Previously, a missing
+      XSync call led to the re-mapping sometimes not taking effect.
+  * Changes from upstream version 1.5.0
+    * Always wake up from mouse motion events.
+    * Set PAM_RHOST to "localhost" as recommended by the Linux-PAM manual; add
+      a feature to disable setting this field entirely as a workaround for
+      pam_fprintd.
+    * Remove some stderr spam.
+    * Detect VNC and Chrome Remote Desktop servers and refuse to lock them, as
+      locking them would not make much sense (can be overridden).
+    * Allow the helpers directory to be recreated while xsecurelock is
+      running. Fixes issues like "cannot unlock after unattended package
+      upgrade".
+
+ -- Markus Teich <mteich@google.com>  Thu, 26 Sep 2019 13:58:15 +0200
+
 xsecurelock (1.4.0-1) unstable; urgency=medium
 
   * Initial upload (Closes: #909020)
