@@ -14,6 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdlib.h>  // for size_t
+
 // Declare it - we'll either use ours or whatever autoconf found.
 // Including <bsd/string.h> would maybe be nicer, but it doesn't seem to
 // actually define this symbol unless we set _GNU_SOURCE.

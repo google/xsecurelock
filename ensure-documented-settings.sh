@@ -32,6 +32,7 @@ XSECURELOCK_INSIDE_SAVER_MULTIPLEX
 
 # List of deprecated settings. These shall not be documented.
 deprecated_settings='
+XSECURELOCK_PARANOID_PASSWORD
 XSECURELOCK_WANT_FIRST_KEYPRESS
 '
 

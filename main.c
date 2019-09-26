@@ -39,7 +39,9 @@ limitations under the License.
 #include <unistd.h>          // for _exit, chdir, close, execvp
 
 #ifdef HAVE_DPMS_EXT
+#include <X11/Xmd.h>  // for BOOL, CARD16
 #include <X11/extensions/dpms.h>
+#include <X11/extensions/dpmsconst.h>  // for DPMSModeOff, DPMSModeStandby
 #endif
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
@@ -106,9 +108,9 @@ limitations under the License.
  */
 #define ALL_POINTER_EVENTS                                                   \
   (ButtonPressMask | ButtonReleaseMask | EnterWindowMask | LeaveWindowMask | \
-   PointerMotionMask | PointerMotionHintMask | Button1MotionMask |           \
-   Button2MotionMask | Button3MotionMask | Button4MotionMask |               \
-   Button5MotionMask | ButtonMotionMask)
+   PointerMotionMask | Button1MotionMask | Button2MotionMask |               \
+   Button3MotionMask | Button4MotionMask | Button5MotionMask |               \
+   ButtonMotionMask)
 
 //! Private (possibly containing information about the user's password) data.
 //  This data is locked to RAM using mlock() to avoid leakage to disk via swap.
@@ -558,7 +560,6 @@ void MaybeRaiseWindow(Display *display, Window w, int silent, int force) {
   if (need_raise) {
     XRaiseWindow(display, w);
   }
-  return;
 }
 
 typedef struct {
@@ -634,6 +635,12 @@ int AcquireGrabs(Display *display, Window root_window, Window *ignored_windows,
   }
   ClearUnmapAllWindowsState(&unmap_state);
   XUngrabServer(display);
+
+  // Always flush the display after this to ensure the server is only
+  // grabbed for as long as needed, and to make absolutely sure that
+  // remapping did happen.
+  XFlush(display);
+
   return ok;
 }
 
@@ -666,6 +673,49 @@ void NotifyOfLock(int xss_sleep_lock_fd) {
   }
 }
 
+int CheckLockingEffectiveness() {
+  // When this variable is set, all checks in here are still evaluated but we
+  // try locking anyway.
+  int error_status = 0;
+  const char *error_string = "Will not lock";
+  if (GetIntSetting("XSECURELOCK_DEBUG_ALLOW_LOCKING_IF_INEFFECTIVE", 0)) {
+    error_status = 1;
+    error_string = "Locking anyway";
+  }
+
+  // Do not try "locking" a Wayland session. Although everything we do appears
+  // to work on XWayland, our grab will only affect X11 and not Wayland
+  // clients, and therefore the lock will not be effective. If you need to get
+  // around this check for testing, just unset the WAYLAND_DISPLAY environment
+  // variable before starting XSecureLock. But really, this won't be secure in
+  // any way...
+  if (*GetStringSetting("WAYLAND_DISPLAY", "")) {
+    Log("Wayland detected. This would only lock the X11 part of your session. "
+        "%s",
+        error_string);
+    return error_status;
+  }
+
+  // Inside a VNC session, we better don't lock, as users might think it locked
+  // their client when it actually only locked the remote.
+  if (*GetStringSetting("VNCDESKTOP", "")) {
+    Log("VNC detected. This would only lock your remote session. %s",
+        error_string);
+    return error_status;
+  }
+
+  // Inside a Chrome Remote Desktop session, we better don't lock, as users
+  // might think it locked their client when it actually only locked the remote.
+  if (*GetStringSetting("CHROME_REMOTE_DESKTOP_SESSION", "")) {
+    Log("Chrome Remote Desktop detected. This would only lock your remote "
+        "session. %s",
+        error_string);
+    return error_status;
+  }
+
+  return 1;
+}
+
 /*! \brief The main program.
  *
  * Usage: see Usage().
@@ -690,10 +740,17 @@ int main(int argc, char **argv) {
     }
   }
 
-  // Change the current directory to HELPER_PATH so we don't need to process
-  // path names.
-  if (chdir(HELPER_PATH)) {
-    Log("Could not switch to directory %s", HELPER_PATH);
+  // Switch to the root directory to not hold on to any directory descriptors
+  // (just in case you started xsecurelock from a directory you want to unmount
+  // later).
+  if (chdir("/")) {
+    Log("Could not switch to the root directory");
+    return 1;
+  }
+
+  // Test if HELPER_PATH is accessible; if not, we will likely have a problem.
+  if (access(HELPER_PATH "/", X_OK)) {
+    Log("Could not access directory %s", HELPER_PATH);
     return 1;
   }
 
@@ -705,14 +762,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Do not try "locking" a Wayland session. Although everything we do appears
-  // to work on XWayland, our grab will only affect X11 and not Wayland
-  // clients, and therefore the lock will not be effective. If you need to get
-  // around this check for testing, just unset the WAYLAND_DISPLAY environment
-  // variable before starting XSecureLock. But really, this won't be secure in
-  // any way...
-  if (*GetStringSetting("WAYLAND_DISPLAY", "")) {
-    Log("Wayland detected. This is an X11 screen locker. Cannot lock");
+  // Check if we are in a lockable session.
+  if (!CheckLockingEffectiveness()) {
     return 1;
   }
 
@@ -943,7 +994,7 @@ int main(int argc, char **argv) {
   // of the lock.
   if (XF86MiscSetGrabKeysState(display, False) != MiscExtGrabStateSuccess) {
     Log("Could not set grab keys state");
-    return 1;
+    return EXIT_FAILURE;
   }
 #endif
 
@@ -962,7 +1013,7 @@ int main(int argc, char **argv) {
   }
   if (retries < 0) {
     Log("Failed to grab. Giving up.");
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // Map our windows.
@@ -982,7 +1033,7 @@ int main(int argc, char **argv) {
 
   if (MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
     LogErrno("mlock");
-    return 1;
+    return EXIT_FAILURE;
   }
 
   // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
@@ -1368,6 +1419,22 @@ int main(int argc, char **argv) {
             }
           }
           break;
+        case ClientMessage: {
+          if (priv.ev.xclient.window == root_window) {
+            // ClientMessage on root window is used by the EWMH spec. No need to
+            // spam about those. As we want to watch the root window size,
+            // we must keep selecting StructureNotifyMask there.
+            break;
+          }
+          // Those cause spam below, so let's log them separately to get some
+          // details.
+          const char *message_type =
+              XGetAtomName(display, priv.ev.xclient.message_type);
+          Log("Received unexpected ClientMessage event %s on window %lu",
+              message_type == NULL ? "(null)" : message_type,
+              priv.ev.xclient.window);
+          break;
+        }
         default:
 #ifdef DEBUG_EVENTS
           Log("Event%d %lu", priv.ev.type, (unsigned long)priv.ev.xany.window);
@@ -1377,7 +1444,9 @@ int main(int argc, char **argv) {
           // anyway, turn off the saver child.
           if (scrnsaver_event_base != 0 &&
               priv.ev.type == scrnsaver_event_base + ScreenSaverNotify) {
-            if (((XScreenSaverNotifyEvent *)&priv.ev)->state == ScreenSaverOn) {
+            XScreenSaverNotifyEvent *xss_ev =
+                (XScreenSaverNotifyEvent *)&priv.ev;
+            if (xss_ev->state == ScreenSaverOn) {
               xss_requested_saver_state = WATCH_CHILDREN_SAVER_DISABLED;
             } else {
               xss_requested_saver_state = WATCH_CHILDREN_NORMAL;

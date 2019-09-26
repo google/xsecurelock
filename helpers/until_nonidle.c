@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
     // Child process.
     StartPgrp();
     execvp(argv[1], argv + 1);
-    LogErrno("execl");
+    LogErrno("execvp");
     _exit(EXIT_FAILURE);
   }
 
