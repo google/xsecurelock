@@ -16,7 +16,7 @@ Build-Depends: debhelper (>= 12),
   libxss-dev,
   pandoc,
   x11proto-core-dev
-Standards-Version: 4.1.4
+Standards-Version: 4.3.0
 Homepage: https://github.com/google/xsecurelock
 Vcs-Browser: https://github.com/google/xsecurelock/tree/debian
 Vcs-Git: https://github.com/google/xsecurelock.git -b debian
