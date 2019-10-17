@@ -343,11 +343,21 @@ int WakeUp(Display *dpy, Window auth_win, Window saver_win,
  *
  * This is used to prevent X11 errors from terminating XSecureLock.
  */
-int IgnoreErrorsHandler(Display *display, XErrorEvent *error) {
+int JustLogErrorsHandler(Display *display, XErrorEvent *error) {
   char buf[128];
   XGetErrorText(display, error->error_code, buf, sizeof(buf));
   buf[sizeof(buf) - 1] = 0;
   Log("Got non-fatal X11 error: %s", buf);
+  return 0;
+}
+
+/*! \brief An X11 error handler that does nothing at all.
+ *
+ * This is used for calls where we expect errors to happen.
+ */
+int SilentlyIgnoreErrorsHandler(Display *display, XErrorEvent *error) {
+  (void)display;
+  (void)error;
   return 0;
 }
 
@@ -1007,12 +1017,26 @@ int main(int argc, char **argv) {
   // holding some grabs while starting XSecureLock.
   int retries;
   int last_normal_attempt = force_grab ? 1 : 0;
+  Window previous_focused_window = None;
+  int previous_revert_focus_to = RevertToNone;
   for (retries = 10; retries >= 0; --retries) {
     if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
                      transparent_cursor,
                      /*silent=*/retries > last_normal_attempt,
                      /*force=*/retries < last_normal_attempt)) {
       break;
+    }
+    if (previous_focused_window == None) {
+      // When retrying for the first time, try to change the X11 input focus.
+      // This may close context menus and thereby allow us to grab.
+      XGetInputFocus(display, &previous_focused_window,
+                     &previous_revert_focus_to);
+      // We don't have any window mapped yet, but it should be a safe bet to set
+      // focus to the root window (most WMs allow for an easy way out from that
+      // predicament in case our restore logic fails).
+      XSetInputFocus(display, PointerRoot, RevertToPointerRoot, CurrentTime);
+      // Make this happen instantly.
+      XFlush(display);
     }
     nanosleep(&(const struct timespec){0, 100000000L}, NULL);
   }
@@ -1042,7 +1066,7 @@ int main(int argc, char **argv) {
   }
 
   // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
-  XSetErrorHandler(IgnoreErrorsHandler);
+  XSetErrorHandler(JustLogErrorsHandler);
 
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
@@ -1473,6 +1497,13 @@ int main(int argc, char **argv) {
 done:
   // Make sure no DPMS changes persist.
   UnblankScreen(display);
+
+  if (previous_focused_window != None) {
+    XSetErrorHandler(SilentlyIgnoreErrorsHandler);
+    XSetInputFocus(display, previous_focused_window, previous_revert_focus_to,
+                   CurrentTime);
+    XSetErrorHandler(JustLogErrorsHandler);
+  }
 
   // Wipe the password.
   explicit_bzero(&priv, sizeof(priv));
