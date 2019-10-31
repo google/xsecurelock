@@ -133,9 +133,15 @@ RP_CHECK_MODULE(libbsd, [libbsd],
 AC_CHECK_FUNCS([explicit_bzero])
 
 # Xft optionally provides nicer font rendering.
+RP_CHECK_MODULE(FONTCONFIG, [fontconfig],
+                [HAVE_FONTCONFIG], [fontconfig], [check],
+                [Use fontconfig])
+AS_IF([test x"$with_fontconfig" = xyes],
+      [check_if_fontconfig_else_no=check],
+      [check_if_fontconfig_else_no=no])
 RP_CHECK_MODULE(XFT, [xft],
-                [HAVE_XFT_EXT], [xft], [check],
-                [Use the Xft extension for nicer fonts (requires Xrender too)])
+                [HAVE_XFT_EXT], [xft], [$check_if_fontconfig_else_no],
+                [Use the Xft extension for nicer fonts (requires Xrender and fontconfig too)])
 
 # Querying the keyboard LEDs (and layout name) makes auth_x11 more user
 # friendly.

@@ -1479,6 +1479,31 @@ enum PasswordPrompt GetPasswordPromptFromFlags(
   return PASSWORD_PROMPT_CURSOR;
 }
 
+#ifdef HAVE_XFT_EXT
+XftFont *FixedXftFontOpenName(Display *display, int screen,
+                              const char *font_name) {
+  XftFont *xft_font = XftFontOpenName(display, screen, font_name);
+#ifdef HAVE_FONTCONFIG
+  // Workaround for Xft crashing the process when trying to render a colored
+  // font. See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=916349 and
+  // https://gitlab.freedesktop.org/xorg/lib/libxft/issues/6 among others. In
+  // the long run this should be ported to a different font rendering library
+  // than Xft.
+  FcBool iscol;
+  if (xft_font != NULL &&
+      FcPatternGetBool(xft_font->pattern, FC_COLOR, 0, &iscol) && iscol) {
+    Log("Colored font %s is not supported by Xft", font_name);
+    XftFontClose(display, xft_font);
+    return NULL;
+  }
+#else
+#warning "Xft enabled without fontconfig. May crash trying to use emoji fonts."
+  Log("Xft enabled without fontconfig. May crash trying to use emoji fonts.");
+#endif
+  return xft_font;
+}
+#endif
+
 /*! \brief The main program.
  *
  * Usage: XSCREENSAVER_WINDOW=window_id ./auth_x11; status=$?
@@ -1606,7 +1631,8 @@ int main(int argc_local, char **argv_local) {
     have_font = (core_font != NULL);
 #ifdef HAVE_XFT_EXT
     if (!have_font) {
-      xft_font = XftFontOpenName(display, DefaultScreen(display), font_name);
+      xft_font =
+          FixedXftFontOpenName(display, DefaultScreen(display), font_name);
       have_font = (xft_font != NULL);
     }
 #endif
@@ -1617,7 +1643,8 @@ int main(int argc_local, char **argv_local) {
           font_name);
     }
 #ifdef HAVE_XFT_EXT
-    xft_font = XftFontOpenName(display, DefaultScreen(display), "monospace");
+    xft_font =
+        FixedXftFontOpenName(display, DefaultScreen(display), "monospace");
     have_font = (xft_font != NULL);
 #endif
   }
