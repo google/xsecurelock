@@ -136,7 +136,7 @@ AC_CHECK_FUNCS([explicit_bzero])
 RP_CHECK_MODULE(FONTCONFIG, [fontconfig],
                 [HAVE_FONTCONFIG], [fontconfig], [check],
                 [Use fontconfig])
-AS_IF([test x"$with_fontconfig" = xyes],
+AS_IF([test x$have_fontconfig = xtrue],
       [check_if_fontconfig_else_no=check],
       [check_if_fontconfig_else_no=no])
 RP_CHECK_MODULE(XFT, [xft],
