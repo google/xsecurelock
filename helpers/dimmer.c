@@ -107,6 +107,7 @@ struct DitherEffect {
   struct DimEffect super;
   int pattern_power;
   int pattern_frames;
+  int max_fill_size;
 
   Pixmap pattern;
   XGCValues gc_values;
@@ -165,7 +166,25 @@ void DitherEffectDrawFrame(void *self, Display *display, Window dim_window,
 
   // Draw the pattern on the window.
   XChangeGC(display, dimmer->dim_gc, GCStipple, &dimmer->gc_values);
-  XFillRectangle(display, dim_window, dimmer->dim_gc, 0, 0, w, h);
+  // But do it in some sub-rectangles to be easier on the X server on large
+  // screens.
+  for (int y = 0; y < h; y += dimmer->max_fill_size) {
+    int hh = h - y;
+    if (hh > dimmer->max_fill_size) {
+      hh = dimmer->max_fill_size;
+    }
+    for (int x = 0; x < w; x += dimmer->max_fill_size) {
+      int ww = w - x;
+      if (ww > dimmer->max_fill_size) {
+        ww = dimmer->max_fill_size;
+      }
+      XFillRectangle(display, dim_window, dimmer->dim_gc, x, y, ww, hh);
+      // We must flush here, or Xlib will coaelesce the rectangles to a single
+      // call, still keeping processing time per request on the X server
+      // potentially high.
+      XFlush(display);
+    }
+  }
 }
 
 void DitherEffectInit(struct DitherEffect *dimmer, Display *unused_display) {
@@ -189,6 +208,14 @@ void DitherEffectInit(struct DitherEffect *dimmer, Display *unused_display) {
   // Generate the frame count and vtable.
   dimmer->pattern_frames = ceil(pow(1 << dimmer->pattern_power, 2) * dim_alpha);
   dimmer->super.frame_count = ceil(dim_time_ms * dim_fps / 1000.0);
+  // Limit the pattern fill size.
+  int max_fill_size = GetIntSetting("XSECURELOCK_DIM_MAX_FILL_SIZE", 2048);
+  int max_fill_patterns = max_fill_size >> dimmer->pattern_power;
+  if (max_fill_patterns == 0) {
+    max_fill_patterns = 1;
+  }
+  dimmer->max_fill_size = max_fill_patterns << dimmer->pattern_power;
+
   dimmer->super.PreCreateWindow = DitherEffectPreCreateWindow;
   dimmer->super.PostCreateWindow = DitherEffectPostCreateWindow;
   dimmer->super.DrawFrame = DitherEffectDrawFrame;
@@ -259,6 +286,8 @@ void OpacityEffectDrawFrame(void *self, Display *display, Window dim_window,
   long value = nextafter(0xffffffff, 0) * srgb_alpha;
   XChangeProperty(display, dim_window, dimmer->property_atom, XA_CARDINAL, 32,
                   PropModeReplace, (unsigned char *)&value, 1);
+  // Make it actually visible.
+  XFlush(display);
 }
 
 void OpacityEffectInit(struct OpacityEffect *dimmer, Display *display) {
@@ -350,8 +379,6 @@ int main(int argc, char **argv) {
   for (i = 0; i < dimmer->frame_count; ++i) {
     // Advance the dim pattern by one step.
     dimmer->DrawFrame(dimmer, display, dim_window, i, w, h);
-    // Draw it!
-    XFlush(display);
     // Sleep a while. Yes, even at the end now - we want the user to see this
     // after all.
     nanosleep(&sleep_ts, NULL);

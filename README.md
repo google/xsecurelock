@@ -274,6 +274,10 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_DIM_COLOR`: X11 color to fade the screen to.
 *   `XSECURELOCK_DIM_FPS`: Target framerate to attain during the dimming effect
     of `dimmer`. Ideally matches the display refresh rate.
+*   `XSECURELOCK_DIM_MAX_FILL_SIZE`: Maximum size (in width or height) to fill
+    at once using an XFillRectangle call. Low values may cause performance loss
+    or noticeable tearing during dimming; high values may cause crashes or hangs
+    with some graphics drivers or a temporarily unresponsive X server.
 *   `XSECURELOCK_DIM_OVERRIDE_COMPOSITOR_DETECTION`: When set to 1, always try
     to use transparency for dimming; when set to 0, always use a dither
     pattern. Default is to autodetect whether transparency will likely work.
