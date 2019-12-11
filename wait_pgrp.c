@@ -105,7 +105,7 @@ void StartPgrp(void) {
       LogErrno("sigaction(SIGUSR1)");
     }
     {
-      const char *args[2] = {"prgp_placeholder", NULL};
+      const char *args[2] = {"pgrp_placeholder", NULL};
       ExecvHelper("pgrp_placeholder", args);
       sleep(2);  // Reduce log spam or other effects from failed execv.
       _exit(EXIT_FAILURE);

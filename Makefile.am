@@ -33,6 +33,9 @@ endif
 if HAVE_DPMS_EXT
 macros += -DHAVE_DPMS_EXT
 endif
+if HAVE_FONTCONFIG
+macros += -DHAVE_FONTCONFIG
+endif
 if HAVE_XSCREENSAVER_EXT
 macros += -DHAVE_XSCREENSAVER_EXT
 endif
@@ -154,8 +157,8 @@ auth_x11_SOURCES = \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
 	xscreensaver_api.c xscreensaver_api.h
-auth_x11_CPPFLAGS = $(macros) $(XFT_CFLAGS) $(LIBBSD_CFLAGS)
-auth_x11_LDADD = $(XFT_LIBS) $(LIBBSD_LIBS)
+auth_x11_CPPFLAGS = $(macros) $(FONTCONFIG_CFLAGS) $(XFT_CFLAGS) $(LIBBSD_CFLAGS)
+auth_x11_LDADD = $(FONTCONFIG_LIBS) $(XFT_LIBS) $(LIBBSD_LIBS)
 
 if HAVE_PAM
 helpers_PROGRAMS += \
