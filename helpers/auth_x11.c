@@ -804,7 +804,7 @@ void DisplayMessage(const char *title, const char *str, int is_warning) {
   int tw_switch_layout = TextWidth(switch_layout, len_switch_layout);
 
   const char *switch_user = have_switch_user_command
-                                ? "Press Ctrl-Alt-o or Win-o to switch user"
+                                ? "Press Ctrl-Alt-O or Win-O to switch user"
                                 : "";
   int len_switch_user = strlen(switch_user);
   int tw_switch_user = TextWidth(switch_user, len_switch_user);

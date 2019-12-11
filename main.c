@@ -1301,7 +1301,8 @@ int main(int argc, char **argv) {
             // Map Ctrl-Backspace to Ctrl-U (clear entry line).
             priv.buf[0] = '\025';
             priv.buf[1] = 0;
-          } else if (have_switch_user_command && priv.keysym == XK_o &&
+          } else if (have_switch_user_command &&
+                     (priv.keysym == XK_o || priv.keysym == XK_0) &&
                      (((priv.ev.xkey.state & ControlMask) &&
                        (priv.ev.xkey.state & Mod1Mask)) ||
                       (priv.ev.xkey.state & Mod4Mask))) {
