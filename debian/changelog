@@ -1,3 +1,20 @@
+xsecurelock (1.6.0-1) unstable; urgency=medium
+
+  * Upstream version 1.6.0
+  * Changes from upstream version 1.6.0
+    * Make dimmer more nvidia driver friendly, fixing a crash on large
+      multi-monitor configurations by limiting the complexity of render
+      calls; controlled using XSECURELOCK_DIM_MAX_FILL_SIZE.
+    * Add a weaker force-grab method that merely steals input focus;
+      XSECURELOCK_FORCE_GRAB still controls the stronger method, but it
+      should trigger less often now.
+    * Fix crash with colored emoji fonts (still can't render emoji;
+      we're now simply rejecting fonts Xft cannot handle).
+    * Also run the switch user dialog on Ctrl-Alt-Zero as an alternative
+      to Ctrl-Alt-Oh; more user friendly as in some fonts, Ctrl-Alt-O
+      looks like both.
+    * XFlush when doing things affecting X11 idle timers.
+
 xsecurelock (1.5.1-1) unstable; urgency=medium
 
   * Upstream version 1.5.1
