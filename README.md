@@ -311,7 +311,7 @@ Options to XSecureLock can be passed by environment variables:
     played by `saver_mpv`. Defaults to 1.
 *   `XSECURELOCK_KEY_%s_COMMAND` where `%s` is the name of an X11 keysym (find
     using `xev`): a shell command to execute when the specified key is pressed.
-    Useful e.g. for media player control. Beware: be cautiuous about what you
+    Useful e.g. for media player control. Beware: be cautious about what you
     run with this, as it may yield attackers control over your computer.
 *   `XSECURELOCK_LIST_VIDEOS_COMMAND`: shell command to list all video files to
     potentially play by `saver_mpv` or `saver_mplayer`. Defaults to
