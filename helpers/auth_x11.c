@@ -1095,8 +1095,8 @@ int Prompt(const char *msg, char **response, int echo) {
               stride * DISCO_PASSWORD_DANCERS * strlen(disco_dancers[0]) +
               strlen(disco_combiner);
 
-          for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS;
-               ++i, bit <<= 1) {
+          size_t i, bit;
+          for (i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS; ++i, bit <<= 1) {
             const char *dancer =
                 disco_dancers[(priv.displaymarker & bit) ? 1 : 0];
             memcpy(priv.displaybuf + i * stride, disco_combiner,
@@ -1468,8 +1468,8 @@ enum PasswordPrompt GetPasswordPromptFromFlags(
                                   : PASSWORD_PROMPT_ASTERISKS;
   }
 
-  for (enum PasswordPrompt prompt = 0; prompt < PASSWORD_PROMPT_COUNT;
-       ++prompt) {
+  enum PasswordPrompt prompt;
+  for (prompt = 0; prompt < PASSWORD_PROMPT_COUNT; ++prompt) {
     if (strcmp(password_prompt_flag, PasswordPromptStrings[prompt]) == 0) {
       return prompt;
     }

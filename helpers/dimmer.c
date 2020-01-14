@@ -168,12 +168,13 @@ void DitherEffectDrawFrame(void *self, Display *display, Window dim_window,
   XChangeGC(display, dimmer->dim_gc, GCStipple, &dimmer->gc_values);
   // But do it in some sub-rectangles to be easier on the X server on large
   // screens.
-  for (int y = 0; y < h; y += dimmer->max_fill_size) {
+  int x, y;
+  for (y = 0; y < h; y += dimmer->max_fill_size) {
     int hh = h - y;
     if (hh > dimmer->max_fill_size) {
       hh = dimmer->max_fill_size;
     }
-    for (int x = 0; x < w; x += dimmer->max_fill_size) {
+    for (x = 0; x < w; x += dimmer->max_fill_size) {
       int ww = w - x;
       if (ww > dimmer->max_fill_size) {
         ww = dimmer->max_fill_size;
