@@ -45,6 +45,7 @@ limitations under the License.
 #endif
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
+#include "incompatible_compositor.xbm"  // for incompatible_compositor_bits
 #endif
 #ifdef HAVE_XSCREENSAVER_EXT
 #include <X11/extensions/saver.h>      // for ScreenSaverNotify, ScreenSave...
@@ -870,12 +871,16 @@ int main(int argc, char **argv) {
       // off themselves in response to a full-screen window, but nevertheless
       // this is kept opt-in for now until shown reliable.
       XSetWindowAttributes obscurerattrs = coverattrs;
-      obscurerattrs.background_pixel =
-          WhitePixel(display, DefaultScreen(display));
+      obscurerattrs.background_pixmap = XCreatePixmapFromBitmapData(
+          display, root_window, incompatible_compositor_bits,
+          incompatible_compositor_width, incompatible_compositor_height,
+          BlackPixel(display, DefaultScreen(display)),
+          WhitePixel(display, DefaultScreen(display)),
+          DefaultDepth(display, DefaultScreen(display)));
       obscurer_window = XCreateWindow(
           display, root_window, 1, 1, w - 2, h - 2, 0, CopyFromParent,
           InputOutput, CopyFromParent,
-          CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
+          CWBackPixmap | CWSaveUnder | CWOverrideRedirect | CWCursor,
           &obscurerattrs);
       SetWMProperties(display, obscurer_window, "xsecurelock", "obscurer", argc,
                       argv);

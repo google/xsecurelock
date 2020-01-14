@@ -596,7 +596,7 @@ This has the following known issues:
 *   There is an open issue with the NVidia graphics driver in conjunction with
     some compositors. Workarounds include switching to the `nouveau` graphics
     driver, using a compositor that uses the Composite Overlay Window (e.g.
-    `compton` with the flag `--paint-on-overlay`) or passing
+    `compton` with the flags `--backend glx --paint-on-overlay`) or passing
     `XSECURELOCK_NO_COMPOSITE=1` to XSecureLock (which however may make
     notifications appear on top of the screen lock).
 
@@ -608,6 +608,12 @@ This has the following known issues:
     past but no longer does. Workarounds include disabling its compositor with
     `gsettings set org.gnome.metacity compositing-manager false` or passing
     `XSECURELOCK_NO_COMPOSITE=1` to XSecureLock.
+
+*   In general, most compositor issues will become visible in form of a text
+    "INCOMPATIBLE COMPOSITOR, PLEASE FIX!" being displayed. A known good
+    compositor is `compton --backend glx --paint-on-overlay`. In worst case
+    you can turn off our workaround for transparent windows by setting
+    `XSECURELOCK_NO_COMPOSITE=1`.
 
 # License
 

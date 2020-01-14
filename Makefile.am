@@ -75,7 +75,8 @@ xsecurelock_SOURCES = \
 	version.c version.h \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
-	xscreensaver_api.c xscreensaver_api.h
+	xscreensaver_api.c xscreensaver_api.h \
+	incompatible_compositor.xbm
 nodist_xsecurelock_SOURCES = \
 	env_helpstr.inc
 xsecurelock_CPPFLAGS = $(macros) $(LIBBSD_CFLAGS)
