@@ -84,15 +84,14 @@ int Converse(int num_msg, const struct pam_message **msg,
 
   *resp = calloc(num_msg, sizeof(struct pam_response));
 
-  int i;
-  for (i = 0; i < num_msg; ++i) {
+  for (int i = 0; i < num_msg; ++i) {
     int status = ConverseOne(msg[i], &(*resp)[i]);
     if (status != PAM_SUCCESS) {
-      for (i = 0; i < num_msg; ++i) {
-        if ((*resp)[i].resp != NULL) {
-          explicit_bzero((*resp)[i].resp, strlen((*resp)[i].resp));
+      for (int j = 0; j < num_msg; ++j) {
+        if ((*resp)[j].resp != NULL) {
+          explicit_bzero((*resp)[j].resp, strlen((*resp)[j].resp));
         }
-        free((*resp)[i].resp);
+        free((*resp)[j].resp);
       }
       free(*resp);
       *resp = NULL;

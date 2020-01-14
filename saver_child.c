@@ -30,8 +30,7 @@ static pid_t saver_child_pid[MAX_SAVERS] = {0};
 void KillAllSaverChildrenSigHandler(int signo) {
   // This is a signal handler, so we're not going to make this too
   // complicated. Just kill 'em all.
-  int i;
-  for (i = 0; i < MAX_SAVERS; ++i) {
+  for (int i = 0; i < MAX_SAVERS; ++i) {
     if (saver_child_pid[i] != 0) {
       KillPgrp(saver_child_pid[i], signo);
     }

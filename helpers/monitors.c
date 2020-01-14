@@ -111,8 +111,7 @@ static void AddMonitor(Monitor* out_monitors, size_t* num_monitors,
     return;
   }
   // Skip overlapping "monitors" (typically in cloned display setups).
-  size_t i;
-  for (i = 0; i < *num_monitors; ++i) {
+  for (size_t i = 0; i < *num_monitors; ++i) {
     if (IntervalsOverlap(x, w, out_monitors[i].x, out_monitors[i].width) &&
         IntervalsOverlap(y, h, out_monitors[i].y, out_monitors[i].height)) {
 #ifdef DEBUG_EVENTS
@@ -139,8 +138,7 @@ static int GetMonitorsXRandR12(Display* dpy, Window window, int wx, int wy,
   if (screenres == NULL) {
     return 0;
   }
-  int i;
-  for (i = 0; i < screenres->noutput; ++i) {
+  for (int i = 0; i < screenres->noutput; ++i) {
     XRROutputInfo* output =
         XRRGetOutputInfo(dpy, screenres, screenres->outputs[i]);
     if (output == NULL) {
@@ -182,8 +180,7 @@ static int GetMonitorsXRandR15(Display* dpy, Window window, int wx, int wy,
   if (rrmonitors == NULL) {
     return 0;
   }
-  int i;
-  for (i = 0; i < num_rrmonitors; ++i) {
+  for (int i = 0; i < num_rrmonitors; ++i) {
     XRRMonitorInfo* info = &rrmonitors[i];
     int x = CLAMP(info->x, wx, wx + ww) - wx;
     int y = CLAMP(info->y, wy, wy + wh) - wy;
@@ -233,8 +230,7 @@ static void GetMonitorsGuess(const XWindowAttributes* xwa,
   size_t guessed_monitors = CLAMP((size_t)(xwa->width * 9 + xwa->height * 8) /
                                       (size_t)(xwa->height * 16),  //
                                   1, max_monitors);
-  size_t i;
-  for (i = 0; i < guessed_monitors; ++i) {
+  for (size_t i = 0; i < guessed_monitors; ++i) {
     int x = xwa->width * i / guessed_monitors;
     int y = 0;
     int w = (xwa->width * (i + 1) / guessed_monitors) -

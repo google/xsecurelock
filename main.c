@@ -441,8 +441,7 @@ void LoadDefaults() {
  * Possible errors will be printed on stderr.
  */
 void ParseArgumentsOrExit(int argc, char **argv) {
-  int i;
-  for (i = 1; i < argc; ++i) {
+  for (int i = 1; i < argc; ++i) {
     if (!strncmp(argv[i], "auth_", 5)) {
       Log("Setting auth child name from command line is DEPRECATED. Use "
           "the XSECURELOCK_AUTH environment variable instead");
@@ -983,8 +982,8 @@ int main(int argc, char **argv) {
         XIMPreeditNone | XIMStatusNothing,     // Status might be invisible.
         XIMPreeditNone | XIMStatusNone         // Standard handling.
     };
-    size_t i;
-    for (i = 0; i < sizeof(input_styles) / sizeof(input_styles[0]); ++i) {
+    for (size_t i = 0; i < sizeof(input_styles) / sizeof(input_styles[0]);
+         ++i) {
       // Note: we draw XIM stuff in auth_window so it's above the saver/auth
       // child. However, we receive events for the grab window.
       xic = XCreateIC(xim, XNInputStyle, input_styles[i], XNClientWindow,
@@ -1020,11 +1019,11 @@ int main(int argc, char **argv) {
 
   // Acquire all grabs we need. Retry in case the window manager is still
   // holding some grabs while starting XSecureLock.
-  int retries;
   int last_normal_attempt = force_grab ? 1 : 0;
   Window previous_focused_window = None;
   int previous_revert_focus_to = RevertToNone;
-  for (retries = 10; retries >= 0; --retries) {
+  int retries = 10;
+  for (; retries >= 0; --retries) {
     if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
                      transparent_cursor,
                      /*silent=*/retries > last_normal_attempt,

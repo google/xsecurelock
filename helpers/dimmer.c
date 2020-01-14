@@ -157,8 +157,7 @@ void DitherEffectDrawFrame(void *self, Display *display, Window dim_window,
   int start_pframe = frame * dimmer->pattern_frames / dimmer->super.frame_count;
   int end_pframe =
       (frame + 1) * dimmer->pattern_frames / dimmer->super.frame_count;
-  int pframe;
-  for (pframe = start_pframe; pframe < end_pframe; ++pframe) {
+  for (int pframe = start_pframe; pframe < end_pframe; ++pframe) {
     int x, y;
     Bayer(pframe, dimmer->pattern_power, &x, &y);
     XDrawPoint(display, dimmer->pattern, dimmer->pattern_gc, x, y);
@@ -168,13 +167,12 @@ void DitherEffectDrawFrame(void *self, Display *display, Window dim_window,
   XChangeGC(display, dimmer->dim_gc, GCStipple, &dimmer->gc_values);
   // But do it in some sub-rectangles to be easier on the X server on large
   // screens.
-  int x, y;
-  for (y = 0; y < h; y += dimmer->max_fill_size) {
+  for (int y = 0; y < h; y += dimmer->max_fill_size) {
     int hh = h - y;
     if (hh > dimmer->max_fill_size) {
       hh = dimmer->max_fill_size;
     }
-    for (x = 0; x < w; x += dimmer->max_fill_size) {
+    for (int x = 0; x < w; x += dimmer->max_fill_size) {
       int ww = w - x;
       if (ww > dimmer->max_fill_size) {
         ww = dimmer->max_fill_size;
@@ -376,8 +374,7 @@ int main(int argc, char **argv) {
   sleep_ts.tv_sec = sleep_time_ns / 1000000000;
   sleep_ts.tv_nsec = sleep_time_ns % 1000000000;
   XMapRaised(display, dim_window);
-  int i;
-  for (i = 0; i < dimmer->frame_count; ++i) {
+  for (int i = 0; i < dimmer->frame_count; ++i) {
     // Advance the dim pattern by one step.
     dimmer->DrawFrame(dimmer, display, dim_window, i, w, h);
     // Sleep a while. Yes, even at the end now - we want the user to see this

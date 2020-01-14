@@ -455,8 +455,7 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
     have_output = 1;
   }
 
-  int i;
-  for (i = 0; i < XkbNumIndicators; i++) {
+  for (int i = 0; i < XkbNumIndicators; i++) {
     if (!(istate & (1U << i))) {
       continue;
     }
@@ -495,8 +494,7 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
 }
 
 void DestroyPerMonitorWindows(size_t keep_windows) {
-  size_t i;
-  for (i = keep_windows; i < num_windows; ++i) {
+  for (size_t i = keep_windows; i < num_windows; ++i) {
 #ifdef HAVE_XFT_EXT
     XftDrawDestroy(xft_draws[i]);
 #endif
@@ -618,8 +616,7 @@ void UpdatePerMonitorWindows(int monitors_changed, int region_w, int region_h,
     unsigned int unused_mask;
     XQueryPointer(display, parent_window, &unused_root, &unused_child,
                   &unused_root_x, &unused_root_y, &x, &y, &unused_mask);
-    size_t i;
-    for (i = 0; i < num_monitors; ++i) {
+    for (size_t i = 0; i < num_monitors; ++i) {
       if (x >= monitors[i].x && x < monitors[i].x + monitors[i].width &&
           y >= monitors[i].y && y < monitors[i].y + monitors[i].height) {
         CreateOrUpdatePerMonitorWindow(0, &monitors[i], region_w, region_h,
@@ -641,8 +638,7 @@ void UpdatePerMonitorWindows(int monitors_changed, int region_w, int region_h,
   size_t new_num_windows = num_monitors;
 
   // Update or create everything.
-  size_t i;
-  for (i = 0; i < new_num_windows; ++i) {
+  for (size_t i = 0; i < new_num_windows; ++i) {
     CreateOrUpdatePerMonitorWindow(i, &monitors[i], region_w, region_h,
                                    x_offset, y_offset);
   }
@@ -875,8 +871,7 @@ void DisplayMessage(const char *title, const char *str, int is_warning) {
                           x_offset, y_offset);
   per_monitor_windows_dirty = 0;
 
-  size_t i;
-  for (i = 0; i < num_windows; ++i) {
+  for (size_t i = 0; i < num_windows; ++i) {
     int cx = region_w / 2;
     int cy = region_h / 2;
     int y = cy + to - box_h / 2;
@@ -1095,8 +1090,8 @@ int Prompt(const char *msg, char **response, int echo) {
               stride * DISCO_PASSWORD_DANCERS * strlen(disco_dancers[0]) +
               strlen(disco_combiner);
 
-          size_t i, bit;
-          for (i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS; ++i, bit <<= 1) {
+          for (size_t i = 0, bit = 1; i < DISCO_PASSWORD_DANCERS;
+               ++i, bit <<= 1) {
             const char *dancer =
                 disco_dancers[(priv.displaymarker & bit) ? 1 : 0];
             memcpy(priv.displaybuf + i * stride, disco_combiner,
@@ -1468,8 +1463,8 @@ enum PasswordPrompt GetPasswordPromptFromFlags(
                                   : PASSWORD_PROMPT_ASTERISKS;
   }
 
-  enum PasswordPrompt prompt;
-  for (prompt = 0; prompt < PASSWORD_PROMPT_COUNT; ++prompt) {
+  for (enum PasswordPrompt prompt = 0; prompt < PASSWORD_PROMPT_COUNT;
+       ++prompt) {
     if (strcmp(password_prompt_flag, PasswordPromptStrings[prompt]) == 0) {
       return prompt;
     }
