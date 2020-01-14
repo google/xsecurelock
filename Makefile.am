@@ -14,8 +14,6 @@
 
 CLEANFILES =
 
-AM_CFLAGS = -Wall -Wextra -D_POSIX_C_SOURCE=200112L -D_XOPEN_SOURCE=600
-
 macros = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
 	-DDOCS_PATH=\"$(docdir)\" \

@@ -17,6 +17,20 @@ define([nextversion],[1.6.0])
 AC_INIT([xsecurelock],thisversion,[rpolzer@google.com])
 AM_INIT_AUTOMAKE([-Wall subdir-objects foreign])
 AC_PROG_CC
+AC_PROG_CC_C99
+
+AC_DEFUN([RP_TRY_CC_FLAG], [
+	AC_MSG_CHECKING([whether the compiler supports $1])
+	saved_CFLAGS=$CFLAGS
+	CFLAGS="$CFLAGS $1"
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
+	                  [AC_MSG_RESULT([yes])],
+	                  [AC_MSG_RESULT([no])
+	                   CFLAGS_$saved_CFLAGS])])
+RP_TRY_CC_FLAG([-Wall])
+RP_TRY_CC_FLAG([-Wextra])
+AC_DEFINE([_POSIX_C_SOURCE], [200112L])
+AC_DEFINE([_XOPEN_SOURCE], [600])
 
 dnl We only detect libraries globally, but not all binaries need all of them.
 dnl So we use --as-needed to work around.
