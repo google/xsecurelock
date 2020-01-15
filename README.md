@@ -217,6 +217,8 @@ Options to XSecureLock can be passed by environment variables:
     module (the part that talks to the system).
 *   `XSECURELOCK_AUTH_BACKGROUND_COLOR`: specifies the X11 color (see manpage of
     XParseColor) for the background of the auth dialog.
+*   `XSECURELOCK_AUTH_CURSOR_BLINK`: if set, the cursor will blink in the auth
+    dialog. Enabled by default, can be set to 0 to disable.
 *   `XSECURELOCK_AUTH_SOUNDS`: specifies whether to play sounds during
     authentication to indicate status. Sounds are defined as follows:
     *   High-pitch ascending: prompt for user input.

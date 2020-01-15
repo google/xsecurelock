@@ -242,6 +242,9 @@ static int burnin_mitigation_max_offset_change = 0;
 //! Whether to play sounds during authentication.
 static int auth_sounds = 0;
 
+//! Whether to blink the cursor in the auth dialog.
+static int auth_cursor_blink = 1;
+
 //! Whether we only want a single auth window.
 static int single_auth_window = 0;
 
@@ -1164,7 +1167,9 @@ int Prompt(const char *msg, char **response, int echo) {
     }
 
     // Blink the cursor.
-    blink_state = !blink_state;
+    if (auth_cursor_blink) {
+      blink_state = !blink_state;
+    }
 
     struct timeval timeout;
     timeout.tv_sec = BLINK_INTERVAL / 1000000;
@@ -1559,6 +1564,7 @@ int main(int argc_local, char **argv_local) {
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
   auth_sounds = GetIntSetting("XSECURELOCK_AUTH_SOUNDS", 0);
   single_auth_window = GetIntSetting("XSECURELOCK_SINGLE_AUTH_WINDOW", 0);
+  auth_cursor_blink = GetIntSetting("XSECURELOCK_AUTH_CURSOR_BLINK", 1);
 
   password_prompt =
       GetPasswordPromptFromFlags(paranoid_password_flag, password_prompt_flag);
