@@ -1153,7 +1153,7 @@ int Prompt(const char *msg, char **response, int echo) {
         case PASSWORD_PROMPT_CURSOR: {
           priv.displaylen = PARANOID_PASSWORD_LENGTH;
           memset(priv.displaybuf, '_', priv.displaylen);
-          priv.displaybuf[priv.displaymarker] = blink_state ? '|' : '-';
+          priv.displaybuf[priv.displaymarker] = blink_state ? '-' : '|';
           priv.displaybuf[priv.displaylen] = '\0';
           break;
         }
