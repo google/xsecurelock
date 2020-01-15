@@ -77,7 +77,7 @@ int HaveCompositor(Display *display) {
   char buf[64];
   int buflen =
       snprintf(buf, sizeof(buf), "_NET_WM_CM_S%d", (int)DefaultScreen(display));
-  if (buflen <= 0 || buflen >= (size_t)sizeof(buf)) {
+  if (buflen <= 0 || (size_t)buflen >= sizeof(buf)) {
     Log("Wow, pretty long screen number you got there");
     return 0;
   }
