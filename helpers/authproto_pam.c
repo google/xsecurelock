@@ -38,6 +38,7 @@ static int conv_error = 0;
  *   case of error).
  */
 int ConverseOne(const struct pam_message *msg, struct pam_response *resp) {
+  resp->resp = NULL;
   resp->resp_retcode = 0;  // Unused but should be set to zero.
   switch (msg->msg_style) {
     case PAM_PROMPT_ECHO_OFF: {

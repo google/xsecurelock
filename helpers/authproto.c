@@ -24,6 +24,7 @@ limitations under the License.
 
 #include "../logging.h"     // for LogErrno, Log
 #include "../mlock_page.h"  // for MLOCK_PAGE
+#include "../util.h"        // for explicit_bzero
 
 static size_t WriteChars(int fd, const char *buf, size_t n) {
   size_t total = 0;
@@ -100,6 +101,7 @@ static size_t ReadChars(int fd, char *buf, size_t n, int eof_permitted) {
 
 char ReadPacket(int fd, char **message, int eof_permitted) {
   char type;
+  *message = NULL;
   if (!ReadChars(fd, &type, 1, eof_permitted)) {
     return 0;
   }
@@ -172,10 +174,16 @@ have_len:
     LogErrno("mlock");
   }
   if (len != 0 && !ReadChars(fd, *message, len, 0)) {
+    explicit_bzero(*message, len + 1);
+    free(*message);
+    *message = NULL;
     return 0;
   }
   (*message)[len] = 0;
   if (!ReadChars(fd, &c, 1, 0)) {
+    explicit_bzero(*message, len + 1);
+    free(*message);
+    *message = NULL;
     return 0;
   }
   if (c != '\n') {

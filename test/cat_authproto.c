@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "../helpers/authproto.h"
 
 int main() {
@@ -10,6 +12,7 @@ int main() {
       return 0;
     }
     WritePacket(1, type, message);
+    free(message);
     eof_permitted = !eof_permitted;
   }
 }
