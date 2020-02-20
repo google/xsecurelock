@@ -45,6 +45,7 @@ limitations under the License.
 #endif
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
+
 #include "incompatible_compositor.xbm"  // for incompatible_compositor_bits
 #endif
 #ifdef HAVE_XSCREENSAVER_EXT
@@ -1090,7 +1091,19 @@ int main(int argc, char **argv) {
   // Need to flush the display so savers sure can access the window.
   XFlush(display);
 
+  // Figure out the initial Xss saver state. This gets updated by event.
   enum WatchChildrenState xss_requested_saver_state = WATCH_CHILDREN_NORMAL;
+#ifdef HAVE_XSCREENSAVER_EXT
+  if (scrnsaver_event_base != 0) {
+    XScreenSaverInfo *info = XScreenSaverAllocInfo();
+    XScreenSaverQueryInfo(display, root_window, info);
+    if (info->state == ScreenSaverOn) {
+      xss_requested_saver_state = WATCH_CHILDREN_SAVER_DISABLED;
+    }
+    XFree(info);
+  }
+#endif
+
   int x11_fd = ConnectionNumber(display);
 
   if (x11_fd == xss_sleep_lock_fd && xss_sleep_lock_fd != -1) {
