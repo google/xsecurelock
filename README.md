@@ -415,8 +415,6 @@ Options to XSecureLock can be passed by environment variables:
     know when to assume dimming and waiting has finished and exit.
 *   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
     installed for use by `saver_xscreensaver`.
-*   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
-    installed for use by `saver_xscreensaver`.
 
 <!-- ENV VARIABLES END -->
 
