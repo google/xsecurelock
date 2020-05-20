@@ -260,7 +260,7 @@ Options to XSecureLock can be passed by environment variables:
     screen from every side, and should otherwise be harmless, so it's enabled
     by default.
 *   `XSECURELOCK_DATETIME_FORMAT`: the date format to show. Defaults to the
-    locale settings.
+    locale settings. (see `man date` for possible formats)
 *   `XSECURELOCK_DEBUG_ALLOW_LOCKING_IF_INEFFECTIVE`: Normally we don't allow
     locking sessions that are likely not any useful to lock, such as the X11
     part of a Wayland session (one could still use Wayland applicatione when
