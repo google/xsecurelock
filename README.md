@@ -609,6 +609,11 @@ This has the following known issues:
     `gsettings set org.gnome.metacity compositing-manager false` or passing
     `XSECURELOCK_NO_COMPOSITE=1` to XSecureLock.
 
+*   Picom doesn't remove windows in the required order causing a window with
+    the text "INCOMPATIBLE COMPOSITOR, PLEASE FIX!" to be displayed. To fix this
+    you can disable composite obscurer with `XSECURELOCK_COMPOSITE_OBSCURER=0`
+    to stop the window from being drawn all together.
+
 *   In general, most compositor issues will become visible in form of a text
     "INCOMPATIBLE COMPOSITOR, PLEASE FIX!" being displayed. A known good
     compositor is `compton --backend glx --paint-on-overlay`. In worst case
