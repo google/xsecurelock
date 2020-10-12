@@ -198,7 +198,8 @@ noinst_PROGRAMS = cat_authproto nvidia_break_compositor get_compositor remap_all
 cat_authproto_SOURCES = \
 	logging.c logging.h \
 	helpers/authproto.c helpers/authproto.h \
-	test/cat_authproto.c
+	test/cat_authproto.c \
+	util.c util.h
 nvidia_break_compositor_SOURCES = \
 	test/nvidia_break_compositor.c
 nvidia_break_compositor_CPPFLAGS = $(macros)
