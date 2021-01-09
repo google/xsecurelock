@@ -164,6 +164,9 @@ int blanked = 0;
 int must_disable_dpms = 0;
 #endif
 
+//! If set by signal handler we should wake up and prompt for auth.
+static volatile sig_atomic_t signal_wakeup = 0;
+
 void ResetBlankScreenTimer(void) {
   if (blank_timeout < 0) {
     return;
@@ -257,6 +260,11 @@ static void HandleSIGTERM(int signo) {
   KillAuthChildSigHandler(signo);         // More dirty.
   explicit_bzero(&priv, sizeof(priv));
   raise(signo);
+}
+
+static void HandleSIGUSR2(int unused_signo) {
+  (void)unused_signo;
+  signal_wakeup = 1;
 }
 
 enum WatchChildrenState {
@@ -1080,6 +1088,10 @@ int main(int argc, char **argv) {
   if (sigaction(SIGPIPE, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGPIPE)");
   }
+  sa.sa_handler = HandleSIGUSR2; // For remote wakeups by system events.
+  if (sigaction(SIGUSR2, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGUSR2)");
+  }
   sa.sa_flags = SA_RESETHAND;     // It re-raises to suicide.
   sa.sa_handler = HandleSIGTERM;  // To kill children.
   if (sigaction(SIGTERM, &sa, NULL) != 0) {
@@ -1173,6 +1185,22 @@ int main(int argc, char **argv) {
       int status;
       WaitProc("notify", &notify_command_pid, 0, 0, &status);
       // Otherwise, we're still alive. Re-check next time.
+    }
+
+    if (signal_wakeup) {
+      // A signal was received to request a wakeup. Clear the flag
+      // and proceed to auth. Technically this check involves a race
+      // condition between check and set since we don't block signals,
+      // but this should not make a difference since screen wakeup is
+      // idempotent.
+      signal_wakeup = 0;
+#ifdef DEBUG_EVENTS
+      Log("WakeUp on signal");
+#endif
+      UnblankScreen(display);
+      if (WakeUp(display, auth_window, saver_window, NULL)) {
+        goto done;
+      }
     }
 
     // Handle all events.
