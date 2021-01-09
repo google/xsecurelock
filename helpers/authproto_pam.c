@@ -223,6 +223,13 @@ int Authenticate(struct pam_conv *conv, pam_handle_t **pam) {
   }
 #endif
 
+  // Have the authentication module refresh Kerberos tickets and such
+  // if applicable.
+  int sc_status = pam_setcred(*pam, PAM_REFRESH_CRED);
+  if (sc_status != PAM_SUCCESS) {
+    Log("pam_setcred: status=%d", sc_status);
+  }
+
   return status;
 }
 
