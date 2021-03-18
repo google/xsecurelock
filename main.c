@@ -24,6 +24,7 @@ limitations under the License.
 #include <X11/X.h>           // for Window, None, CopyFromParent
 #include <X11/Xatom.h>       // for XA_CARDINAL, XA_ATOM
 #include <X11/Xlib.h>        // for XEvent, XMapRaised, XSelectInput
+#include <X11/Xcms.h>        // for XcmsFailure
 #include <X11/Xutil.h>       // for XLookupString
 #include <X11/cursorfont.h>  // for XC_arrow
 #include <X11/keysym.h>      // for XK_BackSpace, XK_Tab, XK_o
@@ -818,12 +819,24 @@ int main(int argc, char **argv) {
   black.pixel = BlackPixel(display, DefaultScreen(display));
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
+
+  XColor xcolor_background;
+  XColor dummy;
+  int status = XAllocNamedColor(
+      display, DefaultColormap(display, DefaultScreen(display)),
+      GetStringSetting("XSECURELOCK_BACKGROUND_COLOR", "black"),
+      &xcolor_background, &dummy);
+  unsigned long background_pixel = black.pixel;
+  if (status != XcmsFailure) {
+    background_pixel = xcolor_background.pixel;
+  }
+
   Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
   Cursor default_cursor = XCreateFontCursor(display, XC_arrow);
   Cursor transparent_cursor =
       XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
   XSetWindowAttributes coverattrs = {0};
-  coverattrs.background_pixel = black.pixel;
+  coverattrs.background_pixel = background_pixel;
   coverattrs.save_under = 1;
   coverattrs.override_redirect = 1;
   coverattrs.cursor = transparent_cursor;
