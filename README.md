@@ -19,9 +19,11 @@ distribution of choice, but will be similar:
 
 *   apache2-utils (for the `auth_htpasswd` module)
 *   autotools-dev
+*   autoconf (for Ubuntu 18.04 and newer)
 *   binutils
 *   gcc
 *   libc6-dev
+*   libpam0g-dev (for Ubuntu 18.04 and newer)
 *   libpam-dev (for the `authproto_pam` module)
 *   libx11-dev
 *   libxcomposite-dev
