@@ -57,7 +57,15 @@ static void WatchSavers(void) {
 
 static void SpawnSavers(Window parent, int argc, char* const* argv) {
   XSetWindowAttributes attrs = {0};
-  attrs.background_pixel = BlackPixel(display, DefaultScreen(display));
+
+  XColor xcolor_background;
+  XColor dummy;
+  XAllocNamedColor(
+      display, DefaultColormap(display, DefaultScreen(display)),
+      GetStringSetting("XSECURELOCK_MULTIPLEX_BACKGROUND_COLOR", "black"),
+      &xcolor_background, &dummy);
+
+  attrs.background_pixel = xcolor_background.pixel;
   for (size_t i = 0; i < num_monitors; ++i) {
     windows[i] =
         XCreateWindow(display, parent, monitors[i].x, monitors[i].y,
