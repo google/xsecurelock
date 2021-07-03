@@ -122,6 +122,25 @@ IMPORTANT: Make sure your desktop environment does not launch any other locker,
 be it via autostart file or its own configuration, as multiple screen lockers
 may interfere with each other. You have been warned!
 
+## Authentication on resume from suspend/hibernate
+
+To have the authentication process start up without a keypress when
+the system exits suspend/hibernate, arrange for the system to send the
+`SIGUSR2` signal to the XSecureLock process.
+
+For example, you can copy the following script to the file
+`/usr/lib/systemd/system-sleep/xsecurelock`:
+
+```
+#!/bin/bash
+if [[ "$1" = "post" ]] ; then
+  pkill -x -USR2 xsecurelock
+fi
+exit 0
+```
+
+Don't forget to mark the script executable.
+
 # Automatic Locking
 
 To automatically lock the screen after some time of inactivity, use
