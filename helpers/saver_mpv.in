@@ -29,6 +29,7 @@ while true; do
     --no-audio \
     --image-display-duration="${XSECURELOCK_IMAGE_DURATION_SECONDS}" \
     --shuffle \
+    --loop-playlist=inf \
     --playlist=- &
   # Avoid spinning if mpv exits immediately, but don't wait to restart mpv in
   # the common case.
