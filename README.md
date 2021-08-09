@@ -411,6 +411,8 @@ Options to XSecureLock can be passed by environment variables:
     `Ctrl-Alt-O` are pressed (think "_other_ user"). Typical values could be
     `lxdm -c USER_SWITCH`, `dm-tool switch-to-greeter`, `gdmflexiserver` or
     `kdmctl reserve`, depending on your desktop environment.
+*   `XSECURELOCK_VIDEOS_FLAGS`: flags to append when invoking mpv/mplayer with
+    `saver_mpv` or `saver_mplayer`. Defaults to empty.
 *   `XSECURELOCK_WAIT_TIME_MS`: Milliseconds to wait after dimming (and before
     locking) when above xss-lock command line is used. Should be at least as
     large as the period time set using "xset s". Also used by `wait_nonidle` to
