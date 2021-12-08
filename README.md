@@ -417,6 +417,9 @@ Options to XSecureLock can be passed by environment variables:
     locking) when above xss-lock command line is used. Should be at least as
     large as the period time set using "xset s". Also used by `wait_nonidle` to
     know when to assume dimming and waiting has finished and exit.
+*   `XSECURELOCK_SAVER_DELAY_MS`: Milliseconds to wait after starting
+    children process and before mapping windows to let children be
+    ready to display and reduce the black flash.
 *   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
     installed for use by `saver_xscreensaver`.
 
