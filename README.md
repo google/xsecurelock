@@ -255,15 +255,6 @@ Options to XSecureLock can be passed by environment variables:
     XParseColor) for the warning text of the auth dialog.
 *   `XSECURELOCK_BACKGROUND_COLOR`: specifies the X11 color (see manpage
     of XParseColor) for the background of the main and saver windows.
-*   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
-    X11 to fully blank the screen; a negative value disables X11 blanking. The
-    time is measured since the closing of the auth window or xsecurelock
-    startup. Setting this to 0 is rather nonsensical, as key-release events
-    (e.g. from the keystroke to launch xsecurelock or from pressing escape to
-    close the auth dialog) always wake up the screen.
-*   `XSECURELOCK_BLANK_DPMS_STATE`: specifies which DPMS state to put the screen
-    in when blanking (one of standby, suspend, off and on, where "on" means to
-    not invoke DPMS at all).
 *   `XSECURELOCK_BURNIN_MITIGATION`: specifies the number of pixels the prompt
     of `auth_x11` may be moved at startup to mitigate possible burn-in
     effects due to the auth dialog being displayed all the time (e.g. when
