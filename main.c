@@ -147,6 +147,8 @@ int debug_window_info = 0;
 int saver_reset_on_auth_close = 0;
 //! Delay we should wait before starting mapping windows to let children run.
 int saver_delay_ms = 0;
+//! Whetever stopping saver when DPMS is running
+int saver_stop_on_dpms = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
@@ -351,6 +353,7 @@ void LoadDefaults() {
   saver_reset_on_auth_close =
       GetIntSetting("XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE", 0);
   saver_delay_ms = GetIntSetting("XSECURELOCK_SAVER_DELAY_MS", 0);
+  saver_stop_on_dpms = GetIntSetting("XSECURELOCK_SAVER_STOP_ON_DPMS", 1);
 }
 
 /*! \brief Parse the command line arguments, or exit in case of failure.
@@ -1077,7 +1080,8 @@ int main(int argc, char **argv) {
     select(x11_fd + 1, &in_fds, 0, 0, &tv);
 
     // Make sure to shut down the saver when blanked. Saves power.
-    enum WatchChildrenState requested_saver_state = IsBlankedByDPMS(display) ?
+    enum WatchChildrenState requested_saver_state =
+      (saver_stop_on_dpms && IsBlankedByDPMS(display)) ?
       WATCH_CHILDREN_SAVER_DISABLED : xss_requested_saver_state;
 
     // Now check status of our children.
