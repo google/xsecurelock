@@ -56,13 +56,11 @@ static void WatchSavers(void) {
 }
 
 static void SpawnSavers(Window parent, int argc, char* const* argv) {
-  XSetWindowAttributes attrs = {0};
-  attrs.background_pixel = BlackPixel(display, DefaultScreen(display));
   for (size_t i = 0; i < num_monitors; ++i) {
     windows[i] =
         XCreateWindow(display, parent, monitors[i].x, monitors[i].y,
                       monitors[i].width, monitors[i].height, 0, CopyFromParent,
-                      InputOutput, CopyFromParent, CWBackPixel, &attrs);
+                      InputOutput, CopyFromParent, 0, NULL);
     SetWMProperties(display, windows[i], "xsecurelock",
                     "saver_multiplex_screen", argc, argv);
     XMapRaised(display, windows[i]);
