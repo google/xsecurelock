@@ -502,7 +502,8 @@ The screen saver module is a separate executable, whose name must start with
 `saver_` and be installed together with the included `auth_` modules (default
 location: `/usr/local/libexec/xsecurelock/helpers`).
 
-*   Input: none.
+*   Input: receives the 0-based index of the screen saver (remember: one saver
+    is started per display by the multiplexer) via `$XSCREENSAVER_SAVER_INDEX`.
 *   Output: it may draw on or create windows below `$XSCREENSAVER_WINDOW`.
 *   Exit condition: the saver child will receive SIGTERM when the user wishes to
     unlock the screen. It should exit promptly.
