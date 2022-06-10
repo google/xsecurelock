@@ -31,7 +31,7 @@ static pid_t auth_child_pid = 0;
 //! If auth_child_pid != 0, the FD which connects to stdin of the auth child.
 static int auth_child_fd = 0;
 
-void KillAuthChildSigHandler(int signo) {
+void KillAuthChildSigHandlerSafe(int signo) {
   // This is a signal handler, so we're not going to make this too complicated.
   // Just kill it.
   if (auth_child_pid != 0) {

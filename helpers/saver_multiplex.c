@@ -32,12 +32,12 @@ limitations under the License.
 #include "monitors.h"             // for IsMonitorChangeEvent, Monitor, Sele...
 
 static void HandleSIGUSR1(int signo) {
-  KillAllSaverChildrenSigHandler(signo);  // Dirty, but quick.
+  KillAllSaverChildrenSigHandlerSafe(signo);  // Dirty, but quick.
 }
 
 static void HandleSIGTERM(int signo) {
-  KillAllSaverChildrenSigHandler(signo);  // Dirty, but quick.
-  raise(signo);                           // Destroys windows we created anyway.
+  KillAllSaverChildrenSigHandlerSafe(signo);  // Dirty, but quick.
+  raise(signo);                               // Destroys windows we created anyway.
 }
 
 #define MAX_MONITORS MAX_SAVERS

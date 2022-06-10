@@ -27,7 +27,7 @@ limitations under the License.
 //! The PIDs of currently running saver children, or 0 if not running.
 static pid_t saver_child_pid[MAX_SAVERS] = {0};
 
-void KillAllSaverChildrenSigHandler(int signo) {
+void KillAllSaverChildrenSigHandlerSafe(int signo) {
   // This is a signal handler, so we're not going to make this too
   // complicated. Just kill 'em all.
   for (int i = 0; i < MAX_SAVERS; ++i) {

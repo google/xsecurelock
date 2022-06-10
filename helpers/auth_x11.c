@@ -17,6 +17,7 @@ limitations under the License.
 #include <X11/X.h>     // for Success, None, Atom, KBBellPitch
 #include <X11/Xlib.h>  // for DefaultScreen, Screen, XFree, True
 #include <locale.h>    // for NULL, setlocale, LC_CTYPE, LC_TIME
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>      // for free, rand, mblen, size_t, EXIT_...
 #include <string.h>      // for strlen, memcpy, memset, strcspn
@@ -1021,7 +1022,7 @@ void BumpDisplayMarker(size_t pwlen, size_t *pos,
 void ShowFromArray(const char **array, size_t displaymarker, char *displaybuf,
                    size_t displaybufsize, size_t *displaylen) {
   const char *selection = array[displaymarker];
-  strncpy(displaybuf, selection, displaybufsize);
+  strncpy(displaybuf, selection, displaybufsize - 1);
   displaybuf[displaybufsize - 1] = 0;
   *displaylen = strlen(selection);
 }
@@ -1362,6 +1363,14 @@ int Prompt(const char *msg, char **response, int echo) {
   return status;
 }
 
+pid_t childpid = 0;
+
+void HandleSIGINT(int signo) {
+  if (childpid != 0) {
+    kill(childpid, SIGINT);
+  }
+}
+
 /*! \brief Perform authentication using a helper proxy.
  *
  * \return The authentication status (0 for OK, 1 otherwise).
@@ -1378,7 +1387,7 @@ int Authenticate() {
   }
 
   // Use authproto_pam.
-  pid_t childpid = ForkWithoutSigHandlers();
+  childpid = ForkWithoutSigHandlers();
   if (childpid == -1) {
     LogErrno("fork");
     return 1;

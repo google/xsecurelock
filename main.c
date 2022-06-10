@@ -61,7 +61,7 @@ limitations under the License.
 #include <X11/extensions/shapeconst.h>  // for ShapeBounding
 #endif
 
-#include "auth_child.h"     // for KillAuthChildSigHandler, Want...
+#include "auth_child.h"     // for KillAuthChildSigHandlerSafe, Want...
 #include "env_settings.h"   // for GetIntSetting, GetExecutableP...
 #include "logging.h"        // for Log, LogErrno
 #include "mlock_page.h"     // for MLOCK_PAGE
@@ -254,8 +254,8 @@ void UnblankScreen(Display *display) {
 }
 
 static void HandleSIGTERM(int signo) {
-  KillAllSaverChildrenSigHandler(signo);  // Dirty, but quick.
-  KillAuthChildSigHandler(signo);         // More dirty.
+  KillAllSaverChildrenSigHandlerSafe(signo);  // Dirty, but quick.
+  KillAuthChildSigHandlerSafe(signo);         // More dirty.
   explicit_bzero(&priv, sizeof(priv));
   raise(signo);
 }
@@ -311,7 +311,7 @@ int WatchChildren(Display *dpy, Window auth_win, Window saver_win,
     if (!auth_running) {
       XUnmapWindow(dpy, auth_win);
       if (saver_reset_on_auth_close) {
-        KillAllSaverChildrenSigHandler(SIGUSR1);
+        KillAllSaverChildrenSigHandlerSafe(SIGUSR1);
       }
     }
   }
@@ -1341,6 +1341,11 @@ int main(int argc, char **argv) {
             // And send a Ctrl-U (clear entry line).
             priv.buf[0] = '\025';
             priv.buf[1] = 0;
+          } else if (priv.keysym == XK_c && (priv.ev.xkey.state & ControlMask)) {
+            // Ctrl-C sends SIGINT to the auth helper. The auth helper normally
+            // blocks this signal, however pam_fprintd responds to it by jumping
+            // to the next PAM module instantly.
+            KillAuthChildSigHandlerSafe(SIGINT);
           } else if (have_key) {
             // Map all newline-like things to newlines.
             if (priv.len == 1 && priv.buf[0] == '\r') {

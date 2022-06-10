@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <locale.h>             // for NULL, setlocale, LC_CTYPE
 #include <security/pam_appl.h>  // for pam_end, pam_start, pam_acct_mgmt
+#include <signal.h>
 #include <stdlib.h>             // for free, calloc, exit, getenv
 #include <string.h>             // for strchr
 
@@ -241,6 +242,15 @@ int Authenticate(struct pam_conv *conv, pam_handle_t **pam) {
  */
 int main() {
   setlocale(LC_CTYPE, "");
+
+  // SIGINT is reserved to PAM modules such as pam_fprintd.
+  sigset_t mask;
+  sigemptyset(&mask);
+  sigaddset(&mask, SIGINT);
+  if (sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
+    LogErrno("sigprocmask(SIG_BLOCK, SIGINT)");
+    // This is not critically important - so proceed ahead without blocking.
+  }
 
   struct pam_conv conv;
   conv.conv = Converse;
