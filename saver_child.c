@@ -22,7 +22,7 @@ limitations under the License.
 
 #include "logging.h"           // for LogErrno, Log
 #include "wait_pgrp.h"         // for KillPgrp, WaitPgrp
-#include "xscreensaver_api.h"  // for ExportWindowID
+#include "xscreensaver_api.h"  // for ExportWindowID and ExportSaverIndex
 
 //! The PIDs of currently running saver children, or 0 if not running.
 static pid_t saver_child_pid[MAX_SAVERS] = {0};
@@ -65,6 +65,7 @@ void WatchSaverChild(Display* dpy, Window w, int index, const char* executable,
       // Child process.
       StartPgrp();
       ExportWindowID(w);
+      ExportSaverIndex(index);
 
       {
         const char* args[3] = {

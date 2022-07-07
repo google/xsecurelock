@@ -27,6 +27,14 @@ limitations under the License.
  */
 void ExportWindowID(Window w);
 
+/*! \brief Export the given saver index to the environment for a saver/auth child.
+ *
+ * This simply sets $XSCREENSAVER_SAVER_INDEX.
+ *
+ * \param index The index of the saver.
+ */
+void ExportSaverIndex(int index);
+
 /*! \brief Reads the window ID to draw on from the environment.
  *
  * This simply reads $XSCREENSAVER_WINDOW.
