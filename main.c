@@ -150,6 +150,8 @@ int blank_timeout = -1;
 const char *blank_dpms_state = "off";
 //! Whether to reset the saver module when auth closes.
 int saver_reset_on_auth_close = 0;
+//! Delay we should wait before starting mapping windows to let children run.
+int saver_delay_ms = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
@@ -430,6 +432,7 @@ void LoadDefaults() {
   blank_dpms_state = GetStringSetting("XSECURELOCK_BLANK_DPMS_STATE", "off");
   saver_reset_on_auth_close =
       GetIntSetting("XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE", 0);
+  saver_delay_ms = GetIntSetting("XSECURELOCK_SAVER_DELAY_MS", 0);
 }
 
 /*! \brief Parse the command line arguments, or exit in case of failure.
@@ -1063,28 +1066,10 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  // Map our windows.
-  // This is done after grabbing so failure to grab does not blank the screen
-  // yet, thereby "confirming" the screen lock.
-  XMapRaised(display, background_window);
-  XClearWindow(display, background_window);  // Workaround for bad drivers.
-  XMapRaised(display, saver_window);
-  XRaiseWindow(display, auth_window);  // Don't map here.
-
-#ifdef HAVE_XCOMPOSITE_EXT
-  if (obscurer_window != None) {
-    // Map the obscurer window last so it should never become visible.
-    XMapRaised(display, obscurer_window);
-  }
-#endif
-
   if (MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
     LogErrno("mlock");
     return EXIT_FAILURE;
   }
-
-  // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
-  XSetErrorHandler(JustLogErrorsHandler);
 
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
@@ -1117,6 +1102,39 @@ int main(int argc, char **argv) {
   }
 #endif
 
+  InitBlankScreen();
+
+  XFlush(display);
+  if (WatchChildren(display, auth_window, saver_window, xss_requested_saver_state,
+                    NULL)) {
+    goto done;
+  }
+
+  // Wait for children to initialize.
+  struct timespec sleep_ts;
+  sleep_ts.tv_sec = saver_delay_ms / 1000;
+  sleep_ts.tv_nsec = (saver_delay_ms % 1000) * 1000000L;
+  nanosleep(&sleep_ts, NULL);
+
+  // Map our windows.
+  // This is done after grabbing so failure to grab does not blank the screen
+  // yet, thereby "confirming" the screen lock.
+  XMapRaised(display, saver_window);
+  XMapRaised(display, background_window);
+  XClearWindow(display, background_window);  // Workaround for bad drivers.
+  XRaiseWindow(display, auth_window);  // Don't map here.
+
+#ifdef HAVE_XCOMPOSITE_EXT
+  if (obscurer_window != None) {
+    // Map the obscurer window last so it should never become visible.
+    XMapRaised(display, obscurer_window);
+  }
+#endif
+  XFlush(display);
+
+  // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
+  XSetErrorHandler(JustLogErrorsHandler);
+
   int x11_fd = ConnectionNumber(display);
 
   if (x11_fd == xss_sleep_lock_fd && xss_sleep_lock_fd != -1) {
@@ -1124,8 +1142,6 @@ int main(int argc, char **argv) {
         "inhibiting sleep now");
     xss_sleep_lock_fd = -1;
   }
-
-  InitBlankScreen();
 
   int background_window_mapped = 0, background_window_visible = 0,
       auth_window_mapped = 0, saver_window_mapped = 0,
@@ -1540,10 +1556,6 @@ done:
   explicit_bzero(&priv, sizeof(priv));
 
   // Free our resources, and exit.
-  XDestroyWindow(display, auth_window);
-  XDestroyWindow(display, saver_window);
-  XDestroyWindow(display, background_window);
-
 #ifdef HAVE_XCOMPOSITE_EXT
   if (obscurer_window != None) {
     // Destroy the obscurer window first so it should never become visible.
@@ -1553,6 +1565,9 @@ done:
     XCompositeReleaseOverlayWindow(display, composite_window);
   }
 #endif
+  XDestroyWindow(display, auth_window);
+  XDestroyWindow(display, saver_window);
+  XDestroyWindow(display, background_window);
 
   XFreeCursor(display, transparent_cursor);
   XFreeCursor(display, default_cursor);
