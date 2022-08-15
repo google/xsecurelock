@@ -251,6 +251,10 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_AUTH_TIMEOUT`: specifies the time (in seconds) to wait for
     response to a prompt by `auth_x11` before giving up and reverting to
     the screen saver.
+*   `XSECURELOCK_AUTHPROTO_KILL_ON_TIMEOUT`: specifies whether after the auth
+    timeout, the `authproto` application should be killed. It is useful so that
+    PAM modules that don't have timeout (such as `pam_u2f`) don't leave the
+    screen on, thus never triggering blank timeout.
 *   `XSECURELOCK_AUTH_WARNING_COLOR`: specifies the X11 color (see manpage of
     XParseColor) for the warning text of the auth dialog.
 *   `XSECURELOCK_BACKGROUND_COLOR`: specifies the X11 color (see manpage
