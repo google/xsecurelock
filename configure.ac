@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-define([thisversion],[1.7.0])
-define([nextversion],[1.7.0])
+define([thisversion],[1.8.0])
+define([nextversion],[1.8.0])
 AC_INIT([xsecurelock],thisversion,[rpolzer@google.com])
 AM_INIT_AUTOMAKE([-Wall subdir-objects foreign])
 AC_PROG_CC
@@ -102,7 +102,7 @@ AC_DEFUN([RP_CHECK_MODULE], [
                                        [AC_MSG_ERROR([--with-$4 was enabled, but test for $4 failed])])])])
           AM_CONDITIONAL([$3], [test x$have_$4 = xtrue])])
 
-# The DPMS extension is used to save power of the screen when turned off. Saves 
+# The DPMS extension is used to save power of the screen when turned off. Saves
 # electric power.
 RP_SEARCH_LIBS(DPMSQueryExtension, Xext,
                [HAVE_DPMS_EXT], [dpms], [check],
