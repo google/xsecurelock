@@ -252,6 +252,8 @@ static int single_auth_window = 0;
 int per_monitor_windows_dirty = 1;
 
 #ifdef HAVE_XKB_EXT
+//! If set, we show Xkb keyboard layout name.
+int show_keyboard_layout = 1;
 //! If set, we show Xkb lock/latch status rather than Xkb indicators.
 int show_locks_and_latches = 0;
 #endif
@@ -447,23 +449,25 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
   p += n;
 
   int have_output = 0;
-  Atom layouta = xkb->names->groups[state.group];  // Human-readable.
-  if (layouta == None) {
-    layouta = xkb->names->symbols;  // Machine-readable fallback.
-  }
-  if (layouta != None) {
-    char *layout = XGetAtomName(display, layouta);
-    n = strlen(layout);
-    if (n >= sizeof(buf) - (p - buf)) {
-      Log("Not enough space to store layout name '%s'", layout);
-      XFree(layout);
-      XkbFreeKeyboard(xkb, 0, True);
-      return "";
+  if (show_keyboard_layout) {
+    Atom layouta = xkb->names->groups[state.group];  // Human-readable.
+    if (layouta == None) {
+      layouta = xkb->names->symbols;  // Machine-readable fallback.
     }
-    memcpy(p, layout, n);
-    XFree(layout);
-    p += n;
-    have_output = 1;
+    if (layouta != None) {
+      char *layout = XGetAtomName(display, layouta);
+      n = strlen(layout);
+      if (n >= sizeof(buf) - (p - buf)) {
+        Log("Not enough space to store layout name '%s'", layout);
+        XFree(layout);
+        XkbFreeKeyboard(xkb, 0, True);
+        return "";
+      }
+      memcpy(p, layout, n);
+      XFree(layout);
+      p += n;
+      have_output = 1;
+    }
   }
 
   if (show_locks_and_latches) {
@@ -1611,6 +1615,8 @@ int main(int argc_local, char **argv_local) {
   single_auth_window = GetIntSetting("XSECURELOCK_SINGLE_AUTH_WINDOW", 0);
   auth_cursor_blink = GetIntSetting("XSECURELOCK_AUTH_CURSOR_BLINK", 1);
 #ifdef HAVE_XKB_EXT
+  show_keyboard_layout =
+      GetIntSetting("XSECURELOCK_SHOW_KEYBOARD_LAYOUT", 1);
   show_locks_and_latches =
       GetIntSetting("XSECURELOCK_SHOW_LOCKS_AND_LATCHES", 0);
 #endif

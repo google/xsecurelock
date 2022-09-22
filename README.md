@@ -424,6 +424,8 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
     screen of `auth_x11`. Possible values are 0 for not showing the
     hostname, 1 for showing the short form, and 2 for showing the long form.
+*   `XSECURELOCK_SHOW_KEYBOARD_LAYOUT`: whether to show the name of the current
+    keyboard layout. Enabled by default.
 *   `XSECURELOCK_SHOW_USERNAME`: whether to show the username on the login
     screen of `auth_x11`.
 *   `XSECURELOCK_SINGLE_AUTH_WINDOW`: whether to show only a single auth window
