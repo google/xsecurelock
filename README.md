@@ -443,8 +443,8 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_SAVER_DELAY_MS`: Milliseconds to wait after starting
     children process and before mapping windows to let children be
     ready to display and reduce the black flash.
-*   `XSECURELOCK_SAVER_STOP_ON_DPMS`: specifies if saver is stopped
-    when DPMS blanks the screen (to save power).
+*   `XSECURELOCK_SAVER_STOP_ON_BLANK`: specifies if saver is stopped
+    when screen is blanked (DPMS or XSS) to save power.
 *   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
     installed for use by `saver_xscreensaver`.
 
