@@ -3,7 +3,7 @@ Section: x11
 Priority: optional
 Maintainer: Markus Teich <mteich@google.com>
 Uploaders: Rudolf Polzer <rpolzer@google.com>
-Build-Depends: debhelper (>= 12),
+Build-Depends: debhelper (>= 13~),
   libc6,
   libpam-dev,
   libx11-dev,
