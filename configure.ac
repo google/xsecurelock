@@ -195,7 +195,7 @@ RP_SEARCH_PROG(pandoc, [$PATH],
                [HAVE_PANDOC], [pandoc], [check],
                [Use pandoc to generate man pages])
 
-RP_SEARCH_PROG(slidescreen, /usr/libexec/xscreensaver,
+RP_SEARCH_PROG(slidescreen, [/usr/libexec/xscreensaver:/usr/lib/xscreensaver],
                [HAVE_XSCREENSAVER], [xscreensaver], [check],
                [Install saver_xscreensaver (specify --with-xscreensaver=/usr/libexec/xscreensaver to set the saver plugin directory to use)])
 # However, all we really want is the directory name...
