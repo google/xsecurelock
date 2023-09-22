@@ -17,7 +17,6 @@ define([nextversion],[1.8.0])
 AC_INIT([xsecurelock],thisversion,[rpolzer@google.com])
 AM_INIT_AUTOMAKE([-Wall subdir-objects foreign])
 AC_PROG_CC
-AC_PROG_CC_C99
 
 AC_DEFUN([RP_TRY_CC_FLAG], [
 	AC_MSG_CHECKING([whether the compiler supports $1])
