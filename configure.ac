@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-define([thisversion],[1.8.0])
-define([nextversion],[1.8.0])
+define([thisversion],[1.9.0])
+define([nextversion],[1.9.0])
 AC_INIT([xsecurelock],[thisversion],[rpolzer@google.com])
 AM_INIT_AUTOMAKE([-Wall subdir-objects foreign])
 AC_PROG_CC
