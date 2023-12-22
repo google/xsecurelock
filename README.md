@@ -426,6 +426,9 @@ Options to XSecureLock can be passed by environment variables:
     hostname, 1 for showing the short form, and 2 for showing the long form.
 *   `XSECURELOCK_SHOW_KEYBOARD_LAYOUT`: whether to show the name of the current
     keyboard layout. Enabled by default.
+*   `XSECURELOCK_SHOW_BORDER`: whether to show the border of auth window.
+    Disabled by default.
+*   `XSECURELOCK_BORDER_SIZE`: size of the auth dialog window. Defaults to 16.
 *   `XSECURELOCK_SHOW_USERNAME`: whether to show the username on the login
     screen of `auth_x11`.
 *   `XSECURELOCK_SINGLE_AUTH_WINDOW`: whether to show only a single auth window

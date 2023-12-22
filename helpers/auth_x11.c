@@ -84,12 +84,6 @@ int prompt_timeout;
 //! Minimum distance the cursor shall move on keypress.
 #define PARANOID_PASSWORD_MIN_CHANGE 4
 
-//! Border of the window around the text.
-#define WINDOW_BORDER 16
-
-//! Draw border rectangle (mainly for debugging).
-#undef DRAW_BORDER
-
 //! Extra line spacing.
 #define LINE_SPACING 4
 
@@ -186,6 +180,12 @@ int show_hostname;
 
 //! If set, data and time will be shown.
 int show_datetime;
+
+//! If set, border of dialog will be shown.
+int show_border;
+
+//! Border size of the window around the text.
+int border_size;
 
 //! The date format to display.
 const char *datetime_format = "%c";
@@ -897,8 +897,8 @@ void DisplayMessage(const char *title, const char *str, int is_warning) {
   int box_h = (4 + have_multiple_layouts + have_switch_user_command +
                show_datetime * 2) *
               th;
-  int region_w = box_w + 2 * WINDOW_BORDER;
-  int region_h = box_h + 2 * WINDOW_BORDER;
+  int region_w = box_w + 2 * border_size;
+  int region_h = box_h + 2 * border_size;
 
   if (burnin_mitigation_max_offset_change > 0) {
     x_offset += rand() % (2 * burnin_mitigation_max_offset_change + 1) -
@@ -930,11 +930,11 @@ void DisplayMessage(const char *title, const char *str, int is_warning) {
 
     XClearWindow(display, windows[i]);
 
-#ifdef DRAW_BORDER
-    XDrawRectangle(display, windows[i], gcs[i],     //
-                   cx - box_w / 2, cy - box_h / 2,  //
-                   box_w - 1, box_h - 1);
-#endif
+    if (show_border) {
+      XDrawRectangle(display, windows[i], gcs[i],
+                     cx - box_w / 2 - border_size, cy - box_h / 2 - border_size,
+                     box_w - 1 + border_size * 2, box_h - 1 + border_size * 2);
+    }
 
     if (show_datetime) {
       DrawString(i, cx - tw_datetime / 2, y, 0, datetime, len_datetime);
@@ -1614,6 +1614,9 @@ int main(int argc_local, char **argv_local) {
   auth_sounds = GetIntSetting("XSECURELOCK_AUTH_SOUNDS", 0);
   single_auth_window = GetIntSetting("XSECURELOCK_SINGLE_AUTH_WINDOW", 0);
   auth_cursor_blink = GetIntSetting("XSECURELOCK_AUTH_CURSOR_BLINK", 1);
+  show_border = GetIntSetting("XSECURELOCK_SHOW_BORDER",0);
+  border_size = GetIntSetting("XSECURELOCK_BORDER_SIZE",16);
+
 #ifdef HAVE_XKB_EXT
   show_keyboard_layout =
       GetIntSetting("XSECURELOCK_SHOW_KEYBOARD_LAYOUT", 1);
