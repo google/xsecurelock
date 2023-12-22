@@ -23,7 +23,9 @@ limitations under the License.
 #include <sys/select.h>  // for timeval, select, fd_set, FD_SET
 #include <sys/time.h>    // for gettimeofday, timeval
 #include <time.h>        // for time, nanosleep, localtime_r
-#include <unistd.h>      // for close, _exit, dup2, pipe, dup
+#include <signal.h>      // for SIGTERM
+#include <unistd.h>      // for close, _exit, dup2, pipe, dup,
+                         //     STDIN_FILENO, STDOUT_FILENO
 
 #if __STDC_VERSION__ >= 199901L
 #include <inttypes.h>
@@ -74,6 +76,9 @@ const char *authproto_executable;
 
 //! The maximum time to wait at a prompt for user input in seconds.
 int prompt_timeout;
+
+//! Whether to kill the authproto after prompt timeout is reached.
+int kill_authproto_after_timeout;
 
 //! Number of dancers in the disco password display
 #define DISCO_PASSWORD_DANCERS 5
@@ -825,8 +830,10 @@ void BuildTitle(char *output, size_t output_size, const char *input) {
  * \param title The title of the message.
  * \param str The message itself.
  * \param is_warning Whether to use the warning style to display the message.
+ * \param show_kbd_indicators Whether to show kbd indicators (like Caps Lock).
  */
-void DisplayMessage(const char *title, const char *str, int is_warning) {
+void DisplayMessage(const char *title, const char *str, int is_warning,
+    int show_kbd_indicators) {
   char full_title[256];
   BuildTitle(full_title, sizeof(full_title), title);
 
@@ -841,8 +848,8 @@ void DisplayMessage(const char *title, const char *str, int is_warning) {
 
   int indicators_warning = 0;
   int have_multiple_layouts = 0;
-  const char *indicators =
-      GetIndicators(&indicators_warning, &have_multiple_layouts);
+  const char *indicators = show_kbd_indicators ?
+      GetIndicators(&indicators_warning, &have_multiple_layouts) : "";
   int len_indicators = strlen(indicators);
   int tw_indicators = TextWidth(indicators, len_indicators);
 
@@ -1030,6 +1037,88 @@ void ShowFromArray(const char **array, size_t displaymarker, char *displaybuf,
   *displaylen = strlen(selection);
 }
 
+/*! \brief Shows the user a static message such as a PAM text info or error
+ *
+ * \param title The title of the message.
+ * \param msg The message itself.
+ * \param is_warning Whether to use the warning style to display the message.
+ * \param extra_read_fd Pass an extra fd to monitor so in case something is
+ *   written to it, we can capture and return immediatelly.
+ * \return 1 if successful, anything else otherwise.
+ */
+int PromptStaticMessage(const char *title, const char *msg, int is_warning, int extra_read_fd) {
+  XEvent x11_ev;
+  char inputbuf;
+  int result = 1;
+  time_t deadline = time(NULL) + prompt_timeout; // global variable
+
+  PlaySound(is_warning ? SOUND_ERROR : SOUND_INFO);
+
+  while (1) {
+    DisplayMessage(title, msg, is_warning, 0);
+
+    // Blocks waiting for user input or activity on extra_read_fd
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = BLINK_INTERVAL;
+    fd_set set;
+    memset(&set, 0, sizeof(set));  // For clang-analyzer.
+    FD_ZERO(&set);
+    FD_SET(STDIN_FILENO, &set);
+    int max_nfds = 0;
+    if (extra_read_fd >= 1) {
+      FD_SET(extra_read_fd, &set);
+      max_nfds = extra_read_fd;
+    }
+    int nfds = select(max_nfds + 1, &set, NULL, NULL, &timeout);
+
+    if (nfds < 0) {
+      LogErrno("select");
+      break;
+    }
+
+    time_t now = time(NULL);
+    if (now > deadline) {
+      Log("AUTH_TIMEOUT hit");
+      result = 0;
+      break;
+    }
+
+    // Select timeout reached, means we just re-render and continue the loop
+    if (nfds == 0) {
+      continue;
+    }
+
+    // Reset the prompt timeout, so we keep the screen on if a key is pressed
+    deadline = now + prompt_timeout;
+
+    // If extra_read_fd is available for reading, then we return immediatelly
+    if (FD_ISSET(extra_read_fd, &set)) {
+      break;
+    }
+
+    // Reads user input, but stops on EOF
+    if (read(STDIN_FILENO, &inputbuf, 1) <= 0) {
+      break;
+    }
+
+    // And if the user types Esc, then we quit
+    if (inputbuf == '\033') {
+      result = 0;
+      break;
+    }
+  }
+
+  // Handle X11 events that queued up.
+  while (XPending(display) && (XNextEvent(display, &x11_ev), 1)) {
+    if (IsMonitorChangeEvent(display, x11_ev.type)) {
+      per_monitor_windows_dirty = 1; // global variable
+    }
+  }
+
+  return result;
+}
+
 /*! \brief Ask a question to the user.
  *
  * \param msg The message.
@@ -1078,7 +1167,7 @@ int Prompt(const char *msg, char **response, int echo) {
     LogErrno("mlock");
     // We continue anyway, as the user being unable to unlock the screen is
     // worse. But let's alert the user.
-    DisplayMessage("Error", "Password will not be stored securely.", 1);
+    DisplayMessage("Error", "Password will not be stored securely.", 1, 1);
     WaitForKeypress(1);
   }
 
@@ -1208,7 +1297,7 @@ int Prompt(const char *msg, char **response, int echo) {
         }
       }
     }
-    DisplayMessage(msg, priv.displaybuf, 0);
+    DisplayMessage(msg, priv.displaybuf, 0, 1);
 
     if (!played_sound) {
       PlaySound(SOUND_PROMPT);
@@ -1318,7 +1407,7 @@ int Prompt(const char *msg, char **response, int echo) {
             // We continue anyway, as the user being unable to unlock the screen
             // is worse. But let's alert the user of this.
             DisplayMessage("Error", "Password has not been stored securely.",
-                           1);
+                           1, 1);
             WaitForKeypress(1);
           }
           if (priv.pwlen != 0) {
@@ -1450,18 +1539,20 @@ int Authenticate() {
     char type = ReadPacket(requestfd[0], &message, 1);
     switch (type) {
       case PTYPE_INFO_MESSAGE:
-        DisplayMessage("PAM says", message, 0);
+        if (!PromptStaticMessage("PAM message", message, 0, requestfd[0])) {
+          DisplayMessage("Processing...", "", 0, 0);
+          if (kill_authproto_after_timeout) {
+            kill(childpid, SIGTERM);
+          }
+          goto done;
+        }
         explicit_bzero(message, strlen(message));
         free(message);
-        PlaySound(SOUND_INFO);
-        WaitForKeypress(1);
         break;
       case PTYPE_ERROR_MESSAGE:
-        DisplayMessage("Error", message, 1);
+        PromptStaticMessage("Error", message, 1, requestfd[0]);
         explicit_bzero(message, strlen(message));
         free(message);
-        PlaySound(SOUND_ERROR);
-        WaitForKeypress(1);
         break;
       case PTYPE_PROMPT_LIKE_USERNAME:
         if (Prompt(message, &response, 1)) {
@@ -1473,7 +1564,7 @@ int Authenticate() {
         }
         explicit_bzero(message, strlen(message));
         free(message);
-        DisplayMessage("Processing...", "", 0);
+        DisplayMessage("Processing...", "", 0, 1);
         break;
       case PTYPE_PROMPT_LIKE_PASSWORD:
         if (Prompt(message, &response, 0)) {
@@ -1485,7 +1576,7 @@ int Authenticate() {
         }
         explicit_bzero(message, strlen(message));
         free(message);
-        DisplayMessage("Processing...", "", 0);
+        DisplayMessage("Processing...", "", 0, 1);
         break;
       case 0:
         goto done;
@@ -1602,6 +1693,8 @@ int main(int argc_local, char **argv_local) {
       GetIntSetting("XSECURELOCK_BURNIN_MITIGATION_DYNAMIC", 0);
 
   prompt_timeout = GetIntSetting("XSECURELOCK_AUTH_TIMEOUT", 5 * 60);
+  kill_authproto_after_timeout =
+    GetIntSetting("XSECURELOCK_AUTHPROTO_KILL_ON_TIMEOUT", 0);
   show_username = GetIntSetting("XSECURELOCK_SHOW_USERNAME", 1);
   show_hostname = GetIntSetting("XSECURELOCK_SHOW_HOSTNAME", 1);
   paranoid_password_flag = GetIntSetting(
