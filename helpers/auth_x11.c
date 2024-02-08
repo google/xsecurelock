@@ -919,6 +919,10 @@ void DisplayMessage(const char *title, const char *str, int is_warning) {
     }
   }
 
+  for (size_t i = 0; i < num_windows; ++i) {
+      XClearWindow(display, windows[i]);
+  }
+
   UpdatePerMonitorWindows(per_monitor_windows_dirty, region_w, region_h,
                           x_offset, y_offset);
   per_monitor_windows_dirty = 0;
@@ -928,7 +932,8 @@ void DisplayMessage(const char *title, const char *str, int is_warning) {
     int cy = region_h / 2;
     int y = cy + to - box_h / 2;
 
-    XClearWindow(display, windows[i]);
+    //Moved out from here, calling XClearWindow after UpdatePerMonitorWindows can leave artifacts on screen
+    //XClearWindow(display, windows[i]);
 
 #ifdef DRAW_BORDER
     XDrawRectangle(display, windows[i], gcs[i],     //
