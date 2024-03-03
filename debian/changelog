@@ -1,3 +1,24 @@
+xsecurelock (1.9.0-0) unstable; urgency=medium
+
+  * NOT YET RELEASED (please change version to -1 when ready).
+  * Upstream version 1.9.0
+  * Changes from upstream version 1.9.0
+    * When the compositor is incompatible, show a visible error message.
+    * Add a way to disable cursor blinking (XSECURELOCK_AUTH_CURSOR_BLINK=0).
+    * Detect an already blanked screen at startup time.
+    * Notify PAM to refresh credentials after successful authentication.
+    * saver_mpv now loops playlists.
+    * saver_mpv now supports flags (XSECURELOCK_VIDEOS_FLAGS).
+    * saver_multiplex: configurable background color
+      (XSECURELOCK_BACKGROUND_COLOR).
+    * Optionally sleep before mapping windows (XSECURELOCK_SAVER_DELAY_MS).
+    * Support wakeup on SIGUSR2.
+    * Add a way to hide the keyboard layout
+      (XSECURELOCK_SHOW_KEYBOARD_LAYOUT=0).
+    * Rename XSECURELOCK_SAVER_STOP_ON_DPMS to XSECURELOCK_SAVER_STOP_ON_BLANK.
+
+ -- Rudolf Polzer <rpolzer@google.com>  Wed, 11 Dec 2019 12:11:10 -0500
+
 xsecurelock (1.6.0-1) unstable; urgency=medium
 
   * Upstream version 1.6.0
