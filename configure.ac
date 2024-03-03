@@ -12,11 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-define([thisversion],[1.6.0])
-define([nextversion],[1.6.0])
-AC_INIT([xsecurelock],thisversion,[rpolzer@google.com])
+define([thisversion],[1.9.0])
+define([nextversion],[1.9.0])
+AC_INIT([xsecurelock],[thisversion],[rpolzer@google.com])
 AM_INIT_AUTOMAKE([-Wall subdir-objects foreign])
 AC_PROG_CC
+
+AC_DEFUN([RP_TRY_CC_FLAG], [
+	AC_MSG_CHECKING([whether the compiler supports $1])
+	saved_CFLAGS=$CFLAGS
+	CFLAGS="$CFLAGS $1"
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
+	                  [AC_MSG_RESULT([yes])],
+	                  [AC_MSG_RESULT([no])
+	                   CFLAGS_$saved_CFLAGS])])
+RP_TRY_CC_FLAG([-Wall])
+RP_TRY_CC_FLAG([-Wextra])
+AC_DEFINE([_POSIX_C_SOURCE], [200112L])
+AC_DEFINE([_XOPEN_SOURCE], [600])
 
 dnl We only detect libraries globally, but not all binaries need all of them.
 dnl So we use --as-needed to work around.
@@ -29,14 +42,14 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([])],
                 LDFLAGS=$saved_LDFLAGS])
 
 AC_CHECK_HEADER(X11/Xlib.h,
-                [], [AC_ERROR([X includes not found.])])
+                [], [AC_MSG_ERROR(X includes not found.)])
 AC_CHECK_LIB(X11, XOpenDisplay,
-             [], [AC_ERROR([X library not found.])])
+             [], [AC_MSG_ERROR(X library not found.)])
 AC_CHECK_LIB(Xmuu, XmuClientWindow,
              [], [AC_CHECK_LIB(Xmu, XmuClientWindow,
-             [], [AC_ERROR([Xmuu or Xmu library not found.])])])
+             [], [AC_MSG_ERROR(Xmuu or Xmu library not found.)])])
 AC_CHECK_LIB(m, sqrt,
-             [], [AC_ERROR([Math library not found.])])
+             [], [AC_MSG_ERROR(Math library not found.)])
 
 # RP_SEARCH_LIBS(sym, lib, macro, flag, default, description)
 AC_DEFUN([RP_SEARCH_LIBS], [
@@ -88,7 +101,7 @@ AC_DEFUN([RP_CHECK_MODULE], [
                                        [AC_MSG_ERROR([--with-$4 was enabled, but test for $4 failed])])])])
           AM_CONDITIONAL([$3], [test x$have_$4 = xtrue])])
 
-# The DPMS extension is used to save power of the screen when turned off. Saves 
+# The DPMS extension is used to save power of the screen when turned off. Saves
 # electric power.
 RP_SEARCH_LIBS(DPMSQueryExtension, Xext,
                [HAVE_DPMS_EXT], [dpms], [check],
@@ -181,9 +194,9 @@ RP_SEARCH_PROG(pandoc, [$PATH],
                [HAVE_PANDOC], [pandoc], [check],
                [Use pandoc to generate man pages])
 
-RP_SEARCH_PROG(slidescreen, /usr/lib/xscreensaver,
+RP_SEARCH_PROG(slidescreen, [/usr/libexec/xscreensaver:/usr/lib/xscreensaver],
                [HAVE_XSCREENSAVER], [xscreensaver], [check],
-               [Install saver_xscreensaver (specify --with-xscreensaver=/usr/lib/xscreensaver to set the saver plugin directory to use)])
+               [Install saver_xscreensaver (specify --with-xscreensaver=/usr/libexec/xscreensaver to set the saver plugin directory to use)])
 # However, all we really want is the directory name...
 path_to_xscreensaver=${path_to_xscreensaver%/slidescreen}
 
@@ -192,7 +205,7 @@ enable_pam_check_account_type=no
 
 AS_IF([test x$have_pam = xtrue], [
   AC_ARG_WITH([pam_service_name],
-              AC_HELP_STRING([--with-pam-service-name],
+              AS_HELP_STRING([--with-pam-service-name],
                              [The name of the PAM service that xsecurelock's
                               auth helpers will authenticate as by default.
                               This flag is mandatory. Be sure to verify that
@@ -204,7 +217,7 @@ AS_IF([test x$have_pam = xtrue], [
         [AC_MSG_WARN([/etc/pam.d/$pam_service_name doesn't exist. Sure?])])
 
   AC_ARG_ENABLE([pam_check_account_type],
-                AC_HELP_STRING([--enable-pam-check-account-type],
+                AS_HELP_STRING([--enable-pam-check-account-type],
                                [Enable checking of PAM accounting result. Only
                                 enable this if accounting is properly configured
                                 on your system; especially keep this disabled if
@@ -216,7 +229,7 @@ AS_IF([test x$have_pam = xtrue], [
 ])
 
 AC_ARG_WITH([default_auth_module],
-            AC_HELP_STRING([--with-default-auth-module],
+            AS_HELP_STRING([--with-default-auth-module],
                            [The default authentication module to use when none
                             was specified. Can be overridden via the
                             XSECURELOCK_AUTH environment variable or a command
@@ -227,7 +240,7 @@ AC_ARG_WITH([default_auth_module],
 AC_MSG_NOTICE([Configured default auth module: $auth_executable])
 
 AC_ARG_WITH([default_authproto_module],
-            AC_HELP_STRING([--with-default-authproto-module],
+            AS_HELP_STRING([--with-default-authproto-module],
                            [The default authentication protocol module to use when none was
                             specified. Can be overridden via the
                             XSECURELOCK_AUTHPROTO environment variable. By
@@ -249,7 +262,7 @@ AC_ARG_WITH([default_authproto_module],
 AC_MSG_NOTICE([Configured default authproto module: $authproto_executable])
 
 AC_ARG_WITH([default_global_saver_module],
-            AC_HELP_STRING([--with-default-global-saver-module],
+            AS_HELP_STRING([--with-default-global-saver-module],
                            [The default global saver module to use when none was
                             specified. Can be overridden via the
                             XSECURELOCK_GLOBAL_SAVER environment variable.]),
@@ -260,7 +273,7 @@ AC_MSG_NOTICE([Configured default global saver module: ]dnl
 [$global_saver_executable])
 
 AC_ARG_WITH([default_saver_module],
-            AC_HELP_STRING([--with-default-saver-module],
+            AS_HELP_STRING([--with-default-saver-module],
                            [The default per-screen saver module to use when none
                             was specified. Can be overridden via the
                             XSECURELOCK_SAVER environment variable.]),

@@ -16,6 +16,7 @@
 
 : ${XSECURELOCK_LIST_VIDEOS_COMMAND:=find ~/Videos -type f}
 : ${XSECURELOCK_IMAGE_DURATION_SECONDS:=1}
+: ${XSECURELOCK_VIDEOS_FLAGS:=}
 
 # Run mpv in a loop so we can quickly restart mpv in case it exits (has shown
 # the last picture/video).
@@ -29,6 +30,8 @@ while true; do
     --no-audio \
     --image-display-duration="${XSECURELOCK_IMAGE_DURATION_SECONDS}" \
     --shuffle \
+    --loop-playlist=inf \
+    ${XSECURELOCK_VIDEOS_FLAGS} \
     --playlist=- &
   # Avoid spinning if mpv exits immediately, but don't wait to restart mpv in
   # the common case.

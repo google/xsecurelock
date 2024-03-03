@@ -15,6 +15,7 @@
 # limitations under the License.
 
 : ${XSECURELOCK_LIST_VIDEOS_COMMAND:=find ~/Videos -type f}
+: ${XSECURELOCK_VIDEOS_FLAGS:=}
 
 sh -c "$XSECURELOCK_LIST_VIDEOS_COMMAND" | shuf | head -n 256 |\
 @path_to_mplayer@ \
@@ -26,4 +27,5 @@ sh -c "$XSECURELOCK_LIST_VIDEOS_COMMAND" | shuf | head -n 256 |\
   -fixed-vo \
   -nosound \
   -shuffle \
+  ${XSECURELOCK_VIDEOS_FLAGS} \
   -playlist -

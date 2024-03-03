@@ -81,8 +81,7 @@ uint64_t GetIdleTimeForSingleTimer(Display *display, Window w,
   } else {
 #ifdef HAVE_XSYNC_EXT
     if (have_xsync_ext) {
-      int i;
-      for (i = 0; i < num_xsync_counters; ++i) {
+      for (int i = 0; i < num_xsync_counters; ++i) {
         if (!strcmp(timer,
                     xsync_counters[i].name)) {  // I know this is inefficient.
           XSyncValue value;

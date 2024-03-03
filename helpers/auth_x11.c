@@ -242,11 +242,21 @@ static int burnin_mitigation_max_offset_change = 0;
 //! Whether to play sounds during authentication.
 static int auth_sounds = 0;
 
+//! Whether to blink the cursor in the auth dialog.
+static int auth_cursor_blink = 1;
+
 //! Whether we only want a single auth window.
 static int single_auth_window = 0;
 
 //! If set, we need to re-query monitor data and adjust windows.
 int per_monitor_windows_dirty = 1;
+
+#ifdef HAVE_XKB_EXT
+//! If set, we show Xkb keyboard layout name.
+int show_keyboard_layout = 1;
+//! If set, we show Xkb lock/latch status rather than Xkb indicators.
+int show_locks_and_latches = 0;
+#endif
 
 #define MAIN_WINDOW 0
 #define MAX_WINDOWS 16
@@ -403,18 +413,21 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
     XkbFreeKeyboard(xkb, 0, True);
     return "";
   }
-  unsigned int istate;
-  if (XkbGetIndicatorState(display, XkbUseCoreKbd, &istate) != Success) {
-    Log("XkbGetIndicatorState failed");
-    XkbFreeKeyboard(xkb, 0, True);
-    return "";
+  unsigned int istate = 0;
+  if (!show_locks_and_latches) {
+    if (XkbGetIndicatorState(display, XkbUseCoreKbd, &istate) != Success) {
+      Log("XkbGetIndicatorState failed");
+      XkbFreeKeyboard(xkb, 0, True);
+      return "";
+    }
   }
 
   // Detect Caps Lock.
   // Note: in very pathological cases the modifier might be set without an
   // XkbIndicator for it; then we show the line in red without telling the user
   // why. Such a situation has not been observd yet though.
-  if (state.mods & LockMask) {
+  unsigned int implicit_mods = state.latched_mods | state.locked_mods;
+  if (implicit_mods & LockMask) {
     *warning = 1;
   }
 
@@ -436,53 +449,91 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
   p += n;
 
   int have_output = 0;
-  Atom layouta = xkb->names->groups[state.group];  // Human-readable.
-  if (layouta == None) {
-    layouta = xkb->names->symbols;  // Machine-readable fallback.
-  }
-  if (layouta != None) {
-    char *layout = XGetAtomName(display, layouta);
-    n = strlen(layout);
-    if (n >= sizeof(buf) - (p - buf)) {
-      Log("Not enough space to store layout name '%s'", layout);
-      XFree(layout);
-      XkbFreeKeyboard(xkb, 0, True);
-      return "";
+  if (show_keyboard_layout) {
+    Atom layouta = xkb->names->groups[state.group];  // Human-readable.
+    if (layouta == None) {
+      layouta = xkb->names->symbols;  // Machine-readable fallback.
     }
-    memcpy(p, layout, n);
-    XFree(layout);
-    p += n;
-    have_output = 1;
+    if (layouta != None) {
+      char *layout = XGetAtomName(display, layouta);
+      n = strlen(layout);
+      if (n >= sizeof(buf) - (p - buf)) {
+        Log("Not enough space to store layout name '%s'", layout);
+        XFree(layout);
+        XkbFreeKeyboard(xkb, 0, True);
+        return "";
+      }
+      memcpy(p, layout, n);
+      XFree(layout);
+      p += n;
+      have_output = 1;
+    }
   }
 
-  int i;
-  for (i = 0; i < XkbNumIndicators; i++) {
-    if (!(istate & (1U << i))) {
-      continue;
-    }
-    Atom namea = xkb->names->indicators[i];
-    if (namea == None) {
-      continue;
-    }
-    if (have_output) {
-      if (2 >= sizeof(buf) - (p - buf)) {
-        Log("Not enough space to store another modifier name");
+  if (show_locks_and_latches) {
+#define ADD_INDICATOR(mask, name)                                \
+  do {                                                           \
+    if (!(implicit_mods & (mask))) {                             \
+      continue;                                                  \
+    }                                                            \
+    if (have_output) {                                           \
+      if (2 >= sizeof(buf) - (p - buf)) {                        \
+        Log("Not enough space to store another modifier name");  \
+        break;                                                   \
+      }                                                          \
+      memcpy(p, ", ", 2);                                        \
+      p += 2;                                                    \
+    }                                                            \
+    size_t n = strlen(name);                                     \
+    if (n >= sizeof(buf) - (p - buf)) {                          \
+      Log("Not enough space to store modifier name '%s'", name); \
+      XFree(name);                                               \
+      break;                                                     \
+    }                                                            \
+    memcpy(p, (name), n);                                        \
+    p += n;                                                      \
+    have_output = 1;                                             \
+  } while (0)
+    // TODO(divVerent): There must be a better way to get the names of the
+    // modifiers than explicitly enumerating them. Also, there may even be
+    // something that knows that Mod1 is Alt/Meta and Mod2 is Num lock.
+    ADD_INDICATOR(ShiftMask, "Shift");
+    ADD_INDICATOR(LockMask, "Lock");
+    ADD_INDICATOR(ControlMask, "Control");
+    ADD_INDICATOR(Mod1Mask, "Mod1");
+    ADD_INDICATOR(Mod2Mask, "Mod2");
+    ADD_INDICATOR(Mod3Mask, "Mod3");
+    ADD_INDICATOR(Mod4Mask, "Mod4");
+    ADD_INDICATOR(Mod5Mask, "Mod5");
+  } else {
+    for (int i = 0; i < XkbNumIndicators; i++) {
+      if (!(istate & (1U << i))) {
+        continue;
+      }
+      Atom namea = xkb->names->indicators[i];
+      if (namea == None) {
+        continue;
+      }
+      if (have_output) {
+        if (2 >= sizeof(buf) - (p - buf)) {
+          Log("Not enough space to store another modifier name");
+          break;
+        }
+        memcpy(p, ", ", 2);
+        p += 2;
+      }
+      char *name = XGetAtomName(display, namea);
+      size_t n = strlen(name);
+      if (n >= sizeof(buf) - (p - buf)) {
+        Log("Not enough space to store modifier name '%s'", name);
+        XFree(name);
         break;
       }
-      memcpy(p, ", ", 2);
-      p += 2;
-    }
-    char *name = XGetAtomName(display, namea);
-    size_t n = strlen(name);
-    if (n >= sizeof(buf) - (p - buf)) {
-      Log("Not enough space to store modifier name '%s'", name);
+      memcpy(p, name, n);
       XFree(name);
-      break;
+      p += n;
+      have_output = 1;
     }
-    memcpy(p, name, n);
-    XFree(name);
-    p += n;
-    have_output = 1;
   }
   *p = 0;
   XkbFreeKeyboard(xkb, 0, True);
@@ -495,8 +546,7 @@ const char *GetIndicators(int *warning, int *have_multiple_layouts) {
 }
 
 void DestroyPerMonitorWindows(size_t keep_windows) {
-  size_t i;
-  for (i = keep_windows; i < num_windows; ++i) {
+  for (size_t i = keep_windows; i < num_windows; ++i) {
 #ifdef HAVE_XFT_EXT
     XftDrawDestroy(xft_draws[i]);
 #endif
@@ -618,8 +668,7 @@ void UpdatePerMonitorWindows(int monitors_changed, int region_w, int region_h,
     unsigned int unused_mask;
     XQueryPointer(display, parent_window, &unused_root, &unused_child,
                   &unused_root_x, &unused_root_y, &x, &y, &unused_mask);
-    size_t i;
-    for (i = 0; i < num_monitors; ++i) {
+    for (size_t i = 0; i < num_monitors; ++i) {
       if (x >= monitors[i].x && x < monitors[i].x + monitors[i].width &&
           y >= monitors[i].y && y < monitors[i].y + monitors[i].height) {
         CreateOrUpdatePerMonitorWindow(0, &monitors[i], region_w, region_h,
@@ -641,8 +690,7 @@ void UpdatePerMonitorWindows(int monitors_changed, int region_w, int region_h,
   size_t new_num_windows = num_monitors;
 
   // Update or create everything.
-  size_t i;
-  for (i = 0; i < new_num_windows; ++i) {
+  for (size_t i = 0; i < new_num_windows; ++i) {
     CreateOrUpdatePerMonitorWindow(i, &monitors[i], region_w, region_h,
                                    x_offset, y_offset);
   }
@@ -875,8 +923,7 @@ void DisplayMessage(const char *title, const char *str, int is_warning) {
                           x_offset, y_offset);
   per_monitor_windows_dirty = 0;
 
-  size_t i;
-  for (i = 0; i < num_windows; ++i) {
+  for (size_t i = 0; i < num_windows; ++i) {
     int cx = region_w / 2;
     int cy = region_h / 2;
     int y = cy + to - box_h / 2;
@@ -1155,7 +1202,7 @@ int Prompt(const char *msg, char **response, int echo) {
         case PASSWORD_PROMPT_CURSOR: {
           priv.displaylen = PARANOID_PASSWORD_LENGTH;
           memset(priv.displaybuf, '_', priv.displaylen);
-          priv.displaybuf[priv.displaymarker] = blink_state ? '|' : '-';
+          priv.displaybuf[priv.displaymarker] = blink_state ? '-' : '|';
           priv.displaybuf[priv.displaylen] = '\0';
           break;
         }
@@ -1169,7 +1216,9 @@ int Prompt(const char *msg, char **response, int echo) {
     }
 
     // Blink the cursor.
-    blink_state = !blink_state;
+    if (auth_cursor_blink) {
+      blink_state = !blink_state;
+    }
 
     struct timeval timeout;
     timeout.tv_sec = BLINK_INTERVAL / 1000000;
@@ -1564,6 +1613,13 @@ int main(int argc_local, char **argv_local) {
       !!*GetStringSetting("XSECURELOCK_SWITCH_USER_COMMAND", "");
   auth_sounds = GetIntSetting("XSECURELOCK_AUTH_SOUNDS", 0);
   single_auth_window = GetIntSetting("XSECURELOCK_SINGLE_AUTH_WINDOW", 0);
+  auth_cursor_blink = GetIntSetting("XSECURELOCK_AUTH_CURSOR_BLINK", 1);
+#ifdef HAVE_XKB_EXT
+  show_keyboard_layout =
+      GetIntSetting("XSECURELOCK_SHOW_KEYBOARD_LAYOUT", 1);
+  show_locks_and_latches =
+      GetIntSetting("XSECURELOCK_SHOW_LOCKS_AND_LATCHES", 0);
+#endif
 
   password_prompt =
       GetPasswordPromptFromFlags(paranoid_password_flag, password_prompt_flag);

@@ -14,8 +14,6 @@
 
 CLEANFILES =
 
-AM_CFLAGS = -Wall -Wextra -D_POSIX_C_SOURCE=200112L -D_XOPEN_SOURCE=600
-
 macros = \
 	-DHELPER_PATH=\"$(pkglibexecdir)\" \
 	-DDOCS_PATH=\"$(docdir)\" \
@@ -75,7 +73,8 @@ xsecurelock_SOURCES = \
 	version.c version.h \
 	wait_pgrp.c wait_pgrp.h \
 	wm_properties.c wm_properties.h \
-	xscreensaver_api.c xscreensaver_api.h
+	xscreensaver_api.c xscreensaver_api.h \
+	incompatible_compositor.xbm
 nodist_xsecurelock_SOURCES = \
 	env_helpstr.inc
 xsecurelock_CPPFLAGS = $(macros) $(LIBBSD_CFLAGS)
@@ -241,6 +240,7 @@ EXTRA_DIST = \
 	doc/xsecurelock.1.md \
 	ensure-documented-settings.sh \
 	helpers/saver_blank \
+	incompatible_compositor.xbm.sh \
 	run-iwyu.sh \
 	run-linters.sh \
 	test/*.c \

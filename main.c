@@ -24,6 +24,7 @@ limitations under the License.
 #include <X11/X.h>           // for Window, None, CopyFromParent
 #include <X11/Xatom.h>       // for XA_CARDINAL, XA_ATOM
 #include <X11/Xlib.h>        // for XEvent, XMapRaised, XSelectInput
+#include <X11/Xcms.h>        // for XcmsFailure
 #include <X11/Xutil.h>       // for XLookupString
 #include <X11/cursorfont.h>  // for XC_arrow
 #include <X11/keysym.h>      // for XK_BackSpace, XK_Tab, XK_o
@@ -45,6 +46,8 @@ limitations under the License.
 #endif
 #ifdef HAVE_XCOMPOSITE_EXT
 #include <X11/extensions/Xcomposite.h>  // for XCompositeGetOverlayWindow
+
+#include "incompatible_compositor.xbm"  // for incompatible_compositor_bits
 #endif
 #ifdef HAVE_XSCREENSAVER_EXT
 #include <X11/extensions/saver.h>      // for ScreenSaverNotify, ScreenSave...
@@ -147,6 +150,10 @@ int blank_timeout = -1;
 const char *blank_dpms_state = "off";
 //! Whether to reset the saver module when auth closes.
 int saver_reset_on_auth_close = 0;
+//! Delay we should wait before starting mapping windows to let children run.
+int saver_delay_ms = 0;
+//! Whetever stopping saver when screen is blanked.
+int saver_stop_on_blank = 0;
 
 //! The PID of a currently running notify command, or 0 if none is running.
 pid_t notify_command_pid = 0;
@@ -161,6 +168,9 @@ int blanked = 0;
 //! Whether DPMS needs to be disabled when unblanking. Set when blanking.
 int must_disable_dpms = 0;
 #endif
+
+//! If set by signal handler we should wake up and prompt for auth.
+static volatile sig_atomic_t signal_wakeup = 0;
 
 void ResetBlankScreenTimer(void) {
   if (blank_timeout < 0) {
@@ -255,6 +265,11 @@ static void HandleSIGTERM(int signo) {
   KillAuthChildSigHandler(signo);         // More dirty.
   explicit_bzero(&priv, sizeof(priv));
   raise(signo);
+}
+
+static void HandleSIGUSR2(int unused_signo) {
+  (void)unused_signo;
+  signal_wakeup = 1;
 }
 
 enum WatchChildrenState {
@@ -427,6 +442,8 @@ void LoadDefaults() {
   blank_dpms_state = GetStringSetting("XSECURELOCK_BLANK_DPMS_STATE", "off");
   saver_reset_on_auth_close =
       GetIntSetting("XSECURELOCK_SAVER_RESET_ON_AUTH_CLOSE", 0);
+  saver_delay_ms = GetIntSetting("XSECURELOCK_SAVER_DELAY_MS", 0);
+  saver_stop_on_blank = GetIntSetting("XSECURELOCK_SAVER_STOP_ON_BLANK", 1);
 }
 
 /*! \brief Parse the command line arguments, or exit in case of failure.
@@ -440,8 +457,7 @@ void LoadDefaults() {
  * Possible errors will be printed on stderr.
  */
 void ParseArgumentsOrExit(int argc, char **argv) {
-  int i;
-  for (i = 1; i < argc; ++i) {
+  for (int i = 1; i < argc; ++i) {
     if (!strncmp(argv[i], "auth_", 5)) {
       Log("Setting auth child name from command line is DEPRECATED. Use "
           "the XSECURELOCK_AUTH environment variable instead");
@@ -817,12 +833,24 @@ int main(int argc, char **argv) {
   black.pixel = BlackPixel(display, DefaultScreen(display));
   XQueryColor(display, DefaultColormap(display, DefaultScreen(display)),
               &black);
+
+  XColor xcolor_background;
+  XColor dummy;
+  int status = XAllocNamedColor(
+      display, DefaultColormap(display, DefaultScreen(display)),
+      GetStringSetting("XSECURELOCK_BACKGROUND_COLOR", "black"),
+      &xcolor_background, &dummy);
+  unsigned long background_pixel = black.pixel;
+  if (status != XcmsFailure) {
+    background_pixel = xcolor_background.pixel;
+  }
+
   Pixmap bg = XCreateBitmapFromData(display, root_window, "\0", 1, 1);
   Cursor default_cursor = XCreateFontCursor(display, XC_arrow);
   Cursor transparent_cursor =
       XCreatePixmapCursor(display, bg, bg, &black, &black, 0, 0);
   XSetWindowAttributes coverattrs = {0};
-  coverattrs.background_pixel = black.pixel;
+  coverattrs.background_pixel = background_pixel;
   coverattrs.save_under = 1;
   coverattrs.override_redirect = 1;
   coverattrs.cursor = transparent_cursor;
@@ -870,12 +898,16 @@ int main(int argc, char **argv) {
       // off themselves in response to a full-screen window, but nevertheless
       // this is kept opt-in for now until shown reliable.
       XSetWindowAttributes obscurerattrs = coverattrs;
-      obscurerattrs.background_pixel =
-          WhitePixel(display, DefaultScreen(display));
+      obscurerattrs.background_pixmap = XCreatePixmapFromBitmapData(
+          display, root_window, incompatible_compositor_bits,
+          incompatible_compositor_width, incompatible_compositor_height,
+          BlackPixel(display, DefaultScreen(display)),
+          WhitePixel(display, DefaultScreen(display)),
+          DefaultDepth(display, DefaultScreen(display)));
       obscurer_window = XCreateWindow(
           display, root_window, 1, 1, w - 2, h - 2, 0, CopyFromParent,
           InputOutput, CopyFromParent,
-          CWBackPixel | CWSaveUnder | CWOverrideRedirect | CWCursor,
+          CWBackPixmap | CWSaveUnder | CWOverrideRedirect | CWCursor,
           &obscurerattrs);
       SetWMProperties(display, obscurer_window, "xsecurelock", "obscurer", argc,
                       argv);
@@ -978,8 +1010,8 @@ int main(int argc, char **argv) {
         XIMPreeditNone | XIMStatusNothing,     // Status might be invisible.
         XIMPreeditNone | XIMStatusNone         // Standard handling.
     };
-    size_t i;
-    for (i = 0; i < sizeof(input_styles) / sizeof(input_styles[0]); ++i) {
+    for (size_t i = 0; i < sizeof(input_styles) / sizeof(input_styles[0]);
+         ++i) {
       // Note: we draw XIM stuff in auth_window so it's above the saver/auth
       // child. However, we receive events for the grab window.
       xic = XCreateIC(xim, XNInputStyle, input_styles[i], XNClientWindow,
@@ -1015,11 +1047,11 @@ int main(int argc, char **argv) {
 
   // Acquire all grabs we need. Retry in case the window manager is still
   // holding some grabs while starting XSecureLock.
-  int retries;
   int last_normal_attempt = force_grab ? 1 : 0;
   Window previous_focused_window = None;
   int previous_revert_focus_to = RevertToNone;
-  for (retries = 10; retries >= 0; --retries) {
+  int retries = 10;
+  for (; retries >= 0; --retries) {
     if (AcquireGrabs(display, root_window, my_windows, n_my_windows,
                      transparent_cursor,
                      /*silent=*/retries > last_normal_attempt,
@@ -1045,28 +1077,10 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  // Map our windows.
-  // This is done after grabbing so failure to grab does not blank the screen
-  // yet, thereby "confirming" the screen lock.
-  XMapRaised(display, background_window);
-  XClearWindow(display, background_window);  // Workaround for bad drivers.
-  XMapRaised(display, saver_window);
-  XRaiseWindow(display, auth_window);  // Don't map here.
-
-#ifdef HAVE_XCOMPOSITE_EXT
-  if (obscurer_window != None) {
-    // Map the obscurer window last so it should never become visible.
-    XMapRaised(display, obscurer_window);
-  }
-#endif
-
   if (MLOCK_PAGE(&priv, sizeof(priv)) < 0) {
     LogErrno("mlock");
     return EXIT_FAILURE;
   }
-
-  // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
-  XSetErrorHandler(JustLogErrorsHandler);
 
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
@@ -1074,6 +1088,10 @@ int main(int argc, char **argv) {
   sa.sa_handler = SIG_IGN;  // Don't die if auth child closes stdin.
   if (sigaction(SIGPIPE, &sa, NULL) != 0) {
     LogErrno("sigaction(SIGPIPE)");
+  }
+  sa.sa_handler = HandleSIGUSR2; // For remote wakeups by system events.
+  if (sigaction(SIGUSR2, &sa, NULL) != 0) {
+    LogErrno("sigaction(SIGUSR2)");
   }
   sa.sa_flags = SA_RESETHAND;     // It re-raises to suicide.
   sa.sa_handler = HandleSIGTERM;  // To kill children.
@@ -1086,7 +1104,52 @@ int main(int argc, char **argv) {
   // Need to flush the display so savers sure can access the window.
   XFlush(display);
 
+  // Figure out the initial Xss saver state. This gets updated by event.
   enum WatchChildrenState xss_requested_saver_state = WATCH_CHILDREN_NORMAL;
+#ifdef HAVE_XSCREENSAVER_EXT
+  if (scrnsaver_event_base != 0) {
+    XScreenSaverInfo *info = XScreenSaverAllocInfo();
+    XScreenSaverQueryInfo(display, root_window, info);
+    if (info->state == ScreenSaverOn && info->kind == ScreenSaverBlanked && saver_stop_on_blank) {
+      xss_requested_saver_state = WATCH_CHILDREN_SAVER_DISABLED;
+    }
+    XFree(info);
+  }
+#endif
+
+  InitBlankScreen();
+
+  XFlush(display);
+  if (WatchChildren(display, auth_window, saver_window, xss_requested_saver_state,
+                    NULL)) {
+    goto done;
+  }
+
+  // Wait for children to initialize.
+  struct timespec sleep_ts;
+  sleep_ts.tv_sec = saver_delay_ms / 1000;
+  sleep_ts.tv_nsec = (saver_delay_ms % 1000) * 1000000L;
+  nanosleep(&sleep_ts, NULL);
+
+  // Map our windows.
+  // This is done after grabbing so failure to grab does not blank the screen
+  // yet, thereby "confirming" the screen lock.
+  XMapRaised(display, saver_window);
+  XMapRaised(display, background_window);
+  XClearWindow(display, background_window);  // Workaround for bad drivers.
+  XRaiseWindow(display, auth_window);  // Don't map here.
+
+#ifdef HAVE_XCOMPOSITE_EXT
+  if (obscurer_window != None) {
+    // Map the obscurer window last so it should never become visible.
+    XMapRaised(display, obscurer_window);
+  }
+#endif
+  XFlush(display);
+
+  // Prevent X11 errors from killing XSecureLock. Instead, just keep going.
+  XSetErrorHandler(JustLogErrorsHandler);
+
   int x11_fd = ConnectionNumber(display);
 
   if (x11_fd == xss_sleep_lock_fd && xss_sleep_lock_fd != -1) {
@@ -1094,8 +1157,6 @@ int main(int argc, char **argv) {
         "inhibiting sleep now");
     xss_sleep_lock_fd = -1;
   }
-
-  InitBlankScreen();
 
   int background_window_mapped = 0, background_window_visible = 0,
       auth_window_mapped = 0, saver_window_mapped = 0,
@@ -1113,7 +1174,7 @@ int main(int argc, char **argv) {
 
     // Make sure to shut down the saver when blanked. Saves power.
     enum WatchChildrenState requested_saver_state =
-        blanked ? WATCH_CHILDREN_SAVER_DISABLED : xss_requested_saver_state;
+      (saver_stop_on_blank && blanked) ? WATCH_CHILDREN_SAVER_DISABLED : xss_requested_saver_state;
 
     // Now check status of our children.
     if (WatchChildren(display, auth_window, saver_window, requested_saver_state,
@@ -1156,6 +1217,22 @@ int main(int argc, char **argv) {
       int status;
       WaitProc("notify", &notify_command_pid, 0, 0, &status);
       // Otherwise, we're still alive. Re-check next time.
+    }
+
+    if (signal_wakeup) {
+      // A signal was received to request a wakeup. Clear the flag
+      // and proceed to auth. Technically this check involves a race
+      // condition between check and set since we don't block signals,
+      // but this should not make a difference since screen wakeup is
+      // idempotent.
+      signal_wakeup = 0;
+#ifdef DEBUG_EVENTS
+      Log("WakeUp on signal");
+#endif
+      UnblankScreen(display);
+      if (WakeUp(display, auth_window, saver_window, NULL)) {
+        goto done;
+      }
     }
 
     // Handle all events.
@@ -1510,10 +1587,6 @@ done:
   explicit_bzero(&priv, sizeof(priv));
 
   // Free our resources, and exit.
-  XDestroyWindow(display, auth_window);
-  XDestroyWindow(display, saver_window);
-  XDestroyWindow(display, background_window);
-
 #ifdef HAVE_XCOMPOSITE_EXT
   if (obscurer_window != None) {
     // Destroy the obscurer window first so it should never become visible.
@@ -1523,6 +1596,9 @@ done:
     XCompositeReleaseOverlayWindow(display, composite_window);
   }
 #endif
+  XDestroyWindow(display, auth_window);
+  XDestroyWindow(display, saver_window);
+  XDestroyWindow(display, background_window);
 
   XFreeCursor(display, transparent_cursor);
   XFreeCursor(display, default_cursor);

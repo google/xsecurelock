@@ -19,9 +19,11 @@ distribution of choice, but will be similar:
 
 *   apache2-utils (for the `auth_htpasswd` module)
 *   autotools-dev
+*   autoconf (for Ubuntu 18.04 and newer)
 *   binutils
 *   gcc
 *   libc6-dev
+*   libpam0g-dev (for Ubuntu 18.04 and newer)
 *   libpam-dev (for the `authproto_pam` module)
 *   libx11-dev
 *   libxcomposite-dev
@@ -120,6 +122,25 @@ IMPORTANT: Make sure your desktop environment does not launch any other locker,
 be it via autostart file or its own configuration, as multiple screen lockers
 may interfere with each other. You have been warned!
 
+## Authentication on resume from suspend/hibernate
+
+To have the authentication process start up without a keypress when
+the system exits suspend/hibernate, arrange for the system to send the
+`SIGUSR2` signal to the XSecureLock process.
+
+For example, you can copy the following script to the file
+`/usr/lib/systemd/system-sleep/xsecurelock`:
+
+```
+#!/bin/bash
+if [[ "$1" = "post" ]] ; then
+  pkill -x -USR2 xsecurelock
+fi
+exit 0
+```
+
+Don't forget to mark the script executable.
+
 # Automatic Locking
 
 To automatically lock the screen after some time of inactivity, use
@@ -217,6 +238,8 @@ Options to XSecureLock can be passed by environment variables:
     module (the part that talks to the system).
 *   `XSECURELOCK_AUTH_BACKGROUND_COLOR`: specifies the X11 color (see manpage of
     XParseColor) for the background of the auth dialog.
+*   `XSECURELOCK_AUTH_CURSOR_BLINK`: if set, the cursor will blink in the auth
+    dialog. Enabled by default, can be set to 0 to disable.
 *   `XSECURELOCK_AUTH_SOUNDS`: specifies whether to play sounds during
     authentication to indicate status. Sounds are defined as follows:
     *   High-pitch ascending: prompt for user input.
@@ -230,6 +253,8 @@ Options to XSecureLock can be passed by environment variables:
     the screen saver.
 *   `XSECURELOCK_AUTH_WARNING_COLOR`: specifies the X11 color (see manpage of
     XParseColor) for the warning text of the auth dialog.
+*   `XSECURELOCK_BACKGROUND_COLOR`: specifies the X11 color (see manpage
+    of XParseColor) for the background of the main and saver windows.
 *   `XSECURELOCK_BLANK_TIMEOUT`: specifies the time (in seconds) before telling
     X11 to fully blank the screen; a negative value disables X11 blanking. The
     time is measured since the closing of the auth window or xsecurelock
@@ -258,7 +283,7 @@ Options to XSecureLock can be passed by environment variables:
     screen from every side, and should otherwise be harmless, so it's enabled
     by default.
 *   `XSECURELOCK_DATETIME_FORMAT`: the date format to show. Defaults to the
-    locale settings.
+    locale settings. (see `man date` for possible formats)
 *   `XSECURELOCK_DEBUG_ALLOW_LOCKING_IF_INEFFECTIVE`: Normally we don't allow
     locking sessions that are likely not any useful to lock, such as the X11
     part of a Wayland session (one could still use Wayland applicatione when
@@ -311,7 +336,7 @@ Options to XSecureLock can be passed by environment variables:
     played by `saver_mpv`. Defaults to 1.
 *   `XSECURELOCK_KEY_%s_COMMAND` where `%s` is the name of an X11 keysym (find
     using `xev`): a shell command to execute when the specified key is pressed.
-    Useful e.g. for media player control. Beware: be cautiuous about what you
+    Useful e.g. for media player control. Beware: be cautious about what you
     run with this, as it may yield attackers control over your computer.
 *   `XSECURELOCK_LIST_VIDEOS_COMMAND`: shell command to list all video files to
     potentially play by `saver_mpv` or `saver_mplayer`. Defaults to
@@ -399,6 +424,8 @@ Options to XSecureLock can be passed by environment variables:
 *   `XSECURELOCK_SHOW_HOSTNAME`: whether to show the hostname on the login
     screen of `auth_x11`. Possible values are 0 for not showing the
     hostname, 1 for showing the short form, and 2 for showing the long form.
+*   `XSECURELOCK_SHOW_KEYBOARD_LAYOUT`: whether to show the name of the current
+    keyboard layout. Enabled by default.
 *   `XSECURELOCK_SHOW_USERNAME`: whether to show the username on the login
     screen of `auth_x11`.
 *   `XSECURELOCK_SINGLE_AUTH_WINDOW`: whether to show only a single auth window
@@ -407,12 +434,17 @@ Options to XSecureLock can be passed by environment variables:
     `Ctrl-Alt-O` are pressed (think "_other_ user"). Typical values could be
     `lxdm -c USER_SWITCH`, `dm-tool switch-to-greeter`, `gdmflexiserver` or
     `kdmctl reserve`, depending on your desktop environment.
+*   `XSECURELOCK_VIDEOS_FLAGS`: flags to append when invoking mpv/mplayer with
+    `saver_mpv` or `saver_mplayer`. Defaults to empty.
 *   `XSECURELOCK_WAIT_TIME_MS`: Milliseconds to wait after dimming (and before
     locking) when above xss-lock command line is used. Should be at least as
     large as the period time set using "xset s". Also used by `wait_nonidle` to
     know when to assume dimming and waiting has finished and exit.
-*   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
-    installed for use by `saver_xscreensaver`.
+*   `XSECURELOCK_SAVER_DELAY_MS`: Milliseconds to wait after starting
+    children process and before mapping windows to let children be
+    ready to display and reduce the black flash.
+*   `XSECURELOCK_SAVER_STOP_ON_BLANK`: specifies if saver is stopped
+    when screen is blanked (DPMS or XSS) to save power.
 *   `XSECURELOCK_XSCREENSAVER_PATH`: Location where XScreenSaver hacks are
     installed for use by `saver_xscreensaver`.
 
@@ -496,7 +528,8 @@ The screen saver module is a separate executable, whose name must start with
 `saver_` and be installed together with the included `auth_` modules (default
 location: `/usr/local/libexec/xsecurelock/helpers`).
 
-*   Input: none.
+*   Input: receives the 0-based index of the screen saver (remember: one saver
+    is started per display by the multiplexer) via `$XSCREENSAVER_SAVER_INDEX`.
 *   Output: it may draw on or create windows below `$XSCREENSAVER_WINDOW`.
 *   Exit condition: the saver child will receive SIGTERM when the user wishes to
     unlock the screen. It should exit promptly.
@@ -596,7 +629,7 @@ This has the following known issues:
 *   There is an open issue with the NVidia graphics driver in conjunction with
     some compositors. Workarounds include switching to the `nouveau` graphics
     driver, using a compositor that uses the Composite Overlay Window (e.g.
-    `compton` with the flag `--paint-on-overlay`) or passing
+    `compton` with the flags `--backend glx --paint-on-overlay`) or passing
     `XSECURELOCK_NO_COMPOSITE=1` to XSecureLock (which however may make
     notifications appear on top of the screen lock).
 
@@ -608,6 +641,17 @@ This has the following known issues:
     past but no longer does. Workarounds include disabling its compositor with
     `gsettings set org.gnome.metacity compositing-manager false` or passing
     `XSECURELOCK_NO_COMPOSITE=1` to XSecureLock.
+
+*   Picom doesn't remove windows in the required order causing a window with
+    the text "INCOMPATIBLE COMPOSITOR, PLEASE FIX!" to be displayed. To fix this
+    you can disable composite obscurer with `XSECURELOCK_COMPOSITE_OBSCURER=0`
+    to stop the window from being drawn all together.
+
+*   In general, most compositor issues will become visible in form of a text
+    "INCOMPATIBLE COMPOSITOR, PLEASE FIX!" being displayed. A known good
+    compositor is `compton --backend glx --paint-on-overlay`. In worst case
+    you can turn off our workaround for transparent windows by setting
+    `XSECURELOCK_NO_COMPOSITE=1`.
 
 # License
 
