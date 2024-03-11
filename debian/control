@@ -3,7 +3,7 @@ Section: x11
 Priority: optional
 Maintainer: Markus Teich <mteich@google.com>
 Uploaders: Rudolf Polzer <rpolzer@google.com>
-Build-Depends: debhelper (>= 12),
+Build-Depends: debhelper-compat (= 13),
   libc6,
   libpam-dev,
   libx11-dev,
@@ -16,7 +16,7 @@ Build-Depends: debhelper (>= 12),
   libxss-dev,
   pandoc,
   x11proto-core-dev
-Standards-Version: 4.3.0
+Standards-Version: 4.6.2
 Homepage: https://github.com/google/xsecurelock
 Vcs-Browser: https://github.com/google/xsecurelock/tree/debian
 Vcs-Git: https://github.com/google/xsecurelock.git -b debian
