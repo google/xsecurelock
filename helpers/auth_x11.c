@@ -1287,6 +1287,7 @@ int Prompt(const char *msg, char **response, int echo) {
                             &priv.last_keystroke);
           break;
         }
+        case '\033':  // Escape.
         case '\001':  // Ctrl-A.
           // Clearing input line on just Ctrl-A is odd - but commonly
           // requested. In most toolkits, Ctrl-A does not immediately erase but
@@ -1307,7 +1308,6 @@ int Prompt(const char *msg, char **response, int echo) {
                             &priv.last_keystroke);
           break;
         case 0:       // Shouldn't happen.
-        case '\033':  // Escape.
           done = 1;
           break;
         case '\r':  // Return.
